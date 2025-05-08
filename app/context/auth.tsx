@@ -37,15 +37,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Use InstantDB's auth hook
   const { user: instantUser, isLoading: authLoading } = instant.useAuth();
 
-  // Debug logging
-  console.log('InstantDB Auth State:', { instantUser, authLoading });
+  // We'll log auth state changes in the main effect
+
+  // Track if this is the first auth check
+  const isFirstAuthRef = React.useRef(true);
 
   // Update our user state when InstantDB auth changes
   useEffect(() => {
     const updateUserState = async () => {
       try {
         if (instantUser) {
-          console.log('User authenticated:', instantUser);
+          // Only log on initial authentication, not on subsequent renders
+          if (isFirstAuthRef.current) {
+            console.log('User authenticated with email:', instantUser.email);
+            isFirstAuthRef.current = false;
+          }
 
           // Set the user in state
           setUser({
@@ -55,11 +61,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           // Check if we need to redirect
           if (segments[0] === '(auth)') {
-            console.log('Redirecting to app home');
-            router.replace('/');
+            router.replace('/(primary)');
           }
         } else {
-          console.log('No authenticated user');
+          // Only log on initial check
+          if (isFirstAuthRef.current) {
+            console.log('No authenticated user');
+            isFirstAuthRef.current = false;
+          }
+
           setUser(null);
 
           // Check if we need to redirect
@@ -77,12 +87,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!authLoading) {
       updateUserState();
     }
-  }, [instantUser, authLoading, segments]);
+  }, [instantUser, authLoading, segments, router]);
 
   // Send magic code to email
   const signIn = async (email: string) => {
     try {
-      console.log('Sending magic code to:', email);
       setIsLoading(true);
 
       // Send the magic code
@@ -102,7 +111,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Verify magic code
   const verifyCode = async (email: string, code: string) => {
     try {
-      console.log('Verifying code for email:', email);
       setIsLoading(true);
 
       // Verify the magic code
@@ -122,7 +130,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Sign out
   const signOut = async () => {
     try {
-      console.log('Signing out');
       await instant.auth.signOut();
       // The auth hook will handle the redirect
     } catch (error) {
@@ -133,7 +140,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Show loading indicator while auth is initializing
   if (authLoading) {
-    console.log('Auth is loading, showing loading indicator');
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0066CC" />
@@ -141,7 +147,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     );
   }
 
-  console.log('Auth provider rendering children');
   return (
     <AuthContext.Provider value={{ user, isLoading, signIn, verifyCode, signOut }}>
       {children}

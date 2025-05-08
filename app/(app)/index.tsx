@@ -1,5 +1,5 @@
-import AIChat from '../aichat';
+import { Redirect } from 'expo-router';
 
 export default function Index() {
-  return <AIChat />;
+  return <Redirect href="/(primary)/workspace" />;
 }

@@ -3,15 +3,17 @@ import { useChat } from '@ai-sdk/react';
 import { fetch as expoFetch } from 'expo/fetch';
 import React from 'react';
 import {
-  View,
-  TextInput,
-  ScrollView,
-  Text,
-  SafeAreaView,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import TopBar from '../../components/TopBar';
 
 export default function AIChat() {
   const {
@@ -20,11 +22,17 @@ export default function AIChat() {
     handleInputChange,
     input,
     handleSubmit,
-    isLoading,
+    status,
   } = useChat({
     fetch: expoFetch as unknown as typeof globalThis.fetch,
     api: generateAPIUrl('/api/chat'),
-    onError: (error) => console.error(error, 'ERROR'),
+    onError: (error) => {
+      console.error('AI Chat Error:', error);
+      const errorMessage = error instanceof Error
+        ? `${error.message}. This may be due to an issue with the Groq API key or network connectivity.`
+        : 'Failed to communicate with AI. Please try again.';
+      Alert.alert('Error', errorMessage);
+    },
     maxSteps: 5,
   });
 
@@ -39,16 +47,32 @@ export default function AIChat() {
     }
   }, [messages]);
 
-  if (error) return <Text style={styles.errorText}>{error.message}</Text>;
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <TopBar title="AI Chat" />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Error: {error.message}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              // Reset the chat
+              handleSubmit(undefined as any, { data: { reset: true } });
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>AI Chat</Text>
-      </View>
-      
+      <TopBar title="AI Chat" />
+
       <View style={styles.chatContainer}>
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
@@ -61,8 +85,8 @@ export default function AIChat() {
             </View>
           ) : (
             messages.map((m) => (
-              <View 
-                key={m.id} 
+              <View
+                key={m.id}
                 style={[
                   styles.messageContainer,
                   m.role === 'user' ? styles.userMessage : styles.aiMessage
@@ -77,34 +101,42 @@ export default function AIChat() {
               </View>
             ))
           )}
-          
-          {isLoading && (
+
+          {(status === 'streaming' || status === 'submitted') && (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#0066CC" />
               <Text style={styles.loadingText}>AI is thinking...</Text>
             </View>
           )}
         </ScrollView>
-        
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."
             value={input}
-            onChangeText={(text) => 
+            onChangeText={(text) =>
               handleInputChange({
                 target: { value: text },
               } as unknown as React.ChangeEvent<HTMLInputElement>)
             }
             multiline
-            blurOnSubmit={false}
           />
-          <TouchableOpacity 
-            style={styles.sendButton}
-            onPress={() => handleSubmit(undefined as any)}
-            disabled={isLoading || !input.trim()}
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              ((status === 'streaming' || status === 'submitted') || !input.trim()) && styles.disabledButton
+            ]}
+            onPress={() => {
+              if (status === 'ready' && input.trim()) {
+                handleSubmit(undefined as any);
+              }
+            }}
+            disabled={(status === 'streaming' || status === 'submitted') || !input.trim()}
           >
-            <Text style={styles.sendButtonText}>Send</Text>
+            <Text style={styles.sendButtonText}>
+              {(status === 'streaming' || status === 'submitted') ? 'Sending...' : 'Send'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -115,7 +147,7 @@ export default function AIChat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   header: {
     padding: 16,
@@ -215,5 +247,27 @@ const styles = StyleSheet.create({
     color: 'red',
     padding: 20,
     textAlign: 'center',
+  },
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: '#999',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#0066CC',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

@@ -1,13 +1,14 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    ActivityIndicator,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import TopBar from '../../components/TopBar';
 import { useAuth } from '../context/auth';
 
 export default function ProfileScreen() {
@@ -29,9 +30,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Profile</Text>
-      </View>
+      <TopBar title="Profile" />
 
       <View style={styles.content}>
         <View style={styles.profileCard}>
@@ -72,13 +71,13 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   header: {
     padding: 16,

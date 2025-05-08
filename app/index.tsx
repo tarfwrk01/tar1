@@ -5,8 +5,6 @@ import { useAuth } from './context/auth';
 export default function Index() {
   const { user, isLoading } = useAuth();
 
-  console.log('Root index, user:', user, 'isLoading:', isLoading);
-
   // Show loading indicator while checking auth state
   if (isLoading) {
     return (
@@ -18,10 +16,8 @@ export default function Index() {
 
   // Redirect based on auth state
   if (user) {
-    console.log('User authenticated, redirecting to app');
-    return <Redirect href="/(app)" />;
+    return <Redirect href="/(primary)" />;
   } else {
-    console.log('No user, redirecting to login');
     return <Redirect href="/(auth)/login" />;
   }
 }
