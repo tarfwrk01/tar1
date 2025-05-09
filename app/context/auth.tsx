@@ -1,6 +1,6 @@
 import { instant } from '@/lib/instantdb';
 import { useRouter, useSegments } from 'expo-router';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 
 // Define user type
@@ -14,7 +14,7 @@ type User = {
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
-  signIn: (email: string) => Promise<void>;
+  signIn: (email: string, skipNavigation?: boolean) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<boolean>;
   signOut: () => void;
 };
@@ -26,6 +26,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 type AuthProviderProps = {
   children: React.ReactNode;
 };
+
+// We'll use refs instead of static flags for better component lifecycle management
 
 // Create auth provider
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -40,17 +42,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // We'll log auth state changes in the main effect
 
   // Track if this is the first auth check
-  const isFirstAuthRef = React.useRef(true);
+  const [isFirstAuth, setIsFirstAuth] = useState(true);
+
+  // Track if navigation is in progress to prevent multiple redirects
+  const navigationInProgressRef = useRef(false);
 
   // Update our user state when InstantDB auth changes
   useEffect(() => {
+    // Skip if auth is still loading
+    if (authLoading) return;
+
     const updateUserState = async () => {
       try {
         if (instantUser) {
           // Only log on initial authentication, not on subsequent renders
-          if (isFirstAuthRef.current) {
+          if (isFirstAuth) {
             console.log('User authenticated with email:', instantUser.email);
-            isFirstAuthRef.current = false;
+            setIsFirstAuth(false);
           }
 
           // Set the user in state
@@ -59,22 +67,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: instantUser.email
           });
 
-          // Check if we need to redirect
-          if (segments[0] === '(auth)') {
-            router.replace('/(primary)');
-          }
+          // Don't automatically redirect from auth screens
+          // The onboarding context will handle redirection based on onboarding status
+          console.log('User authenticated, current segment:', segments[0]);
         } else {
           // Only log on initial check
-          if (isFirstAuthRef.current) {
+          if (isFirstAuth) {
             console.log('No authenticated user');
-            isFirstAuthRef.current = false;
+            setIsFirstAuth(false);
           }
 
           setUser(null);
 
-          // Check if we need to redirect
-          if (segments[0] !== '(auth)' && segments[0] !== undefined) {
+          // Check if we need to redirect and not already navigating
+          if (segments[0] !== '(auth)' && segments[0] !== undefined && !navigationInProgressRef.current) {
+            console.log('Redirecting to login screen');
+
+            // Set navigation flag to prevent multiple redirects
+            navigationInProgressRef.current = true;
+
+            // Navigate directly without setTimeout
             router.replace('/(auth)/login');
+
+            // Reset navigation flag after a delay
+            setTimeout(() => {
+              navigationInProgressRef.current = false;
+            }, 1000);
           }
         }
       } catch (error) {
@@ -84,46 +102,175 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
-    if (!authLoading) {
-      updateUserState();
-    }
+    updateUserState();
   }, [instantUser, authLoading, segments, router]);
 
-  // Send magic code to email
-  const signIn = async (email: string) => {
+  // Use a ref to track sign-in in progress
+  const signInInProgressRef = useRef(false);
+
+  // Send magic code to email - fixed to prevent multiple refreshes
+  const signIn = async (email: string, skipNavigation = false) => {
+    console.log('[AUTH] signIn called with email:', email, 'skipNavigation:', skipNavigation);
+
+    // Prevent multiple calls with stronger protection
+    if (signInInProgressRef.current) {
+      console.log('[AUTH] Sign-in already in progress, ignoring duplicate call');
+      return;
+    }
+
+    // Lock immediately and don't reset until completely done
+    signInInProgressRef.current = true;
+
     try {
-      setIsLoading(true);
+      // Normalize the email
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log('[AUTH] Normalized email:', normalizedEmail);
 
-      // Send the magic code
-      await instant.auth.sendMagicCode({ email });
+      // Send magic code
+      console.log('[AUTH] Sending magic code...');
+      await instant.auth.sendMagicCode({
+        email: normalizedEmail,
+        options: {
+          expiresIn: 10 * 60,
+          codeLength: 6
+        }
+      });
 
-      // Navigate to verify screen with email as a query param
-      // Use replace instead of push to avoid navigation stack issues
-      router.replace(`/(auth)/verify?email=${encodeURIComponent(email)}`);
+      console.log('[AUTH] Magic code sent successfully');
+
+      // Check if we should skip navigation (for resend from verify screen)
+      if (skipNavigation) {
+        console.log('[AUTH] Skipping navigation as requested');
+        // Reset the lock immediately since we're not navigating
+        signInInProgressRef.current = false;
+        return;
+      }
+
+      // Check if we're already on the verify screen
+      const isAlreadyOnVerifyScreen = segments[0] === '(auth)' && segments[1] === 'verify';
+      if (isAlreadyOnVerifyScreen) {
+        console.log('[AUTH] Already on verify screen, skipping navigation');
+        // Reset the lock immediately since we're not navigating
+        signInInProgressRef.current = false;
+        return;
+      }
+
+      // IMPORTANT: Navigate directly without setTimeout to prevent multiple refreshes
+      console.log('[AUTH] Navigating to verify screen immediately');
+
+      // Set navigation flag to prevent multiple redirects
+      navigationInProgressRef.current = true;
+
+      // Navigate directly without setTimeout
+      router.replace({
+        pathname: '/(auth)/verify',
+        params: { email: normalizedEmail }
+      });
+
+      // Keep the lock active until component unmounts
+      // The lock will be reset when the component unmounts or after a timeout
+      setTimeout(() => {
+        console.log('[AUTH] Resetting navigation and sign-in locks after timeout');
+        navigationInProgressRef.current = false;
+        signInInProgressRef.current = false;
+      }, 2000); // Longer timeout to ensure navigation completes
+
+      return;
     } catch (error) {
-      console.error('Error sending magic code:', error);
-      Alert.alert('Error', 'Failed to send magic code. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('[AUTH] Error sending magic code:', error);
+
+      // Reset lock on error
+      signInInProgressRef.current = false;
+      navigationInProgressRef.current = false;
+
+      // Show appropriate error
+      if (error.message && error.message.includes('rate limit')) {
+        Alert.alert(
+          'Too Many Attempts',
+          'You have requested too many codes. Please wait a few minutes and try again.'
+        );
+      } else {
+        Alert.alert('Error', 'Failed to send magic code. Please try again.');
+      }
+
+      throw error; // Re-throw to let caller handle it
     }
   };
 
-  // Verify magic code
+  // Use a ref to track verification in progress
+  const verifyCodeInProgressRef = useRef(false);
+
+  // Verify magic code - fixed to prevent multiple refreshes
   const verifyCode = async (email: string, code: string) => {
+    console.log('[AUTH] verifyCode called with email:', email);
+
+    // Prevent multiple calls with stronger protection
+    if (verifyCodeInProgressRef.current) {
+      console.log('[AUTH] Verification already in progress, ignoring duplicate call');
+      return false;
+    }
+
+    // Lock immediately and don't reset until completely done
+    verifyCodeInProgressRef.current = true;
+
     try {
-      setIsLoading(true);
+      // Normalize the code
+      const normalizedCode = code.trim().replace(/\s+/g, '');
+      console.log('[AUTH] Normalized code:', normalizedCode);
 
       // Verify the magic code
-      await instant.auth.signInWithMagicCode({ email, code });
+      console.log('[AUTH] Verifying magic code...');
+      await instant.auth.signInWithMagicCode({
+        email,
+        code: normalizedCode,
+        options: {
+          expiresIn: 10 * 60,
+        }
+      });
 
-      // The auth hook will handle the redirect
+      console.log('[AUTH] Magic code verification successful');
+
+      // IMPORTANT: Navigate directly without setTimeout to prevent multiple refreshes
+      console.log('[AUTH] Navigating to onboarding welcome immediately');
+
+      // Set navigation flag to prevent multiple redirects
+      navigationInProgressRef.current = true;
+
+      // Navigate directly without setTimeout
+      router.replace('/(onboarding)/welcome');
+
+      // Keep the lock active until component unmounts
+      // The lock will be reset when the component unmounts or after a timeout
+      setTimeout(() => {
+        console.log('[AUTH] Resetting navigation and verification locks after timeout');
+        navigationInProgressRef.current = false;
+        verifyCodeInProgressRef.current = false;
+      }, 2000); // Longer timeout to ensure navigation completes
+
       return true;
     } catch (error) {
-      console.error('Error verifying code:', error);
-      Alert.alert('Error', 'Invalid code. Please try again.');
+      console.error('[AUTH] Error verifying code:', error);
+
+      // Reset lock on error
+      verifyCodeInProgressRef.current = false;
+      navigationInProgressRef.current = false;
+
+      // Show appropriate error
+      if (error.message && error.message.includes('Record not found: app-user-magic-code')) {
+        Alert.alert(
+          'Invalid Code',
+          'The verification code is invalid or has expired. Please request a new code and try again.'
+        );
+      } else if (error.message && error.message.includes('expired')) {
+        Alert.alert(
+          'Code Expired',
+          'The verification code has expired. Please request a new code.'
+        );
+      } else {
+        Alert.alert('Error', 'Failed to verify code. Please try again.');
+      }
+
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 

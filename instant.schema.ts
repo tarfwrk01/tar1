@@ -11,6 +11,13 @@ const _schema = i.schema({
     $users: i.entity({
       email: i.string().unique().indexed().optional(),
     }),
+    profile: i.entity({
+      userId: i.string().unique().indexed(),
+      name: i.string().optional(),
+      onboardingCompleted: i.boolean().optional(),
+      onboardingStep: i.number().optional(),
+      createdAt: i.string().optional(),
+    }),
     messages: i.entity({
       createdAt: i.string().optional(),
       text: i.string().optional(),

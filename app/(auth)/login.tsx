@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -18,7 +18,24 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  console.log('Login screen rendered');
+  // Use a single ref for submission state
+  const isSubmittingRef = useRef(false);
+
+  // Track component mounted state
+  const isMountedRef = useRef(true);
+
+  // Set up and clean up component lifecycle
+  useEffect(() => {
+    // Component mounted
+    console.log('[LOGIN] Screen mounted');
+    isMountedRef.current = true;
+
+    // Component cleanup
+    return () => {
+      console.log('[LOGIN] Screen unmounting');
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,7 +43,15 @@ export default function LoginScreen() {
   };
 
   const handleSignIn = async () => {
-    console.log('Sign in button pressed');
+    console.log('[LOGIN] Sign in button pressed');
+
+    // Prevent multiple submissions
+    if (isSubmitting || isSubmittingRef.current) {
+      console.log('[LOGIN] Already submitting, ignoring additional press');
+      return;
+    }
+
+    // Validate email
     if (!email.trim()) {
       setEmailError('Email is required');
       return;
@@ -37,17 +62,31 @@ export default function LoginScreen() {
       return;
     }
 
+    // Lock submission state
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setEmailError('');
+
     try {
-      setIsSubmitting(true);
-      setEmailError('');
-      console.log('Signing in with email:', email);
+      console.log('[LOGIN] Calling signIn with email:', email);
+
+      // Call signIn and let auth context handle navigation
       await signIn(email);
-      // The auth context will handle navigation
+
+      console.log('[LOGIN] signIn completed successfully');
+
+      // Don't reset state - component will unmount during navigation
     } catch (err) {
-      console.error('Error in handleSignIn:', err);
-      setEmailError('Something went wrong. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      console.error('[LOGIN] Error in handleSignIn:', err);
+
+      // Show error to user
+      if (isMountedRef.current) {
+        setEmailError('Something went wrong. Please try again.');
+        setIsSubmitting(false);
+      }
+
+      // Reset lock
+      isSubmittingRef.current = false;
     }
   };
 
@@ -61,35 +100,33 @@ export default function LoginScreen() {
           <Text style={styles.title}>Welcome</Text>
           <Text style={styles.subtitle}>Sign in to continue</Text>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                setEmailError('');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isSubmitting}
-            />
-            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              setEmailError('');
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSubmitting}
+          />
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
 
-            <TouchableOpacity
-              style={[styles.button, isSubmitting && styles.buttonDisabled]}
-              onPress={handleSignIn}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Send Magic Code</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Send Magic Code</Text>
+            )}
+          </TouchableOpacity>
 
           <Text style={styles.infoText}>
             We'll send a magic code to your email that you can use to sign in.
@@ -103,57 +140,46 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 24,
     justifyContent: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
+    marginBottom: 8,
+    color: '#000',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#666',
-    marginBottom: 30,
-  },
-  form: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 20,
+    marginBottom: 32,
   },
   label: {
     fontSize: 16,
-    marginBottom: 8,
-    color: '#333',
+    marginBottom: 12,
+    color: '#000',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
     padding: 12,
     fontSize: 16,
-    marginBottom: 10,
+    marginBottom: 24,
   },
   button: {
     backgroundColor: '#0066CC',
-    borderRadius: 8,
-    padding: 15,
+    borderRadius: 4,
+    padding: 16,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
+    marginBottom: 24,
   },
   buttonDisabled: {
     backgroundColor: '#99c2e8',
@@ -161,16 +187,17 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   errorText: {
     color: 'red',
-    marginBottom: 10,
+    marginBottom: 16,
+    fontSize: 14,
   },
   infoText: {
     textAlign: 'center',
     color: '#666',
     fontSize: 14,
-    marginTop: 20,
+    marginTop: 8,
   },
 });
