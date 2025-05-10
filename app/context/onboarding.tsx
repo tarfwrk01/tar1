@@ -13,6 +13,7 @@ type OnboardingContextType = {
   completeOnboarding: () => Promise<void>;
   updateOnboardingStep: (step: number) => Promise<void>;
   updateUserName: (name: string) => Promise<void>;
+  updateTursoDatabase: (dbName: string, dbId: string, apiToken: string) => Promise<void>;
 };
 
 // Create onboarding context
@@ -35,6 +36,10 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const router = useRouter();
   const segments = useSegments();
 
+  // Store a ref to track if the user has ever completed onboarding
+  // This helps prevent resetting onboardingCompleted to false for users who have completed it
+  const hasCompletedOnboardingRef = React.useRef<boolean>(false);
+
   // Add refs to track navigation and initialization state
   const isFirstLoad = React.useRef(true);
   const navigationInProgress = React.useRef(false);
@@ -47,7 +52,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       profile: {
         $: {
           where: { userId: user.id },
-          fields: ['onboardingCompleted', 'onboardingStep', 'name']
+          fields: ['onboardingCompleted', 'onboardingStep', 'name', 'tursoDbName', 'tursoDbId', 'tursoApiToken']
         }
       }
     } : null
@@ -90,6 +95,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       if (profileRecord.onboardingCompleted === true) {
         console.log('User has completed onboarding, setting status to completed');
         setIsOnboardingCompleted(true);
+        // Set the ref to remember that this user has completed onboarding
+        hasCompletedOnboardingRef.current = true;
+        console.log('Setting hasCompletedOnboardingRef to true');
       } else if (profileRecord.onboardingCompleted === false) {
         console.log('User has not completed onboarding, setting status to false');
         setIsOnboardingCompleted(false);
@@ -277,6 +285,14 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
       console.log('Checking if user already has completed onboarding in the past');
 
+      // First check our ref to see if we've already determined this user has completed onboarding
+      if (hasCompletedOnboardingRef.current) {
+        console.log('CRITICAL: hasCompletedOnboardingRef indicates user has already completed onboarding');
+        setIsOnboardingCompleted(true);
+        setIsLoading(false);
+        return; // Exit immediately, do not continue with initialization
+      }
+
       try {
         // CRITICAL CHECK: Before creating/updating any profile data, check if this user
         // has already completed onboarding in the past
@@ -290,6 +306,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           if (existingProfile.onboardingCompleted === true) {
             console.log('CRITICAL: User has already completed onboarding, preserving completed status');
             setIsOnboardingCompleted(true);
+            hasCompletedOnboardingRef.current = true; // Set the ref
             setIsLoading(false);
             return; // Exit immediately, do not continue with initialization
           }
@@ -300,11 +317,22 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             // Explicitly set to false to ensure the onboarding flow is shown
             setIsOnboardingCompleted(false);
           } else {
-            // If it's undefined or null, default to completed for returning users
-            console.log('IMPORTANT: Onboarding status is undefined/null, defaulting to completed for returning user');
-            setIsOnboardingCompleted(true);
-            setIsLoading(false);
-            return; // Exit immediately, do not continue with initialization
+            // If it's undefined or null for a new user, set to false to ensure they see onboarding
+            console.log('Onboarding status is undefined/null, checking if this is a new user');
+
+            // Check if this is a first-time login (no profile data or very recent creation)
+            const isNewUser = !existingProfile.createdAt ||
+                             (new Date().getTime() - new Date(existingProfile.createdAt).getTime() < 60000);
+
+            if (isNewUser) {
+              console.log('NEW USER DETECTED: Setting onboardingCompleted to false');
+              setIsOnboardingCompleted(false);
+            } else {
+              console.log('RETURNING USER: Setting onboardingCompleted to true');
+              setIsOnboardingCompleted(true);
+              setIsLoading(false);
+              return; // Exit immediately, do not continue with initialization
+            }
           }
         } else {
           console.log('No existing profile data found for user, this is a NEW USER');
@@ -314,6 +342,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       } catch (error) {
         console.error('Error checking existing profile:', error);
         // Continue with initialization even if check fails
+        // For safety, assume this is a new user if we can't determine status
+        console.log('Error determining user status, defaulting to NEW USER');
+        setIsOnboardingCompleted(false);
       }
 
       console.log('Initializing onboarding data for user:', user.id);
@@ -340,11 +371,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         };
 
         // Handle onboardingCompleted status based on user type
-        if (isReturningUser && existingOnboardingCompleted !== false) {
-          // For returning users, set onboardingCompleted to true ONLY if not explicitly false
-          console.log('RETURNING USER: Setting onboardingCompleted to true');
-          transactionData.onboardingCompleted = true;
-        } else if (isNewProfile) {
+        if (isNewProfile) {
           // For brand new profiles (first time users), ALWAYS set to false
           console.log('NEW USER: Setting onboardingCompleted to false for new profile');
           transactionData.onboardingCompleted = false;
@@ -357,8 +384,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           console.log('EXISTING USER: Preserving false onboardingCompleted value');
           transactionData.onboardingCompleted = false;
         } else {
-          // For new users (undefined/null), set to false to ensure they see onboarding
-          console.log('NEW USER: Setting undefined onboardingCompleted to false');
+          // For users with undefined/null onboardingCompleted, treat as new users
+          console.log('UNDEFINED STATUS: Setting onboardingCompleted to false to ensure onboarding is shown');
           transactionData.onboardingCompleted = false;
         }
 
@@ -436,8 +463,11 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       // Update local state
       setIsOnboardingCompleted(true);
 
+      // Set the ref to remember that this user has completed onboarding
+      hasCompletedOnboardingRef.current = true;
+
       // Log the current state to verify
-      console.log('Local state updated, onboardingCompleted:', true);
+      console.log('Local state updated, onboardingCompleted: true, hasCompletedOnboardingRef: true');
 
       setIsLoading(false);
 
@@ -468,12 +498,55 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       setIsLoading(true);
       console.log('Updating onboarding step to:', step, 'for user:', user.id);
 
-      // Use the correct transaction API
-      await instant.transact(
-        instant.tx.profile[user.id].update({
-          onboardingStep: step,
-        })
-      );
+      // Check if user has already completed onboarding
+      if (hasCompletedOnboardingRef.current) {
+        console.log('User has already completed onboarding, only updating step without changing completion status');
+      }
+
+      // Check if profile exists
+      const profileExists = profileData &&
+                           profileData.profile &&
+                           profileData.profile.length > 0;
+
+      if (!profileExists) {
+        console.log('Profile does not exist, creating it first');
+        // Create profile with userId and step
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id,
+            onboardingStep: step,
+            createdAt: new Date().toISOString(),
+            // Only set onboardingCompleted to false if user hasn't already completed onboarding
+            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false })
+          })
+        );
+      } else {
+        // Check if the profile has onboardingCompleted set to true
+        const hasCompletedOnboarding =
+          profileData?.profile?.[0]?.onboardingCompleted === true;
+
+        // If onboardingCompleted is true, preserve it
+        if (hasCompletedOnboarding) {
+          hasCompletedOnboardingRef.current = true;
+          console.log('Found onboardingCompleted=true in profile, preserving it');
+
+          // Update existing profile without changing onboardingCompleted
+          await instant.transact(
+            instant.tx.profile[user.id].update({
+              userId: user.id, // Always include userId to ensure it exists
+              onboardingStep: step,
+            })
+          );
+        } else {
+          // Update existing profile
+          await instant.transact(
+            instant.tx.profile[user.id].update({
+              userId: user.id, // Always include userId to ensure it exists
+              onboardingStep: step,
+            })
+          );
+        }
+      }
 
       console.log('Onboarding step updated successfully');
       setCurrentStep(step);
@@ -499,18 +572,111 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       // Store in global variable as backup
       global.userName = name;
 
-      // Use the correct transaction API
-      await instant.transact(
-        instant.tx.profile[user.id].update({
-          name,
-        })
-      );
+      // Check if profile exists
+      const profileExists = profileData &&
+                           profileData.profile &&
+                           profileData.profile.length > 0;
+
+      if (!profileExists) {
+        console.log('Profile does not exist, creating it first');
+        // Create profile with userId and name
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id,
+            name,
+            createdAt: new Date().toISOString(),
+            // Only set onboardingCompleted to false if user hasn't already completed onboarding
+            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false }),
+            onboardingStep: 1
+          })
+        );
+      } else {
+        // Check if the profile has onboardingCompleted set to true
+        const hasCompletedOnboarding =
+          profileData?.profile?.[0]?.onboardingCompleted === true;
+
+        // If onboardingCompleted is true, preserve it
+        if (hasCompletedOnboarding) {
+          hasCompletedOnboardingRef.current = true;
+          console.log('Found onboardingCompleted=true in profile, preserving it');
+        }
+
+        // Update existing profile without changing onboardingCompleted
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id, // Always include userId to ensure it exists
+            name,
+          })
+        );
+      }
 
       console.log('User name updated successfully');
       setIsLoading(false);
     } catch (error) {
       console.error('Error updating user name:', error);
       Alert.alert('Error', 'Failed to update user name. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  // Update Turso database information
+  const updateTursoDatabase = async (dbName: string, dbId: string, apiToken: string) => {
+    try {
+      if (!user) return;
+
+      setIsLoading(true);
+      console.log('Updating Turso database info for user:', user.id);
+      console.log('Database Name:', dbName);
+      console.log('Database ID:', dbId);
+      console.log('API Token:', apiToken ? 'Token provided' : 'No token provided');
+
+      // Check if profile exists
+      const profileExists = profileData &&
+                           profileData.profile &&
+                           profileData.profile.length > 0;
+
+      if (!profileExists) {
+        console.log('Profile does not exist, creating it first');
+        // Create profile with userId and database info
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id,
+            tursoDbName: dbName,
+            tursoDbId: dbId,
+            tursoApiToken: apiToken,
+            createdAt: new Date().toISOString(),
+            // Only set onboardingCompleted to false if user hasn't already completed onboarding
+            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false }),
+            onboardingStep: 3
+          })
+        );
+      } else {
+        // Check if the profile has onboardingCompleted set to true
+        const hasCompletedOnboarding =
+          profileData?.profile?.[0]?.onboardingCompleted === true;
+
+        // If onboardingCompleted is true, preserve it
+        if (hasCompletedOnboarding) {
+          hasCompletedOnboardingRef.current = true;
+          console.log('Found onboardingCompleted=true in profile, preserving it');
+        }
+
+        // Update existing profile without changing onboardingCompleted
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id, // Always include userId to ensure it exists
+            tursoDbName: dbName,
+            tursoDbId: dbId,
+            tursoApiToken: apiToken,
+          })
+        );
+      }
+
+      console.log('Turso database info updated successfully');
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error updating Turso database info:', error);
+      Alert.alert('Error', 'Failed to update database information. Please try again.');
       setIsLoading(false);
     }
   };
@@ -525,6 +691,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         completeOnboarding,
         updateOnboardingStep,
         updateUserName,
+        updateTursoDatabase,
       }}
     >
       {children}

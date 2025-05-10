@@ -17,6 +17,9 @@ const _schema = i.schema({
       onboardingCompleted: i.boolean().optional(),
       onboardingStep: i.number().optional(),
       createdAt: i.string().optional(),
+      tursoDbName: i.string().optional(),
+      tursoDbId: i.string().optional(),
+      tursoApiToken: i.string().optional(),
     }),
     messages: i.entity({
       createdAt: i.string().optional(),

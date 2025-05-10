@@ -12,7 +12,7 @@ import { useAuth } from '../context/auth';
 import { useOnboarding } from '../context/onboarding';
 
 export default function CompleteScreen() {
-  const { isLoading, completeOnboarding, userName } = useOnboarding();
+  const { isLoading, completeOnboarding, userName, updateOnboardingStep } = useOnboarding();
   const { user } = useAuth();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -33,6 +33,8 @@ export default function CompleteScreen() {
   const handleFinish = async () => {
     console.log('Finish button pressed');
     try {
+      // Update onboarding step to final step (4)
+      await updateOnboardingStep(4);
       await completeOnboarding();
       console.log('Onboarding completed successfully');
       // The onboarding context will handle navigation

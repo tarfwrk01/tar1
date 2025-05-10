@@ -51,8 +51,8 @@ export default function NameScreen() {
       await updateUserName(trimmedName);
       console.log('Name updated successfully, updating onboarding step to 2');
       await updateOnboardingStep(2);
-      console.log('Onboarding step updated successfully, navigating to complete screen');
-      router.push('/(onboarding)/complete');
+      console.log('Onboarding step updated successfully, navigating to database screen');
+      router.push('/(onboarding)/database');
     } catch (err) {
       console.error('Error in handleContinue:', err);
       setError('Something went wrong. Please try again.');
