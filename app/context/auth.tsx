@@ -128,6 +128,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Send magic code
       console.log('[AUTH] Sending magic code...');
+      // @ts-ignore - InstantDB types may be outdated
       await instant.auth.sendMagicCode({
         email: normalizedEmail,
         options: {
@@ -176,7 +177,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }, 2000); // Longer timeout to ensure navigation completes
 
       return;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AUTH] Error sending magic code:', error);
 
       // Reset lock on error
@@ -184,7 +185,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       navigationInProgressRef.current = false;
 
       // Show appropriate error
-      if (error.message && error.message.includes('rate limit')) {
+      if (error?.message && typeof error.message === 'string' && error.message.includes('rate limit')) {
         Alert.alert(
           'Too Many Attempts',
           'You have requested too many codes. Please wait a few minutes and try again.'
@@ -220,6 +221,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Verify the magic code
       console.log('[AUTH] Verifying magic code...');
+      // @ts-ignore - InstantDB types may be outdated
       await instant.auth.signInWithMagicCode({
         email,
         code: normalizedCode,
@@ -230,25 +232,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       console.log('[AUTH] Magic code verification successful');
 
-      // IMPORTANT: Navigate directly without setTimeout to prevent multiple refreshes
-      console.log('[AUTH] Navigating to onboarding welcome immediately');
+      // After successful authentication, the onboarding context will handle navigation
+      // based directly on the InstantDB profile data
+      console.log('[AUTH] Authentication successful - onboarding context will handle navigation');
 
-      // Set navigation flag to prevent multiple redirects
-      navigationInProgressRef.current = true;
-
-      // Navigate directly without setTimeout
-      router.replace('/(onboarding)/welcome');
-
-      // Keep the lock active until component unmounts
-      // The lock will be reset when the component unmounts or after a timeout
+      // Reset the locks after a delay
       setTimeout(() => {
-        console.log('[AUTH] Resetting navigation and verification locks after timeout');
+        console.log('[AUTH] Resetting verification locks after timeout');
         navigationInProgressRef.current = false;
         verifyCodeInProgressRef.current = false;
       }, 2000); // Longer timeout to ensure navigation completes
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AUTH] Error verifying code:', error);
 
       // Reset lock on error
@@ -256,16 +252,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       navigationInProgressRef.current = false;
 
       // Show appropriate error
-      if (error.message && error.message.includes('Record not found: app-user-magic-code')) {
-        Alert.alert(
-          'Invalid Code',
-          'The verification code is invalid or has expired. Please request a new code and try again.'
-        );
-      } else if (error.message && error.message.includes('expired')) {
-        Alert.alert(
-          'Code Expired',
-          'The verification code has expired. Please request a new code.'
-        );
+      if (error?.message && typeof error.message === 'string') {
+        if (error.message.includes('Record not found: app-user-magic-code')) {
+          Alert.alert(
+            'Invalid Code',
+            'The verification code is invalid or has expired. Please request a new code and try again.'
+          );
+        } else if (error.message.includes('expired')) {
+          Alert.alert(
+            'Code Expired',
+            'The verification code has expired. Please request a new code.'
+          );
+        } else {
+          Alert.alert('Error', 'Failed to verify code. Please try again.');
+        }
       } else {
         Alert.alert('Error', 'Failed to verify code. Please try again.');
       }

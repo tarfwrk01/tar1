@@ -1,11 +1,12 @@
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    BackHandler,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../components/TopBar';
@@ -14,6 +15,18 @@ import { useAuth } from '../context/auth';
 export default function ProfileScreen() {
   const { user, signOut, isLoading } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  // Handle back button press
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      console.log('Back button pressed in profile screen');
+      router.replace('/(primary)');
+      return true; // Prevent default behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   if (isLoading) {
     return (
@@ -54,7 +67,10 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={signOut}
+          onPress={() => {
+            console.log('Sign out button pressed');
+            signOut();
+          }}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -62,6 +78,13 @@ export default function ProfileScreen() {
           ) : (
             <Text style={styles.buttonText}>Sign Out</Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.replace('/(primary)')}
+        >
+          <Text style={styles.backButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -122,10 +145,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
+    marginBottom: 16,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  backButton: {
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  backButtonText: {
+    color: '#333',
+    fontSize: 16,
   },
 });

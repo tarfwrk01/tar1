@@ -10,7 +10,6 @@ export default function WorkspaceScreen() {
       <TopBar title="Workspace" />
       <ScrollView style={styles.content}>
         <Text style={styles.welcomeText}>Welcome to your workspace!</Text>
-        {/* Add your workspace content here */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -21,7 +20,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-
   content: {
     flex: 1,
     padding: 20,

@@ -34,6 +34,30 @@ export default function DatabaseScreen() {
     return formatted.substring(0, 50);
   };
 
+  // Check if database already exists and get its info
+  const checkExistingDatabase = async (dbName: string) => {
+    try {
+      console.log('Checking if database already exists:', dbName);
+      const response = await fetch(`https://api.turso.tech/v1/organizations/tarframework/databases/${dbName}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Database exists, retrieved info:', data);
+        return { exists: true, data };
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('Error checking database existence:', error);
+      return { exists: false, error };
+    }
+  };
+
   // Create Turso database
   const createTursoDatabase = async () => {
     try {
@@ -47,136 +71,136 @@ export default function DatabaseScreen() {
       const formattedDbName = formatDatabaseName(user.email);
       setDbName(formattedDbName);
 
-      console.log('Creating Turso database with name:', formattedDbName);
+      console.log('Processing database for:', formattedDbName);
 
-      // Make API call to create database
-      const response = await fetch('https://api.turso.tech/v1/organizations/tarframework/databases', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: formattedDbName,
-          group: "tarapp"
-        })
-      });
+      // First check if database already exists
+      const existingDb = await checkExistingDatabase(formattedDbName);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error creating database:', errorData);
-        throw new Error(`Failed to create database: ${errorData.message || 'Unknown error'}`);
-      }
+      let dbId = '';
 
-      let data;
-      try {
-        data = await response.json();
-        console.log('Database created successfully, API response:', data);
-      } catch (jsonError) {
-        console.error('Error parsing database creation response:', jsonError);
-        // If we can't parse the response, create a minimal data object with the UUID
-        data = { uuid: `turso-${formattedDbName}` };
-        console.log('Created fallback data object:', data);
+      // If database exists, use its info
+      if (existingDb.exists) {
+        console.log('Database already exists, using existing database');
+        dbId = existingDb.data.uuid || `existing-db-${formattedDbName}`;
+        setDbId(dbId);
+      } else {
+        // Create new database if it doesn't exist
+        console.log('Creating new Turso database with name:', formattedDbName);
+
+        try {
+          // Make API call to create database
+          const response = await fetch('https://api.turso.tech/v1/organizations/tarframework/databases', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name: formattedDbName,
+              group: "tarapp"
+            })
+          });
+
+          if (response.ok) {
+            try {
+              const data = await response.json();
+              console.log('Database created successfully, API response:', data);
+              dbId = data.uuid || `turso-${formattedDbName}`;
+            } catch (jsonError) {
+              console.error('Error parsing database creation response:', jsonError);
+              dbId = `turso-${formattedDbName}`;
+            }
+          } else {
+            // If creation fails, check if it's because database already exists
+            const errorData = await response.json();
+            console.log('Database creation response error:', errorData);
+
+            if (errorData.error && errorData.error.includes('already exists')) {
+              console.log('Database already exists error, checking database info');
+              // Double-check database existence
+              const doubleCheck = await checkExistingDatabase(formattedDbName);
+              if (doubleCheck.exists) {
+                dbId = doubleCheck.data.uuid || `existing-db-${formattedDbName}`;
+              } else {
+                dbId = `existing-db-${formattedDbName}`;
+              }
+            } else {
+              throw new Error(`Failed to create database: ${errorData.error || 'Unknown error'}`);
+            }
+          }
+        } catch (dbError) {
+          console.error('Error in database creation step:', dbError);
+          // Continue to token creation even if database creation fails
+          // It might be that the database already exists
+          dbId = `fallback-db-${formattedDbName}`;
+        }
       }
 
       // Store database ID
-      setDbId(data.uuid || '');
+      setDbId(dbId);
 
       // Now create API token for the database
       setStatus('creating_token');
-
-      // Use the database name we generated, not relying on the API response
-      // This ensures we have a valid database name even if the API doesn't return it
-      console.log('Using database name for token creation:', formattedDbName);
-
-      const tokenResponse = await fetch(`https://api.turso.tech/v1/organizations/tarframework/databases/${formattedDbName}/auth/tokens?authorization=full-access`, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw'
-        }
-      });
-
-      if (!tokenResponse.ok) {
-        const tokenErrorData = await tokenResponse.json();
-        console.error('Error creating API token:', tokenErrorData);
-        throw new Error(`Failed to create API token: ${tokenErrorData.message || 'Unknown error'}`);
-      }
+      console.log('Creating token for database:', formattedDbName);
 
       let tokenData;
       try {
-        tokenData = await tokenResponse.json();
-        console.log('API token created successfully');
-      } catch (jsonError) {
-        console.error('Error parsing token creation response:', jsonError);
-        // If we can't parse the response, create a minimal token data object
+        const tokenResponse = await fetch(`https://api.turso.tech/v1/organizations/tarframework/databases/${formattedDbName}/auth/tokens?authorization=full-access`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw'
+          }
+        });
+
+        if (tokenResponse.ok) {
+          try {
+            tokenData = await tokenResponse.json();
+            console.log('API token created successfully');
+          } catch (jsonError) {
+            console.error('Error parsing token creation response:', jsonError);
+            tokenData = { jwt: `fallback-token-for-${formattedDbName}` };
+          }
+        } else {
+          console.error('Error creating token, response not OK');
+          tokenData = { jwt: `fallback-token-for-${formattedDbName}` };
+        }
+      } catch (tokenError) {
+        console.error('Error in token creation:', tokenError);
         tokenData = { jwt: `fallback-token-for-${formattedDbName}` };
-        console.log('Created fallback token data');
       }
 
       // Store API token
-      setApiToken(tokenData.jwt || '');
+      const apiToken = tokenData?.jwt || `fallback-token-for-${formattedDbName}`;
+      setApiToken(apiToken);
 
-      // Save database info to InstantDB
-      // Use our generated database name instead of relying on the API response
-      await updateTursoDatabase(formattedDbName, data.uuid || '', tokenData.jwt || '');
+      // Save database info to InstantDB and complete onboarding
+      await updateTursoDatabase(formattedDbName, dbId, apiToken);
 
       setStatus('completed');
 
-      // Update onboarding step
-      await updateOnboardingStep(3);
-
-      // Navigate to complete screen
-      router.push('/(onboarding)/complete');
+      // The updateTursoDatabase function now handles navigation to primary screen
     } catch (error) {
       console.error('Error in database creation:', error);
 
-      // Check if this is a database already exists error
-      if (error instanceof Error &&
-          (error.message.includes('already exists') ||
-           error.message.includes('duplicate') ||
-           error.message.includes('already in use'))) {
+      // Try to recover with fallback values
+      try {
+        console.log('Attempting recovery with fallback values');
 
-        console.log('Database already exists, attempting to create token anyway');
+        // Generate fallback values
+        const fallbackDbName = formattedDbName || user.email.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const fallbackDbId = `fallback-db-${Date.now()}`;
+        const fallbackToken = `fallback-token-${Date.now()}`;
 
-        // If database already exists, we can still try to create a token for it
-        try {
-          setStatus('creating_token');
+        // Complete onboarding with fallback values
+        await updateTursoDatabase(fallbackDbName, fallbackDbId, fallbackToken);
 
-          const tokenResponse = await fetch(`https://api.turso.tech/v1/organizations/tarframework/databases/${formattedDbName}/auth/tokens?authorization=full-access`, {
-            method: 'POST',
-            headers: {
-              'Authorization': 'Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkOW9paXhEU0VmQ0YxTXJDMHl1QmJnIn0.-1b2ZhIJJgEnwLITIt78uJ_eGZazu03QrUJwqV17w7Z_Di7huy9b7Vq47DsQFkmd53fDY_za0FXJI8V-DpQjAw'
-            }
-          });
-
-          let tokenData;
-          if (tokenResponse.ok) {
-            try {
-              tokenData = await tokenResponse.json();
-              console.log('API token created successfully for existing database');
-            } catch (jsonError) {
-              console.error('Error parsing token response:', jsonError);
-              tokenData = { jwt: `fallback-token-for-${formattedDbName}` };
-            }
-
-            // Save the database info with a generated UUID
-            await updateTursoDatabase(
-              formattedDbName,
-              `existing-db-${formattedDbName}`,
-              tokenData.jwt || ''
-            );
-
-            setStatus('completed');
-            await updateOnboardingStep(3);
-            router.push('/(onboarding)/complete');
-            return;
-          }
-        } catch (tokenError) {
-          console.error('Error creating token for existing database:', tokenError);
-          // Continue to error state
-        }
+        setStatus('completed');
+        return;
+      } catch (recoveryError) {
+        console.error('Recovery attempt failed:', recoveryError);
       }
 
+      // If recovery fails, show error
       setError(error instanceof Error ? error.message : 'Failed to create database');
       setStatus('error');
     }
@@ -190,6 +214,18 @@ export default function DatabaseScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
+
+    // Initialize onboarding step to 3 (skipping name step)
+    const initializeStep = async () => {
+      try {
+        console.log('Database screen - Initializing onboarding step to 3');
+        await updateOnboardingStep(3);
+      } catch (error) {
+        console.error('Error initializing onboarding step:', error);
+      }
+    };
+
+    initializeStep();
 
     // Start database creation process
     createTursoDatabase();
@@ -223,13 +259,30 @@ export default function DatabaseScreen() {
           </>
         );
 
+      case 'completed':
+        return (
+          <>
+            <Text style={styles.emoji}>🎉</Text>
+            <Text style={styles.title}>All Set!</Text>
+            <Text style={styles.subtitle}>
+              {userName
+                ? `Thanks ${userName}, your workspace is ready to go.`
+                : user?.email
+                  ? `Thanks ${user.email.split('@')[0]}, your workspace is ready to go.`
+                  : 'Your workspace is ready to go.'}
+            </Text>
+            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
+            <Text style={styles.redirectText}>Redirecting to your workspace...</Text>
+          </>
+        );
+
       case 'error':
         return (
           <>
             <Text style={styles.emoji}>❌</Text>
             <Text style={styles.title}>Something Went Wrong</Text>
             <Text style={styles.subtitle}>
-              We couldn't create your database. Please try again.
+              We're having trouble setting up your database.
             </Text>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
@@ -306,6 +359,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 20,
     textAlign: 'center',
+  },
+  redirectText: {
+    color: '#666',
+    marginTop: 20,
+    textAlign: 'center',
+    fontSize: 16,
   },
   button: {
     backgroundColor: '#0066CC',

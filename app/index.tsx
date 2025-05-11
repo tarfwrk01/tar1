@@ -27,13 +27,13 @@ export default function Index() {
     if (!isLoading && user) {
       console.log('Root index - Ready to redirect, user authenticated');
 
-      // For returning users, always assume they've completed onboarding
-      // This prevents the flash of onboarding screen
-      if (isOnboardingCompleted === false) {
-        console.log('Root index - User not onboarded, navigating to welcome in useEffect');
+      // For new users or users who haven't completed onboarding, go to database screen
+      // Only users with isOnboardingCompleted === true should go to primary
+      if (isOnboardingCompleted !== true) {
+        console.log('Root index - User not onboarded, navigating directly to database screen in useEffect');
         navigationInProgress.current = true;
         setTimeout(() => {
-          router.replace('/(onboarding)/welcome');
+          router.replace('/(onboarding)/database');
         }, 100);
       } else {
         console.log('Root index - User onboarded, navigating to primary in useEffect');

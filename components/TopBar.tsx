@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Dimensions,
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Modal,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 interface TopBarProps {
@@ -20,8 +20,19 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
   const router = useRouter();
 
   const navigateToProfile = () => {
+    console.log('Navigating to profile screen');
     setModalVisible(false);
-    router.push('/(settings)/profile');
+
+    // Use a simple timeout to avoid navigation conflicts
+    setTimeout(() => {
+      // Use push instead of replace to create a new navigation entry
+      router.push({
+        pathname: '/(settings)/profile',
+        params: { from: 'topbar' }
+      });
+
+      console.log('Navigation to profile initiated');
+    }, 300);
   };
 
   const navigateToSettings = () => {
@@ -30,6 +41,8 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     // For now, we'll just close the modal
     console.log('Navigate to settings (not implemented)');
   };
+
+
 
   return (
     <>
@@ -114,7 +127,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 10,
     paddingHorizontal: 10,
-    paddingBottom: 0,
+    paddingBottom: 50, // Added bottom padding to ensure content doesn't overlap with bottom icons
     backgroundColor: 'white',
   },
   closeButton: {
@@ -127,8 +140,8 @@ const styles = StyleSheet.create({
   bottomIcons: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    paddingVertical: 8,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 36, // Increased bottom padding to ensure emojis are fully visible
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: '#eee',
@@ -141,12 +154,14 @@ const styles = StyleSheet.create({
   iconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48, // Increased width for more space
+    height: 48, // Increased height for more space
     marginRight: 16,
+    padding: 0, // Removed padding that was causing the emoji to be cut off
   },
   emojiIcon: {
     fontSize: 24,
+    textAlign: 'center', // Ensure text is centered
+    lineHeight: 48, // Match the height of the button for vertical centering
   },
 });

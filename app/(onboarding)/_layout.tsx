@@ -1,11 +1,15 @@
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/auth';
+import { useOnboarding } from '../context/onboarding';
 
 export default function OnboardingLayout() {
-  const { isLoading, user } = useAuth();
+  const { isLoading: authLoading, user } = useAuth();
+  const { isLoading: onboardingLoading } = useOnboarding();
+
+  const isLoading = authLoading || onboardingLoading;
 
   if (isLoading) {
     return (

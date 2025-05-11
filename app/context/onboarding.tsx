@@ -6,10 +6,11 @@ import { useAuth } from './auth';
 
 // Define onboarding context type
 type OnboardingContextType = {
-  isOnboardingCompleted: boolean;
+  isOnboardingCompleted: boolean | undefined;
   currentStep: number;
   isLoading: boolean;
   userName: string | null;
+  profileData: any; // Add profileData to context
   completeOnboarding: () => Promise<void>;
   updateOnboardingStep: (step: number) => Promise<void>;
   updateUserName: (name: string) => Promise<void>;
@@ -26,8 +27,7 @@ type OnboardingProviderProps = {
 
 // Create onboarding provider
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
-  // Start with undefined to avoid making assumptions about onboarding status
-  // We'll determine the actual value once we load profile data
+  // Start with undefined - onboardingCompleted will only be set to true when onboarding flow is completed
   const [isOnboardingCompleted, setIsOnboardingCompleted] = useState<boolean | undefined>(undefined);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -36,15 +36,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const router = useRouter();
   const segments = useSegments();
 
-  // Store a ref to track if the user has ever completed onboarding
-  // This helps prevent resetting onboardingCompleted to false for users who have completed it
-  const hasCompletedOnboardingRef = React.useRef<boolean>(false);
-
   // Add refs to track navigation and initialization state
   const isFirstLoad = React.useRef(true);
   const navigationInProgress = React.useRef(false);
   const lastNavigationTime = React.useRef(0);
   const profileInitialized = React.useRef(false);
+  const onboardingTransitionInProgress = React.useRef(false);
 
   // Get profile data from InstantDB
   const { data: profileData, error: profileError } = instant.useQuery(
@@ -80,7 +77,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   }, [user]);
 
-  // Update local state when profile data changes - fixed to ensure new users see onboarding
+  // Update local state when profile data changes - only set onboardingCompleted to true if it's true in the database
   useEffect(() => {
     console.log('Onboarding useEffect - profileData:', profileData, 'user:', user?.id, 'isFirstLoad:', isFirstLoad.current);
 
@@ -89,31 +86,14 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       const profileRecord = profileData.profile[0];
       console.log('Profile record found:', profileRecord);
 
-      // IMPORTANT: Always respect the onboardingCompleted value from the database
+      // IMPORTANT: Only set onboardingCompleted to true if it's true in the database
       console.log('ONBOARDING STATUS FROM DATABASE:', profileRecord.onboardingCompleted);
 
       if (profileRecord.onboardingCompleted === true) {
         console.log('User has completed onboarding, setting status to completed');
         setIsOnboardingCompleted(true);
-        // Set the ref to remember that this user has completed onboarding
-        hasCompletedOnboardingRef.current = true;
-        console.log('Setting hasCompletedOnboardingRef to true');
-      } else if (profileRecord.onboardingCompleted === false) {
-        console.log('User has not completed onboarding, setting status to false');
-        setIsOnboardingCompleted(false);
-      } else {
-        // If it's undefined or null, we need to determine if this is a new user
-        // Check if this is a first-time login (no profile data)
-        const isNewUser = !profileRecord.createdAt;
-
-        if (isNewUser) {
-          console.log('New user detected (no createdAt timestamp), setting onboardingCompleted to false');
-          setIsOnboardingCompleted(false);
-        } else {
-          console.log('Returning user detected, defaulting onboardingCompleted to true');
-          setIsOnboardingCompleted(true);
-        }
       }
+      // In all other cases, leave onboardingCompleted as undefined
 
       setCurrentStep(profileRecord.onboardingStep || 0);
 
@@ -121,8 +101,10 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       if (profileRecord.name) {
         console.log('Setting user name from profile:', profileRecord.name);
         setUserName(profileRecord.name);
-      } else if (global.userName) {
+      } else if (typeof global !== 'undefined' && 'userName' in global) {
+        // @ts-ignore - global variable for backup
         console.log('Setting user name from global variable:', global.userName);
+        // @ts-ignore - global variable for backup
         setUserName(global.userName);
       }
 
@@ -131,10 +113,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       // User is authenticated but no profile record found
       console.log('User authenticated but no profile record found');
 
+      // For new users, explicitly set onboardingCompleted to false
+      console.log('New user detected, setting onboardingCompleted to false');
+      setIsOnboardingCompleted(false);
+
       // Check if we've already tried to initialize the profile
       if (profileInitialized.current) {
         console.log('Profile initialization already attempted, skipping');
-        // Don't assume anything about onboarding status yet
         setIsLoading(false);
         return;
       }
@@ -142,14 +127,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       // Mark that we've attempted to initialize the profile
       profileInitialized.current = true;
 
-      // IMPORTANT: For brand new users (first time ever), set onboardingCompleted to false
-      console.log('No profile found for user - this is likely a NEW USER');
-      // Default to false for new users without a profile to ensure they see onboarding
-      setIsOnboardingCompleted(false);
-
-      // Initialize the profile data in the database with onboardingCompleted=false for new users
+      // Initialize the profile data in the database without setting onboardingCompleted
       console.log('Initializing profile data for new user');
-      initializeOnboardingData(false); // Pass false to indicate this is a new user
+      initializeOnboardingData();
     } else if (!user) {
       // No user, set loading to false
       console.log('No user, setting loading to false');
@@ -157,7 +137,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   }, [profileData, user]);
 
-  // Handle navigation based on onboarding status - fixed to properly handle undefined state
+  // Handle navigation based directly on InstantDB profile data
   useEffect(() => {
     // Prevent navigation if we're already navigating
     if (navigationInProgress.current) {
@@ -165,26 +145,22 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       return;
     }
 
-    // Skip navigation effect if we're already on the correct screen
-    // This prevents unnecessary refreshes
-    if (
-      (segments[0] === '(onboarding)' && isOnboardingCompleted === false) ||
-      (segments[0] === '(primary)' && isOnboardingCompleted === true)
-    ) {
-      console.log('Already on the correct screen, skipping navigation');
+    // Skip navigation if we're in the middle of an onboarding transition
+    if (onboardingTransitionInProgress.current) {
+      console.log('Onboarding transition in progress, skipping navigation');
       return;
     }
 
-    console.log('Navigation effect - isLoading:', isLoading, 'user:', user?.id, 'isOnboardingCompleted:', isOnboardingCompleted, 'segments:', segments);
+    console.log('Navigation effect - isLoading:', isLoading, 'user:', user?.id, 'segments:', segments);
 
     if (isLoading) {
       console.log('Still loading, skipping navigation');
       return;
     }
 
-    // Skip navigation if onboarding status is undefined - we don't know yet
-    if (isOnboardingCompleted === undefined) {
-      console.log('Onboarding status is undefined, waiting for it to be determined');
+    // Skip if no user or no profile data yet
+    if (!user || !profileData) {
+      console.log('No user or profile data yet, skipping navigation');
       return;
     }
 
@@ -195,71 +171,51 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       return;
     }
 
-    if (user) {
-      console.log('User is authenticated, checking onboarding status');
+    // Check directly from InstantDB profile data if onboarding is completed
+    const hasCompletedOnboarding =
+      profileData &&
+      profileData.profile &&
+      profileData.profile.length > 0 &&
+      profileData.profile[0].onboardingCompleted === true;
 
-      // Check if we have profile data that indicates onboarding is completed
-      const hasCompletedOnboarding =
-        profileData &&
-        profileData.profile &&
-        profileData.profile.length > 0 &&
-        profileData.profile[0].onboardingCompleted === true;
+    console.log('InstantDB profile onboardingCompleted status:', hasCompletedOnboarding);
 
-      // If we have profile data showing onboarding is completed, trust that
-      if (hasCompletedOnboarding && isOnboardingCompleted !== true) {
-        console.log('Profile data shows onboarding is completed, updating local state');
-        setIsOnboardingCompleted(true);
+    // Update local state to match database (for UI consistency)
+    if (hasCompletedOnboarding && isOnboardingCompleted !== true) {
+      console.log('Updating local state to match database: onboardingCompleted = true');
+      setIsOnboardingCompleted(true);
+    }
 
-        // If we're on an onboarding screen, redirect to primary
-        if (segments[0] === '(onboarding)') {
-          console.log('Redirecting to primary based on profile data');
-          navigationInProgress.current = true;
-          lastNavigationTime.current = now;
+    // Allow navigation to settings/profile screens even if onboarding is completed
+    if (segments[0] === '(settings)') {
+      console.log('User is on settings/profile screen, allowing navigation');
+      // Reset navigation flags to ensure future navigation works correctly
+      navigationInProgress.current = false;
+      return;
+    }
 
-          // Add a small delay to ensure state updates have propagated
-          setTimeout(() => {
-            router.replace('/(primary)');
-            // Reset navigation flag after a delay to allow for completion
-            setTimeout(() => {
-              navigationInProgress.current = false;
-            }, 1000);
-          }, 100);
-        }
-        return;
-      }
+    // If we're trying to navigate to profile, allow it
+    if (segments.join('/').includes('profile')) {
+      console.log('Navigation to profile detected, allowing navigation');
+      navigationInProgress.current = false;
+      return;
+    }
 
-      // Check if we have profile data that indicates onboarding is NOT completed
-      const hasNotCompletedOnboarding =
-        profileData &&
-        profileData.profile &&
-        profileData.profile.length > 0 &&
-        profileData.profile[0].onboardingCompleted === false;
+    // Skip navigation if we're already on the correct screen
+    if (
+      (segments[0] === '(onboarding)' && !hasCompletedOnboarding) ||
+      (segments[0] === '(primary)' && hasCompletedOnboarding)
+    ) {
+      console.log('Already on the correct screen, skipping navigation');
+      return;
+    }
 
-      // If we have profile data showing onboarding is not completed, trust that
-      if (hasNotCompletedOnboarding && isOnboardingCompleted !== false) {
-        console.log('Profile data shows onboarding is NOT completed, updating local state');
-        setIsOnboardingCompleted(false);
-      }
-
-      // At this point we know onboarding status is defined and accurate
-      if (isOnboardingCompleted === false) {
-        console.log('Onboarding not completed, current segment:', segments[0]);
-        // User needs to complete onboarding
-        if (segments[0] !== '(onboarding)') {
-          console.log('Redirecting to onboarding welcome');
-          navigationInProgress.current = true;
-          lastNavigationTime.current = now;
-
-          // Navigate immediately to prevent multiple refreshes
-          router.replace('/(onboarding)/welcome');
-
-          // Reset navigation flag after a delay to allow for completion
-          setTimeout(() => {
-            navigationInProgress.current = false;
-          }, 1000);
-        }
-      } else if (isOnboardingCompleted === true && segments[0] === '(onboarding)') {
-        console.log('Onboarding completed but user is on onboarding screen, redirecting to primary');
+    // Navigate based directly on the InstantDB profile data
+    if (hasCompletedOnboarding) {
+      // If onboarding is completed in the database, go to primary screen
+      // But only if not already on a settings screen
+      if (segments[0] !== '(primary)' && segments.join('/').indexOf('(settings)') === -1) {
+        console.log('Database shows onboarding is completed, redirecting to primary');
         navigationInProgress.current = true;
         lastNavigationTime.current = now;
 
@@ -271,11 +227,26 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           navigationInProgress.current = false;
         }, 1000);
       }
-    }
-  }, [user, isOnboardingCompleted, isLoading, segments, profileData]);
+    } else {
+      // If onboarding is not completed in the database, go to onboarding screen
+      if (segments[0] !== '(onboarding)') {
+        console.log('Database shows onboarding is not completed, redirecting to database screen');
+        navigationInProgress.current = true;
+        lastNavigationTime.current = now;
 
-  // Initialize onboarding data for new users - fixed to ensure new users see onboarding
-  const initializeOnboardingData = async (isReturningUser = false) => {
+        // Navigate immediately to prevent multiple refreshes
+        router.replace('/(onboarding)/database');
+
+        // Reset navigation flag after a delay to allow for completion
+        setTimeout(() => {
+          navigationInProgress.current = false;
+        }, 1000);
+      }
+    }
+  }, [user, isLoading, segments, profileData]);
+
+  // Initialize onboarding data for new users - only creates basic profile without setting onboardingCompleted
+  const initializeOnboardingData = async () => {
     try {
       if (!user) {
         console.log('No user to initialize onboarding data for');
@@ -285,66 +256,18 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
       console.log('Checking if user already has completed onboarding in the past');
 
-      // First check our ref to see if we've already determined this user has completed onboarding
-      if (hasCompletedOnboardingRef.current) {
-        console.log('CRITICAL: hasCompletedOnboardingRef indicates user has already completed onboarding');
-        setIsOnboardingCompleted(true);
-        setIsLoading(false);
-        return; // Exit immediately, do not continue with initialization
-      }
+      // First check the local profileData from the useQuery hook
+      if (profileData && profileData.profile && profileData.profile.length > 0) {
+        const existingProfile = profileData.profile[0];
+        console.log('EXISTING PROFILE CHECK:', existingProfile);
 
-      try {
-        // CRITICAL CHECK: Before creating/updating any profile data, check if this user
-        // has already completed onboarding in the past
-
-        // First check the local profileData from the useQuery hook
-        if (profileData && profileData.profile && profileData.profile.length > 0) {
-          const existingProfile = profileData.profile[0];
-          console.log('EXISTING PROFILE CHECK:', existingProfile);
-
-          // If user has already completed onboarding in the past, NEVER reset it
-          if (existingProfile.onboardingCompleted === true) {
-            console.log('CRITICAL: User has already completed onboarding, preserving completed status');
-            setIsOnboardingCompleted(true);
-            hasCompletedOnboardingRef.current = true; // Set the ref
-            setIsLoading(false);
-            return; // Exit immediately, do not continue with initialization
-          }
-
-          // If onboardingCompleted is explicitly set to false, respect that
-          if (existingProfile.onboardingCompleted === false) {
-            console.log('User has not completed onboarding yet, continuing with initialization');
-            // Explicitly set to false to ensure the onboarding flow is shown
-            setIsOnboardingCompleted(false);
-          } else {
-            // If it's undefined or null for a new user, set to false to ensure they see onboarding
-            console.log('Onboarding status is undefined/null, checking if this is a new user');
-
-            // Check if this is a first-time login (no profile data or very recent creation)
-            const isNewUser = !existingProfile.createdAt ||
-                             (new Date().getTime() - new Date(existingProfile.createdAt).getTime() < 60000);
-
-            if (isNewUser) {
-              console.log('NEW USER DETECTED: Setting onboardingCompleted to false');
-              setIsOnboardingCompleted(false);
-            } else {
-              console.log('RETURNING USER: Setting onboardingCompleted to true');
-              setIsOnboardingCompleted(true);
-              setIsLoading(false);
-              return; // Exit immediately, do not continue with initialization
-            }
-          }
-        } else {
-          console.log('No existing profile data found for user, this is a NEW USER');
-          // For brand new users with no profile, explicitly set to false
-          setIsOnboardingCompleted(false);
+        // If user has already completed onboarding in the past, NEVER reset it
+        if (existingProfile.onboardingCompleted === true) {
+          console.log('CRITICAL: User has already completed onboarding, preserving completed status');
+          setIsOnboardingCompleted(true);
+          setIsLoading(false);
+          return; // Exit immediately, do not continue with initialization
         }
-      } catch (error) {
-        console.error('Error checking existing profile:', error);
-        // Continue with initialization even if check fails
-        // For safety, assume this is a new user if we can't determine status
-        console.log('Error determining user status, defaulting to NEW USER');
-        setIsOnboardingCompleted(false);
       }
 
       console.log('Initializing onboarding data for user:', user.id);
@@ -370,24 +293,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           userId: user.id,
         };
 
-        // Handle onboardingCompleted status based on user type
-        if (isNewProfile) {
-          // For brand new profiles (first time users), ALWAYS set to false
-          console.log('NEW USER: Setting onboardingCompleted to false for new profile');
-          transactionData.onboardingCompleted = false;
-        } else if (existingOnboardingCompleted === true) {
+        // Handle onboardingCompleted status - only preserve true values, never set to false
+        if (existingOnboardingCompleted === true) {
           // If it was explicitly true before, keep it true
           console.log('EXISTING USER: Preserving true onboardingCompleted value');
           transactionData.onboardingCompleted = true;
-        } else if (existingOnboardingCompleted === false) {
-          // If it was explicitly false before, respect that
-          console.log('EXISTING USER: Preserving false onboardingCompleted value');
-          transactionData.onboardingCompleted = false;
-        } else {
-          // For users with undefined/null onboardingCompleted, treat as new users
-          console.log('UNDEFINED STATUS: Setting onboardingCompleted to false to ensure onboarding is shown');
-          transactionData.onboardingCompleted = false;
         }
+        // Otherwise, don't set onboardingCompleted at all
 
         // Only set onboardingStep for new profiles
         if (isNewProfile) {
@@ -405,16 +317,10 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         console.log('Profile created or updated successfully');
 
         // Update local state based on what we just saved
-        console.log('Setting onboarding status based on transaction:', transactionData.onboardingCompleted);
-
-        // Always use the transaction data for consistency
-        if (transactionData.onboardingCompleted !== undefined) {
-          setIsOnboardingCompleted(transactionData.onboardingCompleted);
-        } else if (isNewProfile) {
-          // For new users without explicit value, default to false
-          console.log('No explicit onboardingCompleted in transaction, defaulting to false for new user');
-          setIsOnboardingCompleted(false);
+        if (transactionData.onboardingCompleted === true) {
+          setIsOnboardingCompleted(true);
         }
+        // Otherwise leave onboardingCompleted as undefined
 
         // Set step to 0 for new profiles
         if (isNewProfile) {
@@ -433,7 +339,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   };
 
-  // Complete onboarding
+  // Complete onboarding - this is the ONLY place where onboardingCompleted gets set to true
   const completeOnboarding = async () => {
     try {
       if (!user) return;
@@ -450,7 +356,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       await instant.transact(
         instant.tx.profile[user.id].update({
           userId: user.id, // Ensure userId is set
-          onboardingCompleted: true,
+          onboardingCompleted: true, // This is the ONLY place where onboardingCompleted gets set to true
           // If we're creating a new record, set these defaults
           ...(isNewProfile && {
             createdAt: new Date().toISOString(),
@@ -463,11 +369,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       // Update local state
       setIsOnboardingCompleted(true);
 
-      // Set the ref to remember that this user has completed onboarding
-      hasCompletedOnboardingRef.current = true;
-
       // Log the current state to verify
-      console.log('Local state updated, onboardingCompleted: true, hasCompletedOnboardingRef: true');
+      console.log('Local state updated, onboardingCompleted: true');
 
       setIsLoading(false);
 
@@ -495,11 +398,19 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     try {
       if (!user) return;
 
+      // Set the transition lock to prevent navigation interruptions
+      onboardingTransitionInProgress.current = true;
+      console.log('Setting onboarding transition lock');
+
       setIsLoading(true);
       console.log('Updating onboarding step to:', step, 'for user:', user.id);
 
       // Check if user has already completed onboarding
-      if (hasCompletedOnboardingRef.current) {
+      const hasCompletedOnboarding =
+        profileData?.profile?.[0]?.onboardingCompleted === true ||
+        isOnboardingCompleted === true;
+
+      if (hasCompletedOnboarding) {
         console.log('User has already completed onboarding, only updating step without changing completion status');
       }
 
@@ -516,45 +427,36 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             userId: user.id,
             onboardingStep: step,
             createdAt: new Date().toISOString(),
-            // Only set onboardingCompleted to false if user hasn't already completed onboarding
-            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false })
+            // Only preserve true onboardingCompleted values
+            ...(hasCompletedOnboarding ? { onboardingCompleted: true } : {})
           })
         );
       } else {
-        // Check if the profile has onboardingCompleted set to true
-        const hasCompletedOnboarding =
-          profileData?.profile?.[0]?.onboardingCompleted === true;
-
-        // If onboardingCompleted is true, preserve it
-        if (hasCompletedOnboarding) {
-          hasCompletedOnboardingRef.current = true;
-          console.log('Found onboardingCompleted=true in profile, preserving it');
-
-          // Update existing profile without changing onboardingCompleted
-          await instant.transact(
-            instant.tx.profile[user.id].update({
-              userId: user.id, // Always include userId to ensure it exists
-              onboardingStep: step,
-            })
-          );
-        } else {
-          // Update existing profile
-          await instant.transact(
-            instant.tx.profile[user.id].update({
-              userId: user.id, // Always include userId to ensure it exists
-              onboardingStep: step,
-            })
-          );
-        }
+        // Update existing profile without changing onboardingCompleted
+        await instant.transact(
+          instant.tx.profile[user.id].update({
+            userId: user.id, // Always include userId to ensure it exists
+            onboardingStep: step,
+          })
+        );
       }
 
       console.log('Onboarding step updated successfully');
       setCurrentStep(step);
       setIsLoading(false);
+
+      // Release the transition lock after a delay to ensure navigation completes
+      setTimeout(() => {
+        console.log('Releasing onboarding transition lock');
+        onboardingTransitionInProgress.current = false;
+      }, 1000);
     } catch (error) {
       console.error('Error updating onboarding step:', error);
       Alert.alert('Error', 'Failed to update onboarding step. Please try again.');
       setIsLoading(false);
+
+      // Release the transition lock even on error
+      onboardingTransitionInProgress.current = false;
     }
   };
 
@@ -570,12 +472,18 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       setUserName(name);
 
       // Store in global variable as backup
+      // @ts-ignore - global variable for backup
       global.userName = name;
 
       // Check if profile exists
       const profileExists = profileData &&
                            profileData.profile &&
                            profileData.profile.length > 0;
+
+      // Check if user has already completed onboarding
+      const hasCompletedOnboarding =
+        profileData?.profile?.[0]?.onboardingCompleted === true ||
+        isOnboardingCompleted === true;
 
       if (!profileExists) {
         console.log('Profile does not exist, creating it first');
@@ -585,22 +493,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             userId: user.id,
             name,
             createdAt: new Date().toISOString(),
-            // Only set onboardingCompleted to false if user hasn't already completed onboarding
-            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false }),
+            // Only preserve true onboardingCompleted values
+            ...(hasCompletedOnboarding ? { onboardingCompleted: true } : {}),
             onboardingStep: 1
           })
         );
       } else {
-        // Check if the profile has onboardingCompleted set to true
-        const hasCompletedOnboarding =
-          profileData?.profile?.[0]?.onboardingCompleted === true;
-
-        // If onboardingCompleted is true, preserve it
-        if (hasCompletedOnboarding) {
-          hasCompletedOnboardingRef.current = true;
-          console.log('Found onboardingCompleted=true in profile, preserving it');
-        }
-
         // Update existing profile without changing onboardingCompleted
         await instant.transact(
           instant.tx.profile[user.id].update({
@@ -619,7 +517,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   };
 
-  // Update Turso database information
+  // Update Turso database information and complete onboarding
   const updateTursoDatabase = async (dbName: string, dbId: string, apiToken: string) => {
     try {
       if (!user) return;
@@ -635,45 +533,65 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
                            profileData.profile &&
                            profileData.profile.length > 0;
 
+      // Get user name from profile or use email if not available
+      const existingName = profileData?.profile?.[0]?.name;
+      const defaultName = user.email ? user.email.split('@')[0] : null;
+
       if (!profileExists) {
         console.log('Profile does not exist, creating it first');
         // Create profile with userId and database info
         await instant.transact(
           instant.tx.profile[user.id].update({
             userId: user.id,
+            name: existingName || defaultName, // Use existing name or default from email
             tursoDbName: dbName,
             tursoDbId: dbId,
             tursoApiToken: apiToken,
             createdAt: new Date().toISOString(),
-            // Only set onboardingCompleted to false if user hasn't already completed onboarding
-            ...(hasCompletedOnboardingRef.current ? { onboardingCompleted: true } : { onboardingCompleted: false }),
-            onboardingStep: 3
+            onboardingCompleted: true, // Set onboarding as completed
+            onboardingStep: 4 // Final step
           })
         );
       } else {
-        // Check if the profile has onboardingCompleted set to true
-        const hasCompletedOnboarding =
-          profileData?.profile?.[0]?.onboardingCompleted === true;
-
-        // If onboardingCompleted is true, preserve it
-        if (hasCompletedOnboarding) {
-          hasCompletedOnboardingRef.current = true;
-          console.log('Found onboardingCompleted=true in profile, preserving it');
-        }
-
-        // Update existing profile without changing onboardingCompleted
+        // Update existing profile and set onboardingCompleted to true
         await instant.transact(
           instant.tx.profile[user.id].update({
             userId: user.id, // Always include userId to ensure it exists
+            // Only set name if it doesn't exist already
+            ...(existingName ? {} : { name: defaultName }),
             tursoDbName: dbName,
             tursoDbId: dbId,
             tursoApiToken: apiToken,
+            onboardingCompleted: true, // Set onboarding as completed
+            onboardingStep: 4 // Final step
           })
         );
       }
 
-      console.log('Turso database info updated successfully');
+      // Update local state with name if we have it
+      if (existingName || defaultName) {
+        setUserName(existingName || defaultName);
+      }
+
+      console.log('Turso database info updated successfully and onboarding completed');
+
+      // Update local state
+      setIsOnboardingCompleted(true);
+      setCurrentStep(4);
       setIsLoading(false);
+
+      // Use navigation flags to prevent duplicate navigations
+      navigationInProgress.current = true;
+      lastNavigationTime.current = Date.now();
+
+      // Add a small delay to ensure state updates have propagated
+      setTimeout(() => {
+        router.replace('/(primary)');
+        // Reset navigation flag after a delay to allow for completion
+        setTimeout(() => {
+          navigationInProgress.current = false;
+        }, 1000);
+      }, 100);
     } catch (error) {
       console.error('Error updating Turso database info:', error);
       Alert.alert('Error', 'Failed to update database information. Please try again.');
@@ -688,6 +606,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         currentStep,
         isLoading,
         userName,
+        profileData, // Add profileData to context value
         completeOnboarding,
         updateOnboardingStep,
         updateUserName,
