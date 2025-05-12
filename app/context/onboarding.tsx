@@ -186,9 +186,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       setIsOnboardingCompleted(true);
     }
 
-    // Allow navigation to settings/profile screens even if onboarding is completed
-    if (segments[0] === '(settings)') {
-      console.log('User is on settings/profile screen, allowing navigation');
+    // Allow navigation to settings/profile/agents screens even if onboarding is completed
+    if (segments[0] === '(settings)' || segments[0] === '(agents)') {
+      console.log('User is on settings/profile/agents screen, allowing navigation');
       // Reset navigation flags to ensure future navigation works correctly
       navigationInProgress.current = false;
       return;
@@ -213,8 +213,10 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     // Navigate based directly on the InstantDB profile data
     if (hasCompletedOnboarding) {
       // If onboarding is completed in the database, go to primary screen
-      // But only if not already on a settings screen
-      if (segments[0] !== '(primary)' && segments.join('/').indexOf('(settings)') === -1) {
+      // But only if not already on a settings or agents screen
+      if (segments[0] !== '(primary)' &&
+          segments.join('/').indexOf('(settings)') === -1 &&
+          segments.join('/').indexOf('(agents)') === -1) {
         console.log('Database shows onboarding is completed, redirecting to primary');
         navigationInProgress.current = true;
         lastNavigationTime.current = now;

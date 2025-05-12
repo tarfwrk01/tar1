@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
@@ -238,10 +238,10 @@ export default function DatabaseScreen() {
       case 'creating':
         return (
           <>
-            <Text style={styles.emoji}>🔄</Text>
-            <Text style={styles.title}>Creating Your Database</Text>
+            <Text style={styles.emoji}>✨</Text>
+            <Text style={styles.title}>Setting Up</Text>
             <Text style={styles.subtitle}>
-              We're setting up a personal database for your workspace.
+              We're preparing your personal workspace.
             </Text>
             <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
           </>
@@ -250,10 +250,10 @@ export default function DatabaseScreen() {
       case 'creating_token':
         return (
           <>
-            <Text style={styles.emoji}>🔑</Text>
-            <Text style={styles.title}>Generating Access Keys</Text>
+            <Text style={styles.emoji}>🌟</Text>
+            <Text style={styles.title}>Almost Done</Text>
             <Text style={styles.subtitle}>
-              Almost there! We're creating secure access keys for your database.
+              Just a moment while we finish setting up your workspace.
             </Text>
             <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
           </>
@@ -262,7 +262,7 @@ export default function DatabaseScreen() {
       case 'completed':
         return (
           <>
-            <Text style={styles.emoji}>🎉</Text>
+            <Text style={styles.emoji}>⭐</Text>
             <Text style={styles.title}>All Set!</Text>
             <Text style={styles.subtitle}>
               {userName
@@ -279,10 +279,10 @@ export default function DatabaseScreen() {
       case 'error':
         return (
           <>
-            <Text style={styles.emoji}>❌</Text>
+            <Text style={styles.emoji}>💫</Text>
             <Text style={styles.title}>Something Went Wrong</Text>
             <Text style={styles.subtitle}>
-              We're having trouble setting up your database.
+              We're having trouble setting up your workspace.
             </Text>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity

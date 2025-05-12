@@ -23,16 +23,19 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     console.log('Navigating to profile screen');
     setModalVisible(false);
 
-    // Use a simple timeout to avoid navigation conflicts
-    setTimeout(() => {
-      // Use push instead of replace to create a new navigation entry
-      router.push({
+    // Navigate immediately without delay for instant transition
+    try {
+      // Use replace for instant transition without animation
+      router.replace({
         pathname: '/(settings)/profile',
         params: { from: 'topbar' }
       });
-
-      console.log('Navigation to profile initiated');
-    }, 300);
+      console.log('Instant navigation to profile initiated');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback if needed
+      router.navigate('/(settings)/profile');
+    }
   };
 
   const navigateToSettings = () => {
@@ -40,6 +43,23 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     // You can implement settings navigation here
     // For now, we'll just close the modal
     console.log('Navigate to settings (not implemented)');
+  };
+
+  const navigateToAgents = () => {
+    console.log('Navigating to agents screen');
+    setModalVisible(false);
+
+    // Navigate immediately without delay for instant transition
+    try {
+      // Use replace for instant transition without animation
+      router.replace('/(agents)');
+      console.log('Instant navigation to agents initiated');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback to another approach if needed
+      router.navigate('/(agents)');
+      console.log('Fallback navigation to agents initiated');
+    }
   };
 
 
@@ -80,6 +100,13 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
 
           {/* Bottom fixed icons */}
           <View style={styles.bottomIcons}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={navigateToAgents}
+            >
+              <Text style={styles.emojiIcon}>✨</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToProfile}

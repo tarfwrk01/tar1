@@ -4,7 +4,7 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/auth';
 
-export default function SettingsLayout() {
+export default function AgentsLayout() {
   const { isLoading, user } = useAuth();
 
   if (isLoading) {

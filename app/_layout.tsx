@@ -7,7 +7,20 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <OnboardingProvider>
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'none'
+          }}
+          initialRouteName="index"
+        >
+          <Stack.Screen name="(agents)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="(app)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="(primary)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="(settings)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="(onboarding)" options={{ headerShown: false, animation: 'none' }} />
+        </Stack>
       </OnboardingProvider>
     </AuthProvider>
   );

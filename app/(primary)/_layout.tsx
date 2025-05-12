@@ -48,6 +48,7 @@ export default function PrimaryLayout() {
         tabBarInactiveTintColor: '#999',
         headerShown: false,
         tabBarShowLabel: false,
+        animation: 'none',
         tabBarStyle: {
           height: 50,
           paddingBottom: 5,
