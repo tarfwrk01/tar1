@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
@@ -55,6 +55,169 @@ export default function DatabaseScreen() {
     } catch (error) {
       console.error('Error checking database existence:', error);
       return { exists: false, error };
+    }
+  };
+
+  // Create required tables in the database
+  const createMemoriesTable = async (dbName: string, apiToken: string) => {
+    try {
+      console.log('=== DATABASE TABLES CREATION START ===');
+      console.log('Creating tables in database:', dbName);
+      console.log('API Token available:', !!apiToken);
+      console.log('API Token length:', apiToken ? apiToken.length : 0);
+      if (apiToken) {
+        console.log('API Token preview:', `${apiToken.substring(0, 5)}...${apiToken.substring(apiToken.length - 5)}`);
+      }
+
+      // Construct the API URL
+      const apiUrl = `https://${dbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+      console.log('API URL:', apiUrl);
+
+      // Prepare request body with multiple table creation queries
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `CREATE TABLE IF NOT EXISTS memories (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL,
+                \`group\` TEXT NOT NULL
+              )`
+            }
+          },
+          {
+            type: "execute",
+            stmt: {
+              sql: `CREATE TABLE IF NOT EXISTS tableconfig (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                config TEXT NOT NULL
+              )`
+            }
+          }
+        ]
+      };
+
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Make API call to create the tables
+      console.log('Sending API request to create tables...');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('API Response Status:', response.status);
+      console.log('API Response Status Text:', response.statusText);
+
+      // Get response as text first for logging
+      const responseText = await response.text();
+      console.log('API Response Text:', responseText);
+
+      if (!response.ok) {
+        console.error('Failed to create tables. Response not OK.');
+        throw new Error(`Failed to create tables: ${responseText}`);
+      }
+
+      // Try to parse the response as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Tables creation response (parsed):', JSON.stringify(data, null, 2));
+
+        // Check for errors in the response
+        if (data.results && data.results.some(result => result.type === 'error')) {
+          const errorResult = data.results.find(result => result.type === 'error');
+          console.error('SQL Error in response:', errorResult.error);
+          throw new Error(`SQL Error: ${errorResult.error.message}`);
+        }
+
+        console.log('Tables created successfully');
+
+        // Verify table creation by querying the tables
+        await verifyTableCreation(apiUrl, apiToken);
+      } catch (parseError) {
+        console.error('Error parsing response as JSON:', parseError);
+        console.log('Using response text as data');
+        data = { text: responseText };
+      }
+
+      console.log('=== DATABASE TABLES CREATION COMPLETE ===');
+      console.log('Tables created successfully');
+      return data;
+    } catch (error) {
+      console.error('=== DATABASE TABLES CREATION ERROR ===');
+      console.error('Error creating tables:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('=== DATABASE TABLES CREATION ERROR END ===');
+      throw error;
+    }
+  };
+
+  // Verify table creation by querying the tables
+  const verifyTableCreation = async (apiUrl: string, apiToken: string) => {
+    try {
+      console.log('Verifying table creation by querying the tables...');
+
+      const verifyResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('memories', 'tableconfig')"
+              }
+            }
+          ]
+        })
+      });
+
+      const verifyText = await verifyResponse.text();
+      console.log('Verify tables query response:', verifyText);
+
+      try {
+        const verifyData = JSON.parse(verifyText);
+        console.log('Tables verification result:', JSON.stringify(verifyData, null, 2));
+
+        // Check if the tables exist in the verification response
+        if (verifyData.results &&
+            verifyData.results[0] &&
+            verifyData.results[0].type === 'success' &&
+            verifyData.results[0].rows) {
+
+          const tableNames = verifyData.results[0].rows.map(row => row.name);
+          console.log('Found tables:', tableNames);
+
+          if (tableNames.includes('memories')) {
+            console.log('✅ Memories table verified to exist in the database');
+          } else {
+            console.log('⚠️ Memories table not found in verification query');
+          }
+
+          if (tableNames.includes('tableconfig')) {
+            console.log('✅ Tableconfig table verified to exist in the database');
+          } else {
+            console.log('⚠️ Tableconfig table not found in verification query');
+          }
+
+        } else {
+          console.log('⚠️ No tables found in verification query');
+        }
+      } catch (parseError) {
+        console.error('Error parsing verification response:', parseError);
+      }
+    } catch (verifyError) {
+      console.error('Error verifying table creation:', verifyError);
     }
   };
 
@@ -173,6 +336,23 @@ export default function DatabaseScreen() {
       const apiToken = tokenData?.jwt || `fallback-token-for-${formattedDbName}`;
       setApiToken(apiToken);
 
+      // Create memories table in the database
+      setStatus('creating_tables');
+      console.log('=== DATABASE SETUP - PREPARING TO CREATE MEMORIES TABLE ===');
+      console.log('Database name:', formattedDbName);
+      console.log('API Token available:', !!apiToken);
+      console.log('API Token length:', apiToken ? apiToken.length : 0);
+      console.log('API Token preview:', apiToken ? `${apiToken.substring(0, 5)}...${apiToken.substring(apiToken.length - 5)}` : 'none');
+
+      try {
+        await createMemoriesTable(formattedDbName, apiToken);
+        console.log('Memories table created successfully');
+      } catch (tableError) {
+        console.error('Error creating memories table:', tableError);
+        console.error('Will continue with onboarding despite table creation failure');
+        // Continue with onboarding even if table creation fails
+      }
+
       // Save database info to InstantDB and complete onboarding
       await updateTursoDatabase(formattedDbName, dbId, apiToken);
 
@@ -190,6 +370,25 @@ export default function DatabaseScreen() {
         const fallbackDbName = formattedDbName || user.email.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const fallbackDbId = `fallback-db-${Date.now()}`;
         const fallbackToken = `fallback-token-${Date.now()}`;
+
+        // Try to create memories table with fallback values
+        console.log('=== RECOVERY - ATTEMPTING TO CREATE MEMORIES TABLE WITH FALLBACK VALUES ===');
+        console.log('Fallback database name:', fallbackDbName);
+        console.log('Fallback token available:', !!fallbackToken);
+        console.log('Fallback token length:', fallbackToken ? fallbackToken.length : 0);
+        if (fallbackToken) {
+          console.log('Fallback token preview:', `${fallbackToken.substring(0, 5)}...${fallbackToken.substring(fallbackToken.length - 5)}`);
+        }
+
+        try {
+          await createMemoriesTable(fallbackDbName, fallbackToken);
+          console.log('Memories table created successfully with fallback values');
+        } catch (tableError) {
+          console.error('Error creating memories table with fallback values:', tableError);
+          console.error('Error details:', tableError instanceof Error ? tableError.message : 'Unknown error');
+          console.error('Will continue with onboarding despite table creation failure in recovery mode');
+          // Continue with onboarding even if table creation fails
+        }
 
         // Complete onboarding with fallback values
         await updateTursoDatabase(fallbackDbName, fallbackDbId, fallbackToken);
@@ -254,6 +453,18 @@ export default function DatabaseScreen() {
             <Text style={styles.title}>Almost Done</Text>
             <Text style={styles.subtitle}>
               Just a moment while we finish setting up your workspace.
+            </Text>
+            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
+          </>
+        );
+
+      case 'creating_tables':
+        return (
+          <>
+            <Text style={styles.emoji}>📋</Text>
+            <Text style={styles.title}>Setting Up Tables</Text>
+            <Text style={styles.subtitle}>
+              Creating database tables for your workspace.
             </Text>
             <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
           </>

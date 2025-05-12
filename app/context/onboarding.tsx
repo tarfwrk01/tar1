@@ -15,6 +15,7 @@ type OnboardingContextType = {
   updateOnboardingStep: (step: number) => Promise<void>;
   updateUserName: (name: string) => Promise<void>;
   updateTursoDatabase: (dbName: string, dbId: string, apiToken: string) => Promise<void>;
+  ensureMemoriesTable: () => Promise<void>;
 };
 
 // Create onboarding context
@@ -539,6 +540,11 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       const existingName = profileData?.profile?.[0]?.name;
       const defaultName = user.email ? user.email.split('@')[0] : null;
 
+      console.log('Updating Turso database info for user:', user.id);
+      console.log('Database Name:', dbName);
+      console.log('Database ID:', dbId);
+      console.log('API Token:', apiToken ? 'Token provided' : 'No token');
+
       if (!profileExists) {
         console.log('Profile does not exist, creating it first');
         // Create profile with userId and database info
@@ -569,6 +575,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           })
         );
       }
+
+      console.log('Turso database info updated successfully and onboarding completed');
 
       // Update local state with name if we have it
       if (existingName || defaultName) {
@@ -601,6 +609,165 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   };
 
+  // Function to ensure required tables exist
+  const ensureMemoriesTable = async () => {
+    try {
+      setIsLoading(true);
+
+      if (!user) {
+        console.error('No authenticated user found');
+        return;
+      }
+
+      // Get profile data
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        console.error('Missing database credentials in profile');
+        return;
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      console.log('Ensuring required tables exist...');
+      console.log('Database Name:', tursoDbName);
+      console.log('API Token available:', !!tursoApiToken);
+
+      // Construct the API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Prepare request body with multiple table creation queries
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `CREATE TABLE IF NOT EXISTS memories (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL,
+                \`group\` TEXT NOT NULL
+              )`
+            }
+          },
+          {
+            type: "execute",
+            stmt: {
+              sql: `CREATE TABLE IF NOT EXISTS tableconfig (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                config TEXT NOT NULL
+              )`
+            }
+          }
+        ]
+      };
+
+      // Make API call to create the tables
+      console.log('Sending API request to create tables...');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('API Response Status:', response.status);
+
+      // Get response as text for logging
+      const responseText = await response.text();
+      console.log('API Response Text:', responseText);
+
+      if (!response.ok) {
+        console.error('Failed to create tables. Response not OK.');
+        throw new Error(`Failed to create tables: ${responseText}`);
+      }
+
+      // Try to parse the response as JSON
+      try {
+        const data = JSON.parse(responseText);
+        console.log('Tables creation response (parsed):', JSON.stringify(data, null, 2));
+
+        // Check for errors in the response
+        if (data.results && data.results.some(result => result.type === 'error')) {
+          const errorResult = data.results.find(result => result.type === 'error');
+          console.error('SQL Error in response:', errorResult.error);
+          throw new Error(`SQL Error: ${errorResult.error.message}`);
+        }
+
+        console.log('Tables created or verified successfully');
+
+        // Verify tables exist
+        await verifyTables(apiUrl, tursoApiToken);
+      } catch (parseError) {
+        console.error('Error parsing response as JSON:', parseError);
+      }
+
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error ensuring tables exist:', error);
+      setIsLoading(false);
+    }
+  };
+
+  // Function to verify tables exist
+  const verifyTables = async (apiUrl: string, apiToken: string) => {
+    try {
+      console.log('Verifying tables exist...');
+
+      const verifyResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('memories', 'tableconfig')"
+              }
+            }
+          ]
+        })
+      });
+
+      const verifyText = await verifyResponse.text();
+
+      try {
+        const verifyData = JSON.parse(verifyText);
+
+        // Check if the tables exist in the verification response
+        if (verifyData.results &&
+            verifyData.results[0] &&
+            verifyData.results[0].type === 'success' &&
+            verifyData.results[0].rows) {
+
+          const tableNames = verifyData.results[0].rows.map(row => row.name);
+          console.log('Found tables:', tableNames);
+
+          if (tableNames.includes('memories')) {
+            console.log('✅ Memories table verified to exist');
+          } else {
+            console.log('⚠️ Memories table not found');
+          }
+
+          if (tableNames.includes('tableconfig')) {
+            console.log('✅ Tableconfig table verified to exist');
+          } else {
+            console.log('⚠️ Tableconfig table not found');
+          }
+        } else {
+          console.log('⚠️ No tables found in verification query');
+        }
+      } catch (parseError) {
+        console.error('Error parsing verification response:', parseError);
+      }
+    } catch (verifyError) {
+      console.error('Error verifying tables:', verifyError);
+    }
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -613,6 +780,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         updateOnboardingStep,
         updateUserName,
         updateTursoDatabase,
+        ensureMemoriesTable,
       }}
     >
       {children}
