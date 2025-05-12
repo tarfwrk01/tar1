@@ -1,18 +1,18 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../components/TopBar';
 import { useOnboarding } from '../context/onboarding';
 
 export default function CommerceAgentScreen() {
-  const { ensureMemoriesTable, isLoading } = useOnboarding();
+  const { ensureMemoriesTable } = useOnboarding();
 
   // Ensure required database tables exist when component mounts
   useEffect(() => {
     const initializeCommerceAgent = async () => {
       console.log('Initializing commerce agent...');
       try {
-        // Ensure the required database tables exist (memories and tableconfig)
+        // Ensure the required database tables exist
         await ensureMemoriesTable();
         console.log('Commerce agent initialization complete');
       } catch (error) {
@@ -23,26 +23,21 @@ export default function CommerceAgentScreen() {
     initializeCommerceAgent();
   }, [ensureMemoriesTable]);
 
+  const handleInitiateCommerce = () => {
+    console.log('Initiating commerce modules...');
+    // Add commerce module initialization logic here
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <TopBar title="Commerce Agent" />
       <View style={styles.content}>
-        {isLoading ? (
-          <>
-            <Text style={styles.title}>Initializing Commerce Agent</Text>
-            <Text style={styles.subtitle}>
-              Setting up database tables for your commerce workspace...
-            </Text>
-            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
-          </>
-        ) : (
-          <>
-            <Text style={styles.title}>Commerce Agent</Text>
-            <Text style={styles.subtitle}>
-              This is the commerce agent interface.
-            </Text>
-          </>
-        )}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleInitiateCommerce}
+        >
+          <Text style={styles.buttonText}>Initiate Commerce Modules</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -55,25 +50,18 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-    color: '#333',
+  button: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#0066CC',
+    borderRadius: 8,
   },
-  subtitle: {
+  buttonText: {
+    color: '#fff',
     fontSize: 16,
-    textAlign: 'center',
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  loader: {
-    marginTop: 30,
+    fontWeight: '600',
   },
 });

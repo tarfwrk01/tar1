@@ -53,7 +53,7 @@ export default function AgentsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TopBar title="Commerce Agent" />
+      <TopBar title="Agents" />
 
       <View style={styles.content}>
         <FlatList
