@@ -68,13 +68,14 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     <>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <Text style={styles.title}>{title}</Text>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => setModalVisible(true)}
         >
           <Ionicons name="menu-outline" size={24} color="black" />
         </TouchableOpacity>
+        <Text style={styles.title}>{title}</Text>
+        <View style={styles.rightPlaceholder} />
       </View>
 
       {/* Full Screen Modal */}
@@ -98,27 +99,27 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
             {/* Empty content area - can be filled with other content later */}
           </View>
 
-          {/* Bottom fixed icons */}
+          {/* Bottom fixed icons - Left aligned without labels */}
           <View style={styles.bottomIcons}>
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToAgents}
             >
-              <Text style={styles.emojiIcon}>✨</Text>
+              <Text style={styles.emojiIcon}>🕹️</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToProfile}
             >
-              <Text style={styles.emojiIcon}>😊</Text>
+              <Text style={styles.emojiIcon}>👋</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToSettings}
             >
-              <Text style={styles.emojiIcon}>⚙️</Text>
+              <Text style={styles.emojiIcon}>🎮</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -145,16 +146,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: 'black',
+    flex: 1,
+    textAlign: 'center',
   },
   menuButton: {
     padding: 4,
+    width: 32,
+  },
+  rightPlaceholder: {
+    width: 32,
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'space-between',
     paddingTop: 10,
     paddingHorizontal: 10,
-    paddingBottom: 50, // Added bottom padding to ensure content doesn't overlap with bottom icons
+    paddingBottom: 50, // Adjusted for the smaller bottom bar
     backgroundColor: 'white',
   },
   closeButton: {
@@ -167,11 +174,11 @@ const styles = StyleSheet.create({
   bottomIcons: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    paddingTop: 16,
-    paddingBottom: 36, // Increased bottom padding to ensure emojis are fully visible
-    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#eaeaea',
     backgroundColor: 'white',
     position: 'absolute',
     bottom: 0,
@@ -181,14 +188,14 @@ const styles = StyleSheet.create({
   iconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 48, // Increased width for more space
-    height: 48, // Increased height for more space
+    width: 40,
+    height: 36,
     marginRight: 16,
-    padding: 0, // Removed padding that was causing the emoji to be cut off
+    padding: 0,
   },
   emojiIcon: {
-    fontSize: 24,
-    textAlign: 'center', // Ensure text is centered
-    lineHeight: 48, // Match the height of the button for vertical centering
+    fontSize: 18,
+    textAlign: 'center',
+    lineHeight: 36,
   },
 });

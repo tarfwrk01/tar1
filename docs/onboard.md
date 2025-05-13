@@ -24,10 +24,8 @@ profile: {
   userId: string;           // Unique user ID from authentication
   name: string;             // User's name (optional)
   onboardingCompleted: boolean; // Whether onboarding is completed
-  onboardingStep: number;   // Current onboarding step (0-4)
   createdAt: string;        // ISO timestamp of profile creation
   tursoDbName: string;      // Name of the user's Turso database
-  tursoDbId: string;        // ID of the user's Turso database
   tursoApiToken: string;    // API token for accessing the Turso database
 }
 ```
@@ -172,13 +170,55 @@ await instant.transact(
     userId: user.id,
     name: existingName || defaultName,
     tursoDbName: dbName,
-    tursoDbId: dbId,
     tursoApiToken: apiToken,
     createdAt: new Date().toISOString(),
-    onboardingCompleted: true,
-    onboardingStep: 4
+    onboardingCompleted: true
   })
 );
+```
+
+## Profile Loading State Management
+
+To prevent race conditions where the app might incorrectly treat an existing user as new, the onboarding context carefully tracks the loading state of profile data:
+
+```javascript
+// Get profile data from InstantDB with loading state
+const { data: profileData, error: profileError, isLoading: profileLoading } = instant.useQuery(
+  user ? {
+    profile: {
+      $: {
+        where: { userId: user.id },
+        fields: ['onboardingCompleted', 'name', 'tursoDbName', 'tursoApiToken']
+      }
+    }
+  } : null
+);
+```
+
+The app waits for profile data to fully load before making decisions about the user's onboarding status:
+
+```javascript
+// If profile data is still loading, don't make any assumptions
+if (profileLoading) {
+  console.log('Profile data is still loading, waiting for data...');
+  return;
+}
+```
+
+Only after confirming that profile data has finished loading and no profile was found, will the app consider a user as new:
+
+```javascript
+else if (user && !profileLoading) {
+  // Only consider a user as new if profile data has finished loading and no profile was found
+  console.log('User authenticated but no profile record found after loading completed');
+
+  // For new users, explicitly set onboardingCompleted to false
+  console.log('New user detected, setting onboardingCompleted to false');
+  setIsOnboardingCompleted(false);
+
+  // Initialize the profile data
+  initializeOnboardingData();
+}
 ```
 
 
@@ -200,6 +240,30 @@ After onboarding is completed, the user is redirected to the primary application
 router.replace('/(primary)');
 ```
 
+The navigation logic also respects the profile loading state to prevent premature navigation:
+
+```javascript
+// Skip navigation if profile data is still loading
+if (profileLoading) {
+  console.log('Profile data is still loading, skipping navigation');
+  return;
+}
+
+// Only navigate when we have complete information
+if (hasCompletedOnboarding) {
+  // If onboarding is completed in the database, go to primary screen
+  console.log('Database shows onboarding is completed, redirecting to primary');
+  navigationInProgress.current = true;
+  router.replace('/(primary)');
+}
+```
+
+The navigation effect includes `profileLoading` in its dependency array to ensure it responds to loading state changes:
+
+```javascript
+}, [user, isLoading, segments, profileData, profileLoading]);
+```
+
 ## InstantDB Schema
 
 The InstantDB schema used for storing user profiles:
@@ -218,10 +282,8 @@ const _schema = i.schema({
       userId: i.string().unique().indexed(),
       name: i.string().optional(),
       onboardingCompleted: i.boolean().optional(),
-      onboardingStep: i.number().optional(),
       createdAt: i.string().optional(),
       tursoDbName: i.string().optional(),
-      tursoDbId: i.string().optional(),
       tursoApiToken: i.string().optional(),
     }),
     messages: i.entity({
@@ -243,3 +305,40 @@ The onboarding UI consists of several screens:
 4. Completion screen
 
 Each screen shows appropriate loading indicators and error messages based on the current state of the onboarding process.
+
+## Race Condition Prevention
+
+The app includes safeguards to prevent race conditions during the onboarding process:
+
+1. **Profile Loading Detection**: The app explicitly tracks when profile data is loading and avoids making assumptions during this period.
+
+2. **Initialization Guards**: The `profileInitialized` ref prevents multiple initialization attempts:
+   ```javascript
+   // Check if we've already tried to initialize the profile
+   if (profileInitialized.current) {
+     console.log('Profile initialization already attempted, skipping');
+     setIsLoading(false);
+     return;
+   }
+
+   // Mark that we've attempted to initialize the profile
+   profileInitialized.current = true;
+   ```
+
+3. **Navigation Locks**: The app uses navigation locks to prevent multiple navigation attempts:
+   ```javascript
+   // Prevent navigation if we're already navigating
+   if (navigationInProgress.current) {
+     console.log('Navigation already in progress, skipping');
+     return;
+   }
+   ```
+
+4. **Transition Locks**: During critical transitions like updating onboarding steps, the app uses transition locks:
+   ```javascript
+   // Set the transition lock to prevent navigation interruptions
+   onboardingTransitionInProgress.current = true;
+   console.log('Setting onboarding transition lock');
+   ```
+
+These mechanisms work together to ensure that existing users are correctly identified and don't unnecessarily go through the onboarding process again, even when network conditions or loading times vary.

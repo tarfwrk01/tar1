@@ -14,7 +14,7 @@ type OnboardingContextType = {
   completeOnboarding: () => Promise<void>;
   updateOnboardingStep: (step: number) => Promise<void>;
   updateUserName: (name: string) => Promise<void>;
-  updateTursoDatabase: (dbName: string, dbId: string, apiToken: string) => Promise<void>;
+  updateTursoDatabase: (dbName: string, apiToken: string) => Promise<void>;
   ensureMemoriesTable: () => Promise<void>;
 };
 
@@ -45,12 +45,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const onboardingTransitionInProgress = React.useRef(false);
 
   // Get profile data from InstantDB
-  const { data: profileData, error: profileError } = instant.useQuery(
+  const { data: profileData, error: profileError, isLoading: profileLoading } = instant.useQuery(
     user ? {
       profile: {
         $: {
           where: { userId: user.id },
-          fields: ['onboardingCompleted', 'onboardingStep', 'name', 'tursoDbName', 'tursoDbId', 'tursoApiToken']
+          fields: ['onboardingCompleted', 'name', 'tursoDbName', 'tursoApiToken']
         }
       }
     } : null
@@ -82,6 +82,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   useEffect(() => {
     console.log('Onboarding useEffect - profileData:', profileData, 'user:', user?.id, 'isFirstLoad:', isFirstLoad.current);
 
+    // If profile data is still loading, don't make any assumptions
+    if (profileLoading) {
+      console.log('Profile data is still loading, waiting for data...');
+      return;
+    }
+
     if (profileData && profileData.profile && profileData.profile.length > 0) {
       // Profile record exists, update local state
       const profileRecord = profileData.profile[0];
@@ -96,8 +102,6 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       }
       // In all other cases, leave onboardingCompleted as undefined
 
-      setCurrentStep(profileRecord.onboardingStep || 0);
-
       // Set the user name if available
       if (profileRecord.name) {
         console.log('Setting user name from profile:', profileRecord.name);
@@ -110,9 +114,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       }
 
       setIsLoading(false);
-    } else if (user) {
-      // User is authenticated but no profile record found
-      console.log('User authenticated but no profile record found');
+    } else if (user && !profileLoading) {
+      // Only consider a user as new if profile data has finished loading and no profile was found
+      console.log('User authenticated but no profile record found after loading completed');
 
       // For new users, explicitly set onboardingCompleted to false
       console.log('New user detected, setting onboardingCompleted to false');
@@ -136,7 +140,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       console.log('No user, setting loading to false');
       setIsLoading(false);
     }
-  }, [profileData, user]);
+  }, [profileData, user, profileLoading]);
 
   // Handle navigation based directly on InstantDB profile data
   useEffect(() => {
@@ -153,6 +157,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
 
     console.log('Navigation effect - isLoading:', isLoading, 'user:', user?.id, 'segments:', segments);
+
+    // Skip navigation if profile data is still loading
+    if (profileLoading) {
+      console.log('Profile data is still loading, skipping navigation');
+      return;
+    }
 
     if (isLoading) {
       console.log('Still loading, skipping navigation');
@@ -246,7 +256,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         }, 1000);
       }
     }
-  }, [user, isLoading, segments, profileData]);
+  }, [user, isLoading, segments, profileData, profileLoading]);
 
   // Initialize onboarding data for new users - only creates basic profile without setting onboardingCompleted
   const initializeOnboardingData = async () => {
@@ -304,9 +314,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         }
         // Otherwise, don't set onboardingCompleted at all
 
-        // Only set onboardingStep for new profiles
+        // Set createdAt for new profiles
         if (isNewProfile) {
-          transactionData.onboardingStep = 0;
           transactionData.createdAt = new Date().toISOString();
         }
 
@@ -414,7 +423,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         isOnboardingCompleted === true;
 
       if (hasCompletedOnboarding) {
-        console.log('User has already completed onboarding, only updating step without changing completion status');
+        console.log('User has already completed onboarding');
       }
 
       // Check if profile exists
@@ -424,22 +433,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
       if (!profileExists) {
         console.log('Profile does not exist, creating it first');
-        // Create profile with userId and step
+        // Create profile with userId
         await instant.transact(
           instant.tx.profile[user.id].update({
             userId: user.id,
-            onboardingStep: step,
             createdAt: new Date().toISOString(),
             // Only preserve true onboardingCompleted values
             ...(hasCompletedOnboarding ? { onboardingCompleted: true } : {})
-          })
-        );
-      } else {
-        // Update existing profile without changing onboardingCompleted
-        await instant.transact(
-          instant.tx.profile[user.id].update({
-            userId: user.id, // Always include userId to ensure it exists
-            onboardingStep: step,
           })
         );
       }
@@ -497,8 +497,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             name,
             createdAt: new Date().toISOString(),
             // Only preserve true onboardingCompleted values
-            ...(hasCompletedOnboarding ? { onboardingCompleted: true } : {}),
-            onboardingStep: 1
+            ...(hasCompletedOnboarding ? { onboardingCompleted: true } : {})
           })
         );
       } else {
@@ -521,14 +520,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   };
 
   // Update Turso database information and complete onboarding
-  const updateTursoDatabase = async (dbName: string, dbId: string, apiToken: string) => {
+  const updateTursoDatabase = async (dbName: string, apiToken: string) => {
     try {
       if (!user) return;
 
       setIsLoading(true);
       console.log('Updating Turso database info for user:', user.id);
       console.log('Database Name:', dbName);
-      console.log('Database ID:', dbId);
       console.log('API Token:', apiToken ? 'Token provided' : 'No token provided');
 
       // Check if profile exists
@@ -542,7 +540,6 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
       console.log('Updating Turso database info for user:', user.id);
       console.log('Database Name:', dbName);
-      console.log('Database ID:', dbId);
       console.log('API Token:', apiToken ? 'Token provided' : 'No token');
 
       if (!profileExists) {
@@ -553,11 +550,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             userId: user.id,
             name: existingName || defaultName, // Use existing name or default from email
             tursoDbName: dbName,
-            tursoDbId: dbId,
             tursoApiToken: apiToken,
             createdAt: new Date().toISOString(),
-            onboardingCompleted: true, // Set onboarding as completed
-            onboardingStep: 4 // Final step
+            onboardingCompleted: true // Set onboarding as completed
           })
         );
       } else {
@@ -568,10 +563,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
             // Only set name if it doesn't exist already
             ...(existingName ? {} : { name: defaultName }),
             tursoDbName: dbName,
-            tursoDbId: dbId,
             tursoApiToken: apiToken,
-            onboardingCompleted: true, // Set onboarding as completed
-            onboardingStep: 4 // Final step
+            onboardingCompleted: true // Set onboarding as completed
           })
         );
       }
@@ -796,3 +789,6 @@ export function useOnboarding() {
   }
   return context;
 }
+
+// Add default export for the OnboardingProvider
+export default OnboardingProvider;

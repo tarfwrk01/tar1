@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
@@ -20,7 +20,6 @@ export default function DatabaseScreen() {
   const [status, setStatus] = useState('initializing');
   const [error, setError] = useState('');
   const [dbName, setDbName] = useState('');
-  const [dbId, setDbId] = useState('');
   const [apiToken, setApiToken] = useState('');
 
   // Format email to create a valid database name
@@ -239,13 +238,9 @@ export default function DatabaseScreen() {
       // First check if database already exists
       const existingDb = await checkExistingDatabase(formattedDbName);
 
-      let dbId = '';
-
       // If database exists, use its info
       if (existingDb.exists) {
         console.log('Database already exists, using existing database');
-        dbId = existingDb.data.uuid || `existing-db-${formattedDbName}`;
-        setDbId(dbId);
       } else {
         // Create new database if it doesn't exist
         console.log('Creating new Turso database with name:', formattedDbName);
@@ -268,10 +263,8 @@ export default function DatabaseScreen() {
             try {
               const data = await response.json();
               console.log('Database created successfully, API response:', data);
-              dbId = data.uuid || `turso-${formattedDbName}`;
             } catch (jsonError) {
               console.error('Error parsing database creation response:', jsonError);
-              dbId = `turso-${formattedDbName}`;
             }
           } else {
             // If creation fails, check if it's because database already exists
@@ -283,9 +276,9 @@ export default function DatabaseScreen() {
               // Double-check database existence
               const doubleCheck = await checkExistingDatabase(formattedDbName);
               if (doubleCheck.exists) {
-                dbId = doubleCheck.data.uuid || `existing-db-${formattedDbName}`;
+                console.log('Database confirmed to exist');
               } else {
-                dbId = `existing-db-${formattedDbName}`;
+                console.log('Database not found in double-check');
               }
             } else {
               throw new Error(`Failed to create database: ${errorData.error || 'Unknown error'}`);
@@ -295,12 +288,9 @@ export default function DatabaseScreen() {
           console.error('Error in database creation step:', dbError);
           // Continue to token creation even if database creation fails
           // It might be that the database already exists
-          dbId = `fallback-db-${formattedDbName}`;
+          console.log('Continuing with token creation despite database creation error');
         }
       }
-
-      // Store database ID
-      setDbId(dbId);
 
       // Now create API token for the database
       setStatus('creating_token');
@@ -354,7 +344,7 @@ export default function DatabaseScreen() {
       }
 
       // Save database info to InstantDB and complete onboarding
-      await updateTursoDatabase(formattedDbName, dbId, apiToken);
+      await updateTursoDatabase(formattedDbName, apiToken);
 
       setStatus('completed');
 
@@ -367,8 +357,7 @@ export default function DatabaseScreen() {
         console.log('Attempting recovery with fallback values');
 
         // Generate fallback values
-        const fallbackDbName = formattedDbName || user.email.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        const fallbackDbId = `fallback-db-${Date.now()}`;
+        const fallbackDbName = user?.email ? user.email.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : `user-${Date.now()}`;
         const fallbackToken = `fallback-token-${Date.now()}`;
 
         // Try to create memories table with fallback values
@@ -391,7 +380,7 @@ export default function DatabaseScreen() {
         }
 
         // Complete onboarding with fallback values
-        await updateTursoDatabase(fallbackDbName, fallbackDbId, fallbackToken);
+        await updateTursoDatabase(fallbackDbName, fallbackToken);
 
         setStatus('completed');
         return;
