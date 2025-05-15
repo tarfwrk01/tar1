@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../components/TopBar';
@@ -20,19 +20,48 @@ type AIAgent = {
 const aiAgents: AIAgent[] = [
   {
     id: '1',
-    name: 'Pin',
-    description: 'Commerce & agents',
-    icon: '📌',
+    name: 'Product',
+    description: 'Product management',
+    icon: '📦',
+  },
+  {
+    id: '2',
+    name: 'Sales',
+    description: 'Sales & CRM',
+    icon: '⚡',
+  },
+  {
+    id: '3',
+    name: 'Branding',
+    description: 'Brand identity & marketing',
+    icon: '🚀',
   },
 ];
 
 export default function AgentsScreen() {
   const router = useRouter();
 
+  const handleProductAgentPress = () => {
+    console.log('Product agent selected - navigating to config screen');
+    router.push('/(agents)/(products)/config' as any);
+  };
+
   const handleAgentPress = (agent: AIAgent) => {
-    // Navigate to the commerce agent setup screen
-    if (agent.id === '1') {
-      router.push('/(agents)/commerce');
+    // Navigate to the appropriate agent screen based on ID
+    switch (agent.id) {
+      case '1':
+        handleProductAgentPress();
+        break;
+      case '2':
+        console.log('Sales agent selected');
+        // Will navigate to sales agent screen when implemented
+        break;
+      case '3':
+        console.log('Branding agent selected');
+        // Will navigate to branding agent screen when implemented
+        break;
+      default:
+        console.log('Unknown agent selected');
     }
   };
 
@@ -112,4 +141,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+
 });

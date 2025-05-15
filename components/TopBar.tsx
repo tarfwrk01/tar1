@@ -147,7 +147,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'black',
     flex: 1,
-    textAlign: 'center',
+    textAlign: 'left',
+    marginLeft: 8, // Add some left margin for better spacing
   },
   menuButton: {
     padding: 4,
