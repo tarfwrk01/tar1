@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -8,7 +9,6 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import TopBar from '../../components/TopBar';
 
 type AIAgent = {
   id: string;
@@ -80,9 +80,25 @@ export default function AgentsScreen() {
     </TouchableOpacity>
   );
 
+  const handleBackPress = () => {
+    console.log('Navigating back to app index');
+    // Use replace for instant transition without animation
+    router.replace('/(app)');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <TopBar title="Agents" />
+      {/* Custom TopBar with back button */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBackPress}
+        >
+          <Ionicons name="arrow-back" size={24} color="black" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Agents</Text>
+        <View style={styles.rightPlaceholder} />
+      </View>
 
       <View style={styles.content}>
         <FlatList
@@ -101,6 +117,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    zIndex: 1,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'black',
+    flex: 1,
+    textAlign: 'left',
+    marginLeft: 8,
+  },
+  backButton: {
+    padding: 4,
+    width: 32,
+  },
+  rightPlaceholder: {
+    width: 32,
   },
   content: {
     flex: 1,
@@ -141,5 +183,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-
 });

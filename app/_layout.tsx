@@ -14,6 +14,7 @@ export default function RootLayout() {
           }}
           initialRouteName="index"
         >
+          <Stack.Screen name="index" options={{ headerShown: false, animation: 'none' }} />
           <Stack.Screen name="(agents)" options={{ headerShown: false, animation: 'none' }} />
           <Stack.Screen name="(app)" options={{ headerShown: false, animation: 'none' }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false, animation: 'none' }} />

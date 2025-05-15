@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Dimensions,
+    FlatList,
     Modal,
     SafeAreaView,
     StyleSheet,
@@ -10,6 +11,27 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+
+// Product sub-items data structure
+type ProductSubItem = {
+  id: string;
+  name: string;
+};
+
+const productSubItems: ProductSubItem[] = [
+  { id: '1', name: 'Products' },
+  { id: '2', name: 'Inventory' },
+  { id: '3', name: 'Categories' },
+  { id: '4', name: 'Collections' },
+  { id: '5', name: 'Vendors' },
+  { id: '6', name: 'Brands' },
+  { id: '7', name: 'Warehouses' },
+  { id: '8', name: 'Stores' },
+  { id: '9', name: 'Tags' },
+  { id: '10', name: 'Metafields' },
+  { id: '11', name: 'Options' },
+  { id: '12', name: 'Media' },
+];
 
 interface TopBarProps {
   title?: string;
@@ -62,7 +84,73 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     }
   };
 
+  const handleSubItemPress = (item: ProductSubItem) => {
+    console.log(`Selected ${item.name}`);
+    setModalVisible(false);
 
+    // Navigate to the appropriate screen based on the item name
+    switch (item.name.toLowerCase()) {
+      case 'products':
+        router.push('/(agents)/(products)/products' as any);
+        break;
+      case 'inventory':
+        router.push('/(agents)/(products)/inventory' as any);
+        break;
+      case 'categories':
+        router.push('/(agents)/(products)/categories' as any);
+        break;
+      case 'collections':
+        router.push('/(agents)/(products)/collections' as any);
+        break;
+      case 'vendors':
+        router.push('/(agents)/(products)/vendors' as any);
+        break;
+      case 'brands':
+        router.push('/(agents)/(products)/brands' as any);
+        break;
+      case 'warehouses':
+        router.push('/(agents)/(products)/warehouses' as any);
+        break;
+      case 'stores':
+        router.push('/(agents)/(products)/stores' as any);
+        break;
+      case 'tags':
+        router.push('/(agents)/(products)/tags' as any);
+        break;
+      case 'metafields':
+        router.push('/(agents)/(products)/metafields' as any);
+        break;
+      case 'options':
+        router.push('/(agents)/(products)/options' as any);
+        break;
+      case 'media':
+        router.push('/(agents)/(products)/media' as any);
+        break;
+      default:
+        console.log(`No route defined for ${item.name}`);
+    }
+  };
+
+  const renderSubItem = ({ item }: { item: ProductSubItem }) => (
+    <TouchableOpacity
+      style={styles.subItemContainer}
+      onPress={() => handleSubItemPress(item)}
+    >
+      <Text style={styles.subItemText}>{item.name}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderProductSection = () => (
+    <View style={styles.productSection}>
+      <Text style={styles.sectionHeader}>Product</Text>
+      <FlatList
+        data={productSubItems}
+        renderItem={renderSubItem}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
+  );
 
   return (
     <>
@@ -86,17 +174,17 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
         onRequestClose={() => setModalVisible(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
-          {/* Close button */}
+          {/* Down arrow button */}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setModalVisible(false)}
           >
-            <Ionicons name="close" size={28} color="#333" />
+            <Ionicons name="chevron-down" size={28} color="#333" />
           </TouchableOpacity>
 
           {/* Modal content */}
           <View style={styles.modalContent}>
-            {/* Empty content area - can be filled with other content later */}
+            {renderProductSection()}
           </View>
 
           {/* Bottom fixed icons - Left aligned without labels */}
@@ -171,6 +259,27 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+    paddingTop: 10,
+  },
+  productSection: {
+    flex: 1,
+  },
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    paddingHorizontal: 10,
+  },
+  subItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  subItemText: {
+    fontSize: 16,
   },
   bottomIcons: {
     flexDirection: 'row',
