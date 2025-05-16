@@ -11,12 +11,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-
-// Product sub-items data structure
-type ProductSubItem = {
-  id: string;
-  name: string;
-};
+import { ProductSubItem, useProduct } from '../app/context/product';
 
 const productSubItems: ProductSubItem[] = [
   { id: '1', name: 'Products' },
@@ -50,6 +45,7 @@ export default function TopBar({
   const [selectedSection, setSelectedSection] = useState('Menu');
   const router = useRouter();
   const pathname = usePathname();
+  const { selectedProduct, setSelectedProduct } = useProduct();
 
   // Determine the current section based on the pathname
   useEffect(() => {
@@ -111,46 +107,12 @@ export default function TopBar({
     console.log(`Selected ${item.name}`);
     setModalVisible(false);
 
-    // Navigate to the appropriate screen based on the item name
-    switch (item.name.toLowerCase()) {
-      case 'products':
-        router.push('/(agents)/(products)/products' as any);
-        break;
-      case 'inventory':
-        router.push('/(agents)/(products)/inventory' as any);
-        break;
-      case 'categories':
-        router.push('/(agents)/(products)/categories' as any);
-        break;
-      case 'collections':
-        router.push('/(agents)/(products)/collections' as any);
-        break;
-      case 'vendors':
-        router.push('/(agents)/(products)/vendors' as any);
-        break;
-      case 'brands':
-        router.push('/(agents)/(products)/brands' as any);
-        break;
-      case 'warehouses':
-        router.push('/(agents)/(products)/warehouses' as any);
-        break;
-      case 'stores':
-        router.push('/(agents)/(products)/stores' as any);
-        break;
-      case 'tags':
-        router.push('/(agents)/(products)/tags' as any);
-        break;
-      case 'metafields':
-        router.push('/(agents)/(products)/metafields' as any);
-        break;
-      case 'options':
-        router.push('/(agents)/(products)/options' as any);
-        break;
-      case 'media':
-        router.push('/(agents)/(products)/media' as any);
-        break;
-      default:
-        console.log(`No route defined for ${item.name}`);
+    // Set the selected product in context
+    setSelectedProduct(item);
+
+    // Navigate to primary workspace if not already there
+    if (!pathname.includes('/(primary)')) {
+      router.replace('/(primary)');
     }
   };
 
@@ -193,7 +155,7 @@ export default function TopBar({
             onPress={() => setModalVisible(true)}
             activeOpacity={1} // Prevent background color change on tap
           >
-            <Text style={styles.menuCardText}>{selectedSection}</Text>
+            <Text style={styles.menuCardText}>{selectedProduct ? selectedProduct.name : selectedSection}</Text>
           </TouchableOpacity>
         )}
         <View style={styles.rightPlaceholder}>
