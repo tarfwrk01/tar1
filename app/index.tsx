@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from './context/auth';
 import { useOnboarding } from './context/onboarding';
 
@@ -51,22 +51,55 @@ export default function Index() {
     }
   }, [authLoading, onboardingLoading, user, isOnboardingCompleted, isLoading, router]);
 
-  // Show loading indicator while checking auth state and onboarding status
-  if (isLoading) {
-    console.log('Root index - Still loading, showing loading indicator');
+  // Custom splash screen with the icon.png image
+  const renderSplashScreen = () => {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0066CC" />
-        <Text style={{ marginTop: 20, color: '#666' }}>Loading...</Text>
+      <View style={styles.splashContainer}>
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={styles.splashImage}
+          resizeMode="contain"
+        />
+        <Text style={styles.appName}>tar</Text>
+        {isLoading && (
+          <ActivityIndicator
+            size="small"
+            color="#666"
+            style={styles.loader}
+          />
+        )}
       </View>
     );
+  };
+
+  // Show splash screen while checking auth state and onboarding status
+  if (isLoading) {
+    console.log('Root index - Still loading, showing splash screen');
+    return renderSplashScreen();
   }
 
-  // Just return a loading view - navigation is handled in useEffect
-  console.log('Root index - Rendering loading view while navigation happens');
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="small" color="#0066CC" />
-    </View>
-  );
+  // Just return the splash screen - navigation is handled in useEffect
+  console.log('Root index - Rendering splash screen while navigation happens');
+  return renderSplashScreen();
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashImage: {
+    width: 200,
+    height: 200,
+  },
+  appName: {
+    marginTop: 20,
+    fontSize: 24,
+    color: '#333',
+  },
+  loader: {
+    marginTop: 30,
+  }
+});

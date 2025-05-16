@@ -107,7 +107,13 @@ export default function TopBar({
     console.log(`Selected ${item.name}`);
     setModalVisible(false);
 
-    // Set the selected product in context
+    // If "Products" is selected, navigate to the products screen
+    if (item.name === 'Products') {
+      router.push('/(agents)/(products)/products');
+      return;
+    }
+
+    // For other items, set the selected product in context
     setSelectedProduct(item);
 
     // Navigate to primary workspace if not already there
