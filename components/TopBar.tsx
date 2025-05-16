@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { usePathname, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
     FlatList,
@@ -35,11 +35,34 @@ const productSubItems: ProductSubItem[] = [
 
 interface TopBarProps {
   title?: string;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
+  rightIcon?: React.ReactNode;
 }
 
-export default function TopBar({ title = 'Chat' }: TopBarProps) {
+export default function TopBar({
+  title = 'Chat',
+  showBackButton = false,
+  onBackPress,
+  rightIcon
+}: TopBarProps) {
   const [modalVisible, setModalVisible] = useState(false);
+  const [selectedSection, setSelectedSection] = useState('Menu');
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Determine the current section based on the pathname
+  useEffect(() => {
+    if (pathname.includes('/(primary)')) {
+      setSelectedSection('Home');
+    } else if (pathname.includes('/(agents)')) {
+      setSelectedSection('Agents');
+    } else if (pathname.includes('/(settings)')) {
+      setSelectedSection('Settings');
+    } else {
+      setSelectedSection('Menu');
+    }
+  }, [pathname]);
 
   const navigateToProfile = () => {
     console.log('Navigating to profile screen');
@@ -156,14 +179,26 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
     <>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="menu-outline" size={24} color="black" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.rightPlaceholder} />
+        {showBackButton ? (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBackPress}
+            activeOpacity={1} // Prevent background color change on tap
+          >
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.menuCard}
+            onPress={() => setModalVisible(true)}
+            activeOpacity={1} // Prevent background color change on tap
+          >
+            <Text style={styles.menuCardText}>{selectedSection}</Text>
+          </TouchableOpacity>
+        )}
+        <View style={styles.rightPlaceholder}>
+          {rightIcon}
+        </View>
       </View>
 
       {/* Full Screen Modal */}
@@ -192,6 +227,7 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToAgents}
+              activeOpacity={1} // Prevent background color change on tap
             >
               <Text style={styles.emojiIcon}>🕹️</Text>
             </TouchableOpacity>
@@ -199,6 +235,7 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToProfile}
+              activeOpacity={1} // Prevent background color change on tap
             >
               <Text style={styles.emojiIcon}>👋</Text>
             </TouchableOpacity>
@@ -206,6 +243,7 @@ export default function TopBar({ title = 'Chat' }: TopBarProps) {
             <TouchableOpacity
               style={styles.iconButton}
               onPress={navigateToSettings}
+              activeOpacity={1} // Prevent background color change on tap
             >
               <Text style={styles.emojiIcon}>🎮</Text>
             </TouchableOpacity>
@@ -230,20 +268,25 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
     zIndex: 1,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'black',
-    flex: 1,
-    textAlign: 'left',
-    marginLeft: 8, // Add some left margin for better spacing
+  menuCard: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  menuButton: {
+  menuCardText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  backButton: {
     padding: 4,
     width: 32,
   },
   rightPlaceholder: {
     width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContainer: {
     flex: 1,

@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -9,6 +8,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import TopBar from '../../components/TopBar';
 
 type AIAgent = {
   id: string;
@@ -88,17 +88,10 @@ export default function AgentsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Custom TopBar with back button */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBackPress}
-        >
-          <Ionicons name="arrow-back" size={24} color="black" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Agents</Text>
-        <View style={styles.rightPlaceholder} />
-      </View>
+      <TopBar
+        showBackButton={true}
+        onBackPress={handleBackPress}
+      />
 
       <View style={styles.content}>
         <FlatList
