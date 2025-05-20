@@ -114,6 +114,12 @@ export default function TopBar({
       return;
     }
 
+    // If "Categories" is selected, navigate to the categories screen
+    if (item.name === 'Categories') {
+      router.push('/(agents)/(products)/categories');
+      return;
+    }
+
     // If "R2 Upload" is selected, navigate to the R2 upload screen
     if (item.name === 'R2 Upload') {
       router.push('/(agents)/r2upload');
