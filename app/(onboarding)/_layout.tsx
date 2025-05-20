@@ -14,7 +14,7 @@ export default function OnboardingLayout() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <StatusBar style="dark" />
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
         <ActivityIndicator size="large" color="#0066CC" />
       </View>
     );
@@ -26,7 +26,7 @@ export default function OnboardingLayout() {
 
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="dark" backgroundColor="transparent" translucent />
       <Stack
         screenOptions={{
           headerShown: false,

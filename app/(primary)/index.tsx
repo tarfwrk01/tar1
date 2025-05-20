@@ -10,7 +10,7 @@ export default function WorkspaceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="dark" backgroundColor="transparent" translucent />
       <TopBar title="Workspace" />
       <View style={styles.content}>
         {selectedProduct ? (

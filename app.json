@@ -14,7 +14,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "statusBar": {
+        "backgroundColor": "#00000000",
+        "translucent": true,
+        "barStyle": "dark-content"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +27,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.wetar5.tar"
+      "package": "com.wetar5.tar",
+      "softwareKeyboardLayoutMode": "pan",
+      "statusBar": {
+        "backgroundColor": "#00000000",
+        "translucent": true,
+        "barStyle": "dark-content"
+      }
     },
     "web": {
       "bundler": "metro",

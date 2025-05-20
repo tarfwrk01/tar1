@@ -1,13 +1,13 @@
 import { useOnboarding } from '@/app/context/onboarding';
 import { useProduct } from '@/app/context/product';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     Modal,
-    ScrollView,
     StyleSheet,
     Switch,
     Text,
@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
 import ImageUploader from './ImageUploader';
+import VerticalTabView from './VerticalTabView';
 
 type Product = {
   id: number;
@@ -475,8 +476,9 @@ export default function ProductsScreen() {
         transparent={false}
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
-        statusBarTranslucent={false}
+        statusBarTranslucent={true}
       >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
@@ -485,7 +487,7 @@ export default function ProductsScreen() {
             >
               <Ionicons name="arrow-back" size={24} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add New Product</Text>
+            <Text style={styles.modalTitle}>New Product</Text>
             <TouchableOpacity
               style={styles.saveButton}
               onPress={addProduct}
@@ -494,12 +496,25 @@ export default function ProductsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
 
-            <ScrollView style={styles.formContainer}>
+          <VerticalTabView
+            tabs={[
+              { key: 'core', icon: 'cube-outline', label: 'Core' },
+              { key: 'organization', icon: 'folder-outline', label: 'Organization' },
+              { key: 'media', icon: 'image-outline', label: 'Media' },
+              { key: 'options', icon: 'options-outline', label: 'Options' },
+              { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
+              { key: 'sales', icon: 'cash-outline', label: 'Sales' },
+              { key: 'channels', icon: 'globe-outline', label: 'Channels' },
+              { key: 'seo', icon: 'search-outline', label: 'SEO' }
+            ]}
+          >
+            {/* Core Tab */}
+            <View>
               <View style={styles.formField}>
                 <Text style={styles.inputLabel}>Title *</Text>
                 <TextInput
@@ -511,14 +526,53 @@ export default function ProductsScreen() {
               </View>
 
               <View style={styles.formField}>
-                <ImageUploader
-                  images={newProduct.images || '[]'}
-                  onImagesChange={(images) =>
-                    setNewProduct({...newProduct, images: JSON.stringify(images)})
-                  }
+                <Text style={styles.inputLabel}>Price *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.price?.toString()}
+                  onChangeText={(text) => setNewProduct({...newProduct, price: parseFloat(text) || 0})}
+                  placeholder="0.00"
+                  keyboardType="numeric"
                 />
               </View>
 
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Sale Price</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.saleprice?.toString()}
+                  onChangeText={(text) => setNewProduct({...newProduct, saleprice: parseFloat(text) || 0})}
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Cost</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.cost?.toString()}
+                  onChangeText={(text) => setNewProduct({...newProduct, cost: parseFloat(text) || 0})}
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Excerpt</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.excerpt}
+                  onChangeText={(text) => setNewProduct({...newProduct, excerpt: text})}
+                  placeholder="Short description"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
+
+            {/* Organization Tab */}
+            <View>
               <View style={styles.formField}>
                 <Text style={styles.inputLabel}>Type</Text>
                 <View style={styles.typeContainer}>
@@ -559,41 +613,6 @@ export default function ProductsScreen() {
               </View>
 
               <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Price *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.price?.toString()}
-                  onChangeText={(text) => setNewProduct({...newProduct, price: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Excerpt</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.excerpt}
-                  onChangeText={(text) => setNewProduct({...newProduct, excerpt: text})}
-                  placeholder="Short description"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Notes</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.notes}
-                  onChangeText={(text) => setNewProduct({...newProduct, notes: text})}
-                  placeholder="Additional notes"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-
-              <View style={styles.formField}>
                 <Text style={styles.inputLabel}>Category</Text>
                 <TextInput
                   style={styles.input}
@@ -614,6 +633,36 @@ export default function ProductsScreen() {
               </View>
 
               <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Unit</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.unit}
+                  onChangeText={(text) => setNewProduct({...newProduct, unit: text})}
+                  placeholder="Unit of measurement"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Vendor</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.vendor}
+                  onChangeText={(text) => setNewProduct({...newProduct, vendor: text})}
+                  placeholder="Product vendor"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Brand</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.brand}
+                  onChangeText={(text) => setNewProduct({...newProduct, brand: text})}
+                  placeholder="Product brand"
+                />
+              </View>
+
+              <View style={styles.formField}>
                 <Text style={styles.inputLabel}>Tags</Text>
                 <TextInput
                   style={styles.input}
@@ -623,6 +672,85 @@ export default function ProductsScreen() {
                 />
               </View>
 
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Barcode</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.barcode}
+                  onChangeText={(text) => setNewProduct({...newProduct, barcode: text})}
+                  placeholder="Product barcode/SKU"
+                />
+              </View>
+            </View>
+
+            {/* Media Tab */}
+            <View>
+              <View style={styles.formField}>
+                <ImageUploader
+                  images={newProduct.images || '[]'}
+                  onImagesChange={(images) =>
+                    setNewProduct({...newProduct, images: JSON.stringify(images)})
+                  }
+                />
+              </View>
+            </View>
+
+            {/* Options Tab */}
+            <View>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Options</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.options === '[]' ? '' : newProduct.options}
+                  onChangeText={(text) => setNewProduct({...newProduct, options: text || '[]'})}
+                  placeholder="Product options (JSON format)"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Modifiers</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.modifiers}
+                  onChangeText={(text) => setNewProduct({...newProduct, modifiers: text})}
+                  placeholder="Product modifiers"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Metafields</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.metafields}
+                  onChangeText={(text) => setNewProduct({...newProduct, metafields: text})}
+                  placeholder="Product metafields"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+            </View>
+
+            {/* Notes Tab */}
+            <View>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Notes</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.notes}
+                  onChangeText={(text) => setNewProduct({...newProduct, notes: text})}
+                  placeholder="Additional notes"
+                  multiline
+                  numberOfLines={6}
+                />
+              </View>
+            </View>
+
+            {/* Sales Tab */}
+            <View>
               <View style={styles.switchField}>
                 <Text style={styles.inputLabel}>Featured Product</Text>
                 <Switch
@@ -630,7 +758,159 @@ export default function ProductsScreen() {
                   onValueChange={(value) => setNewProduct({...newProduct, featured: value ? 1 : 0})}
                 />
               </View>
-            </ScrollView>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Sale Info</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.saleinfo}
+                  onChangeText={(text) => setNewProduct({...newProduct, saleinfo: text})}
+                  placeholder="Sale information"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Promo Info</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.promoinfo}
+                  onChangeText={(text) => setNewProduct({...newProduct, promoinfo: text})}
+                  placeholder="Promotion information"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Related Products</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.relproducts === '[]' ? '' : newProduct.relproducts}
+                  onChangeText={(text) => setNewProduct({...newProduct, relproducts: text || '[]'})}
+                  placeholder="Related products (JSON format)"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Sell Products</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.sellproducts === '[]' ? '' : newProduct.sellproducts}
+                  onChangeText={(text) => setNewProduct({...newProduct, sellproducts: text || '[]'})}
+                  placeholder="Sell products (JSON format)"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+            </View>
+
+            {/* Channels Tab */}
+            <View>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Stores</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.stores}
+                  onChangeText={(text) => setNewProduct({...newProduct, stores: text})}
+                  placeholder="Stores"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Location</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.location}
+                  onChangeText={(text) => setNewProduct({...newProduct, location: text})}
+                  placeholder="Location"
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Sales Channel</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.saleschannel}
+                  onChangeText={(text) => setNewProduct({...newProduct, saleschannel: text})}
+                  placeholder="Sales channel"
+                />
+              </View>
+
+              <View style={styles.switchField}>
+                <Text style={styles.inputLabel}>POS</Text>
+                <Switch
+                  value={newProduct.pos === 1}
+                  onValueChange={(value) => setNewProduct({...newProduct, pos: value ? 1 : 0})}
+                />
+              </View>
+
+              <View style={styles.switchField}>
+                <Text style={styles.inputLabel}>Website</Text>
+                <Switch
+                  value={newProduct.website === 1}
+                  onValueChange={(value) => setNewProduct({...newProduct, website: value ? 1 : 0})}
+                />
+              </View>
+            </View>
+
+            {/* SEO Tab */}
+            <View>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>SEO</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.seo === '{"slug":"", "title":"", "keywords":""}' ? '' : newProduct.seo}
+                  onChangeText={(text) => setNewProduct({...newProduct, seo: text || '{"slug":"", "title":"", "keywords":""}'})}
+                  placeholder="SEO information (JSON format)"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Publish Status</Text>
+                <View style={styles.typeContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      newProduct.publish === 'draft' && styles.typeButtonActive
+                    ]}
+                    onPress={() => setNewProduct({...newProduct, publish: 'draft'})}
+                  >
+                    <Text style={newProduct.publish === 'draft' ? styles.typeTextActive : styles.typeText}>
+                      Draft
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      newProduct.publish === 'active' && styles.typeButtonActive
+                    ]}
+                    onPress={() => setNewProduct({...newProduct, publish: 'active'})}
+                  >
+                    <Text style={newProduct.publish === 'active' ? styles.typeTextActive : styles.typeText}>
+                      Active
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      newProduct.publish === 'archived' && styles.typeButtonActive
+                    ]}
+                    onPress={() => setNewProduct({...newProduct, publish: 'archived'})}
+                  >
+                    <Text style={newProduct.publish === 'archived' ? styles.typeTextActive : styles.typeText}>
+                      Archived
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </VerticalTabView>
         </SafeAreaView>
       </Modal>
 
@@ -640,6 +920,7 @@ export default function ProductsScreen() {
         transparent={true}
         visible={filterModalVisible}
         onRequestClose={() => setFilterModalVisible(false)}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalContainer}>
           <View style={styles.filterModalContent}>
@@ -727,6 +1008,7 @@ const styles = StyleSheet.create({
   fullScreenModal: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: 0,
   },
 
   actionBar: {
@@ -851,25 +1133,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 0,
+    paddingVertical: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
     backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '500',
     flex: 1,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   backButton: {
-    padding: 4,
+    padding: 12,
+    height: 48,
+    justifyContent: 'center',
   },
   closeButton: {
     padding: 4,
@@ -955,15 +1237,18 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
+    margin: 0,
   },
   saveButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
