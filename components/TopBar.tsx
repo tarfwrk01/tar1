@@ -155,6 +155,12 @@ export default function TopBar({
       router.push('/(agents)/(products)/tags');
       return;
     }
+    
+    // If "Metafields" is selected, navigate to the metafields screen
+    if (item.name === 'Metafields') {
+      router.push('/(agents)/(products)/metafields');
+      return;
+    }
 
     // If "R2 Upload" is selected, navigate to the R2 upload screen
     if (item.name === 'R2 Upload') {
