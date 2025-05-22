@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { uploadProductImage } from '../../../services/R2StorageService';
 
@@ -20,6 +21,7 @@ interface SingleImageUploaderProps {
 export default function SingleImageUploader({ imageUrl, onImageChange }: SingleImageUploaderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
 
   useEffect(() => {
     // Parse the image URL from the JSON string if needed
@@ -79,6 +81,9 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
         [{ text: 'OK' }]
       );
     }
+    
+    // Close the options drawer if it was open
+    setShowOptions(false);
   };
 
   // Upload an image to R2 storage
@@ -112,6 +117,12 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
   const removeImage = () => {
     setCurrentImageUrl(null);
     onImageChange('[]');
+    setShowOptions(false);
+  };
+
+  // Close the options drawer
+  const closeDrawer = () => {
+    setShowOptions(false);
   };
 
   return (
@@ -123,19 +134,46 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
         </View>
       ) : currentImageUrl ? (
         <View style={styles.imageContainer}>
-          <TouchableOpacity onPress={pickImage}>
+          <TouchableOpacity onPress={() => setShowOptions(true)}>
             <Image
               source={{ uri: currentImageUrl }}
               style={styles.image}
               resizeMode="cover"
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={removeImage}
+          
+          {/* Simple Bottom Drawer with transparent background */}
+          <Modal
+            visible={showOptions}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={closeDrawer}
           >
-            <Ionicons name="close-circle" size={24} color="#ff4444" />
-          </TouchableOpacity>
+            <View style={styles.modalContainer}>
+              <View style={styles.optionsContainer}>
+                <TouchableOpacity 
+                  style={styles.optionButton} 
+                  onPress={closeDrawer}
+                >
+                  <Text style={styles.optionText}>Close</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.optionButton} 
+                  onPress={pickImage}
+                >
+                  <Text style={styles.optionText}>Change</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.optionButton} 
+                  onPress={removeImage}
+                >
+                  <Text style={styles.removeText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </View>
       ) : (
         <TouchableOpacity 
@@ -143,7 +181,7 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
           onPress={pickImage}
         >
           <Ionicons name="image-outline" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>Tap to add category image</Text>
+          <Text style={styles.emptyText}>Tap to add</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -153,18 +191,16 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginBottom: 16,
+    height: '100%',
   },
   loadingContainer: {
     width: '100%',
-    height: 200,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
+    height: '100%',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#eee',
-    borderStyle: 'dashed',
   },
   loadingText: {
     marginTop: 8,
@@ -172,38 +208,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   imageContainer: {
-    position: 'relative',
-    borderRadius: 8,
-    overflow: 'hidden',
     width: '100%',
-    height: 200,
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
-    height: 200,
-    backgroundColor: '#f0f0f0',
-  },
-  removeButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 12,
+    height: '100%',
+    backgroundColor: '#fff',
   },
   emptyContainer: {
     width: '100%',
-    height: 200,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderWidth: 1,
+    backgroundColor: '#fff',
     borderColor: '#eee',
-    borderStyle: 'dashed',
+    borderWidth: 1,
   },
   emptyText: {
     marginTop: 8,
     color: '#999',
     fontSize: 14,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent', // Changed to transparentrent',
+  },
+  optionsContainer: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  optionButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#0066CC',
+  },
+  removeText: {
+    fontSize: 16,
+    color: '#ff4444',
   },
 });

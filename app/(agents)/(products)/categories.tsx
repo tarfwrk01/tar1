@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -27,14 +27,16 @@ type Category = {
   parent: number | null;
 };
 
-export default function CategoriesScreen() {
+export default function CategoriesScreen() {  
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [parentCategoryModalVisible, setParentCategoryModalVisible] = useState(false);
+  const [selectedParentCategory, setSelectedParentCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [newCategory, setNewCategory] = useState<Partial<Category>>({
     name: '',
     image: '[]', // Empty JSON array
@@ -201,16 +203,15 @@ export default function CategoriesScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);
-
-      if (response.ok) {
-        // Reset form and close modal
+      console.log('Response text:', responseText);      if (response.ok) {
+      // Reset form and close modal
         setNewCategory({
           name: '',
           image: '[]',
           notes: '',
           parent: null
         });
+        setSelectedParentCategory(null);
         setModalVisible(false);
 
         // Refresh the categories list
@@ -241,29 +242,113 @@ export default function CategoriesScreen() {
     }
   };
 
-  // Handle search input
+  // Edit category function
+  const editCategory = async () => {
+    if (!selectedCategory) return;
+    
+    try {
+      if (!selectedCategory.name) {
+        Alert.alert('Error', 'Category name is required');
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Create the update SQL
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `UPDATE categories SET
+                name = '${(selectedCategory.name || '').replace(/'/g, "''")}',
+                image = '${(selectedCategory.image || '[]').replace(/'/g, "''")}',
+                notes = '${(selectedCategory.notes || '').replace(/'/g, "''")}',
+                parent = ${selectedCategory.parent === null ? 'NULL' : Number(selectedCategory.parent)}
+                WHERE id = ${selectedCategory.id}`
+            }
+          }
+        ]
+      };
+
+      // Log the request for debugging
+      console.log('Edit API URL:', apiUrl);
+      console.log('Edit Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Send the request
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Get the response text
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+      
+      if (response.ok) {
+        // Reset form and close modal
+        setSelectedCategory(null);
+        setSelectedParentCategory(null);
+        setEditModalVisible(false);
+
+        // Refresh the categories list
+        fetchCategories();
+
+        Alert.alert(
+          'Success',
+          'Category updated successfully',
+          [{ text: 'OK' }]
+        );
+      } else {
+        console.error('Failed to update category:', responseText);
+        Alert.alert(
+          'Error',
+          'Failed to update category. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while updating the category. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle search input - simplified without filter logic
   const handleSearch = (text: string) => {
     setSearchQuery(text);
 
-    // Start with all categories or filtered by parent if a filter is active
-    let baseCategories = categories;
-    if (activeFilter) {
-      baseCategories = categories.filter(c =>
-        activeFilter === 'parent' ? c.parent !== null : c.parent === null
-      );
-    }
-
-    // Then apply search filter
     if (text.trim() === '') {
-      setFilteredCategories(baseCategories);
+      setFilteredCategories(categories);
     } else {
-      const filtered = baseCategories.filter(category =>
+      const filtered = categories.filter(category =>
         category.name?.toLowerCase().includes(text.toLowerCase())
       );
       setFilteredCategories(filtered);
     }
   };
-
   // Handle image change
   const handleImageChange = (imageUrl: string) => {
     setNewCategory({
@@ -271,20 +356,167 @@ export default function CategoriesScreen() {
       image: imageUrl
     });
   };
+  // Handle parent category selection
+  const handleParentCategorySelect = (category: Category) => {
+    setSelectedParentCategory(category);
+    setNewCategory({
+      ...newCategory,
+      parent: category.id
+    });
+    setParentCategoryModalVisible(false);
+  };
+
+  // Reset parent category
+  const resetParentCategory = () => {
+    setSelectedParentCategory(null);
+    setNewCategory({
+      ...newCategory,
+      parent: null
+    });
+  };
+
+  // Handle edit button press
+  const handleEditCategory = (category: Category) => {
+    setSelectedCategory({...category});
+    
+    // Set the parent category if it exists
+    if (category.parent !== null) {
+      const parentCategory = categories.find(c => c.id === category.parent);
+      if (parentCategory) {
+        setSelectedParentCategory(parentCategory);
+      } else {
+        setSelectedParentCategory(null);
+      }
+    } else {
+      setSelectedParentCategory(null);
+    }
+    
+    setEditModalVisible(true);
+  };
+  
+  // Handle parent category selection for edit
+  const handleEditParentCategorySelect = (category: Category) => {
+    setSelectedParentCategory(category);
+    if (selectedCategory) {
+      setSelectedCategory({
+        ...selectedCategory,
+        parent: category.id
+      });
+    }
+    setParentCategoryModalVisible(false);
+  };
+  
+  // Reset parent category for edit
+  const resetEditParentCategory = () => {
+    setSelectedParentCategory(null);
+    if (selectedCategory) {
+      setSelectedCategory({
+        ...selectedCategory,
+        parent: null
+      });
+    }
+  };
+  
+  // Handle edit image change
+  const handleEditImageChange = (imageUrl: string) => {
+    if (selectedCategory) {
+      setSelectedCategory({
+        ...selectedCategory,
+        image: imageUrl
+      });
+    }
+  };
 
   // Fetch categories on component mount
   useEffect(() => {
     fetchCategories();
   }, []);
 
-  const renderCategoryItem = ({ item }: { item: Category }) => (
-    <View style={styles.categoryItem}>
-      <Text style={styles.categoryName}>{item.name || 'Untitled Category'}</Text>
-      {item.parent !== null && (
-        <Text style={styles.categoryParent}>Parent ID: {item.parent}</Text>
-      )}
-    </View>
-  );
+  // Update selected parent category when categories change
+  useEffect(() => {
+    if (newCategory.parent && categories.length > 0) {
+      const parent = categories.find(c => c.id === newCategory.parent);
+      if (parent) {
+        setSelectedParentCategory(parent);
+      }
+    }
+  }, [categories, newCategory.parent]);
+
+  // Get parent categories and organize subcategories under them
+  const getOrganizedCategories = () => {
+    // First, identify root categories (no parent)
+    const rootCategories = filteredCategories.filter(c => c.parent === null);
+    
+    // Create a map to hold subcategories for each parent
+    const childrenMap = new Map<number, Category[]>();
+    
+    // Group children by parent ID
+    filteredCategories.forEach(category => {
+      if (category.parent !== null) {
+        const children = childrenMap.get(category.parent) || [];
+        children.push(category);
+        childrenMap.set(category.parent, children);
+      }
+    });
+    
+    // Return the organized structure
+    return { rootCategories, childrenMap };
+  };
+
+  const { rootCategories, childrenMap } = getOrganizedCategories();
+
+  // Render a root category with its children
+  const renderCategoryWithChildren = ({ item }: { item: Category }) => {
+    const children = childrenMap.get(item.id) || [];
+    
+    return (
+      <View style={styles.categoryGroup}>
+        {/* Parent category */}
+        <TouchableOpacity 
+          style={styles.parentCategoryRow}
+          onPress={() => handleEditCategory(item)}
+        >
+          <Text style={styles.categoryName}>{item.name || 'Untitled Category'}</Text>
+        </TouchableOpacity>
+        
+        {/* Children/subcategories */}
+        {children.length > 0 && (
+          <View style={styles.childrenContainer}>
+            {children.map((child) => {
+              // Get grandchildren for this child
+              const grandChildren = childrenMap.get(child.id) || [];
+              
+              return (
+                <View key={child.id}>
+                  <TouchableOpacity 
+                    style={styles.childCategoryRow}
+                    onPress={() => handleEditCategory(child)}
+                  >
+                    <Text style={styles.childCategoryName}>{child.name}</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Show grandchildren if they exist */}
+                  {grandChildren.length > 0 && (
+                    <View style={styles.grandchildrenContainer}>
+                      {grandChildren.map((grandChild) => (
+                        <TouchableOpacity 
+                          key={grandChild.id}
+                          style={styles.grandchildCategoryRow}
+                          onPress={() => handleEditCategory(grandChild)}
+                        >
+                          <Text style={styles.grandchildCategoryName}>{grandChild.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
@@ -316,6 +548,37 @@ export default function CategoriesScreen() {
     };
   }, []);
 
+  // Get the depth of a category in the hierarchy
+  const getCategoryDepth = (categoryId: number | null, depthMap: Map<number, number> = new Map()): number => {
+    // Base case: root category (null parent) has depth 0
+    if (categoryId === null) return 0;
+    
+    // If we've already calculated this category's depth, return it
+    if (depthMap.has(categoryId)) return depthMap.get(categoryId)!;
+    
+    // Find the category object
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return 0;
+    
+    // Calculate depth as 1 + parent's depth
+    const depth = 1 + getCategoryDepth(category.parent, depthMap);
+    depthMap.set(categoryId, depth);
+    
+    return depth;
+  };
+
+  // Check if selecting a category as parent would exceed max depth
+  const wouldExceedMaxDepth = (categoryId: number): boolean => {
+    // Max depth allowed is 3
+    const MAX_DEPTH = 2; // 0-indexed, so 2 means 3 levels
+    
+    // Calculate current depth of the category
+    const currentDepth = getCategoryDepth(categoryId);
+    
+    // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
+    return currentDepth > MAX_DEPTH;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <TopBar title="Categories" />
@@ -337,13 +600,12 @@ export default function CategoriesScreen() {
             placeholderTextColor="#999"
           />
         </View>
-
-        <TouchableOpacity
-          onPress={() => setFilterModalVisible(true)}
-        >
-          <Ionicons name="filter-outline" size={24} color={activeFilter ? "#0066CC" : "#000"} />
-        </TouchableOpacity>
+        
+        {/* Filter button removed */}
       </View>
+      
+      {/* Light divider added below search */}
+      <View style={styles.searchDivider} />
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -352,8 +614,8 @@ export default function CategoriesScreen() {
         </View>
       ) : (
         <FlatList
-          data={filteredCategories}
-          renderItem={renderCategoryItem}
+          data={rootCategories}
+          renderItem={renderCategoryWithChildren}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -390,16 +652,17 @@ export default function CategoriesScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>S</Text>
+                <Text style={styles.saveButtonText}>
+                  <Ionicons name="checkmark" size={24} color="#fff" />
+                </Text>
               )}
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Name</Text>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
               <TextInput
-                style={styles.input}
+                style={styles.titleInput}
                 value={newCategory.name}
                 onChangeText={(text) => setNewCategory({ ...newCategory, name: text })}
                 placeholder="Category Name"
@@ -407,33 +670,42 @@ export default function CategoriesScreen() {
               />
             </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Parent Category</Text>
-              <TextInput
-                style={styles.input}
-                value={newCategory.parent?.toString() || ''}
-                onChangeText={(text) => {
-                  const parentId = text.trim() === '' ? null : parseInt(text, 10);
-                  setNewCategory({ ...newCategory, parent: isNaN(parentId) ? null : parentId });
-                }}
-                placeholder="Parent Category ID (optional)"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
+            <View style={styles.tilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newCategory.image || '[]'}
+                  onImageChange={handleImageChange}
+                />
+              </View>
+              
+              <TouchableOpacity
+                style={styles.parentTile}
+                onPress={() => setParentCategoryModalVisible(true)}
+              >
+                {selectedParentCategory ? (
+                  <View style={styles.selectedParentContainer}>
+                    <Text style={styles.selectedParentText}>
+                      {selectedParentCategory.name}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.clearParentButton}
+                      onPress={resetParentCategory}
+                    >
+                      <Text style={styles.clearButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.emptyParentContainer}>
+                    <Ionicons name="folder-outline" size={32} color="#999" />
+                    <Text style={styles.parentPlaceholder}>Parent Category</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Category Image</Text>
-              <SingleImageUploader
-                imageUrl={newCategory.image || '[]'}
-                onImageChange={handleImageChange}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Notes</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={styles.notesInput}
                 value={newCategory.notes}
                 onChangeText={(text) => setNewCategory({ ...newCategory, notes: text })}
                 placeholder="Add notes about this category..."
@@ -446,72 +718,150 @@ export default function CategoriesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Filter Modal */}
+      {/* Edit Category Modal */}
       <Modal
         animationType="slide"
-        transparent={true}
-        visible={filterModalVisible}
-        onRequestClose={() => setFilterModalVisible(false)}
+        transparent={false}
+        visible={editModalVisible && selectedCategory !== null}
+        onRequestClose={() => setEditModalVisible(false)}
+        statusBarTranslucent={true}
       >
-        <View style={styles.filterModalContainer}>
-          <View style={styles.filterModalContent}>
-            <View style={styles.filterHeader}>
-              <Text style={styles.filterTitle}>Filter Categories</Text>
-              <TouchableOpacity
-                onPress={() => setFilterModalVisible(false)}
-              >
-                <Ionicons name="close-outline" size={24} color="#000" />
-              </TouchableOpacity>
+        <StatusBar style="dark" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setEditModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <View style={styles.titleContainer}>
+              <Text style={styles.modalTitle}>Edit Category</Text>
             </View>
-
-            <View style={styles.filterOptions}>
-              <Text style={styles.filterSectionTitle}>Filter by Parent</Text>
-
-              <TouchableOpacity
-                style={styles.filterOption}
-                onPress={() => {
-                  setActiveFilter('parent');
-                  setFilteredCategories(categories.filter(c => c.parent !== null));
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text style={styles.filterText}>Has Parent</Text>
-                {activeFilter === 'parent' && (
-                  <Ionicons name="checkmark-outline" size={20} color="#0066CC" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.filterOption}
-                onPress={() => {
-                  setActiveFilter('root');
-                  setFilteredCategories(categories.filter(c => c.parent === null));
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text style={styles.filterText}>Root Categories</Text>
-                {activeFilter === 'root' && (
-                  <Ionicons name="checkmark-outline" size={20} color="#0066CC" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.filterOption}
-                onPress={() => {
-                  setActiveFilter(null);
-                  setFilteredCategories(categories);
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text style={styles.filterText}>All Categories</Text>
-                {activeFilter === null && (
-                  <Ionicons name="checkmark-outline" size={20} color="#0066CC" />
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={editCategory}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  <Ionicons name="checkmark" size={24} color="#fff" />
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </View>
+
+          {selectedCategory && (
+            <ScrollView style={styles.modalContent}>
+              <View style={[styles.formGroup, styles.titleInputContainer]}>
+                <TextInput
+                  style={styles.titleInput}
+                  value={selectedCategory.name}
+                  onChangeText={(text) => setSelectedCategory({...selectedCategory, name: text})}
+                  placeholder="Category Name"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.tilesContainer}>
+                <View style={styles.imageTile}>
+                  <SingleImageUploader
+                    imageUrl={selectedCategory.image || '[]'}
+                    onImageChange={handleEditImageChange}
+                  />
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.parentTile}
+                  onPress={() => setParentCategoryModalVisible(true)}
+                >
+                  {selectedParentCategory ? (
+                    <View style={styles.selectedParentContainer}>
+                      <Text style={styles.selectedParentText}>
+                        {selectedParentCategory.name}
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.clearParentButton}
+                        onPress={resetEditParentCategory}
+                      >
+                        <Text style={styles.clearButtonText}>Clear</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.emptyParentContainer}>
+                      <Ionicons name="folder-outline" size={32} color="#999" />
+                      <Text style={styles.parentPlaceholder}>Parent Category</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
+                <TextInput
+                  style={styles.notesInput}
+                  value={selectedCategory.notes}
+                  onChangeText={(text) => setSelectedCategory({...selectedCategory, notes: text})}
+                  placeholder="Add notes about this category..."
+                  placeholderTextColor="#999"
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+            </ScrollView>
+          )}
+        </SafeAreaView>
       </Modal>
+
+      {/* Parent Category Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={parentCategoryModalVisible}
+        onRequestClose={() => setParentCategoryModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" translucent />
+        <SafeAreaView style={styles.parentModalContainer}>
+          <View style={styles.parentModalHeader}>
+            <TouchableOpacity
+              onPress={() => setParentCategoryModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.parentModalTitle}>Parent Category</Text>
+            {/* Clear button removed from header */}
+          </View>
+
+          <FlatList
+            data={categories.filter(c => {
+              // Don't show the current category or any categories that would exceed max depth
+              const isCurrentCategory = selectedCategory ? c.id === selectedCategory.id : c.id === newCategory.id;
+              const exceedsMaxDepth = wouldExceedMaxDepth(c.id);
+              return !isCurrentCategory && !exceedsMaxDepth;
+            })}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                style={styles.parentCategoryItem}
+                onPress={() => handleParentCategorySelect(item)}
+              >
+                <Text style={styles.parentCategoryText}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            ItemSeparatorComponent={() => <View style={styles.parentCategoryDivider} />}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ color: '#666' }}>No categories available as parents</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Filter Modal removed */}
     </SafeAreaView>
   );
 }
@@ -519,16 +869,14 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#fff', // Restore background color
   },
   actionBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 12,
   },
   searchContainer: {
     flex: 1,
@@ -537,177 +885,296 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     paddingHorizontal: 10,
-    marginHorizontal: 10,
-    height: 36,
+    marginLeft: 10,
+    height: 40,
   },
   searchIcon: {
     marginRight: 6,
+    backgroundColor: 'transparent',
   },
   searchInput: {
     flex: 1,
     height: 36,
     fontSize: 14,
     color: '#333',
+    backgroundColor: 'transparent',
+  },
+  searchDivider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    width: '100%',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: '#333',
+    backgroundColor: 'transparent',
   },
   listContent: {
-    padding: 16,
+    padding: 0, // Remove padding from the list container
+    paddingTop: 8, // Add a bit of top padding only
     flexGrow: 1,
+    backgroundColor: 'transparent',
   },
-  categoryItem: {
-    padding: 16,
+  categoryGroup: {
+    marginBottom: 0,
+  },
+  parentCategoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   categoryName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
-    marginBottom: 4,
+    color: '#222',
+    flex: 1,
+    backgroundColor: 'transparent',
   },
-  categoryParent: {
-    fontSize: 14,
+  childrenContainer: {
+    marginLeft: 0, // Remove margin for second hierarchy to align with first level
+  },
+  childCategoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  childCategoryName: {
+    fontSize: 16,
+    color: '#444',
+    fontWeight: '400',
+    flex: 1,
+  },
+  grandchildrenContainer: {
+    marginLeft: 16, // Keep margin only for third hierarchy
+  },
+  grandchildCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    // Removed borderBottomWidth and borderBottomColor
+  },
+  grandchildCategoryName: {
+    fontSize: 15,
     color: '#666',
+    fontWeight: '300',
+    flex: 1,
   },
   separator: {
     height: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'transparent',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 50,
+    backgroundColor: 'transparent',
   },
   emptyText: {
     fontSize: 16,
     color: '#666',
     marginBottom: 16,
+    backgroundColor: 'transparent',
   },
   refreshButton: {
-    backgroundColor: '#0066CC',
+    backgroundColor: 'transparent',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   refreshButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+    backgroundColor: 'transparent',
   },
   fullScreenModal: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#fff', // Restore background color
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
     height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f0f0f0', // Restore border color
+    backgroundColor: '#fff', // Restore background color
   },
   backButton: {
-    padding: 8,
+    padding: 16,
+    backgroundColor: 'transparent',
   },
   titleContainer: {
     flex: 1,
     paddingLeft: 8,
+    backgroundColor: 'transparent',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'left',
+    backgroundColor: 'transparent',
   },
   saveButton: {
-    backgroundColor: '#0066CC',
+    backgroundColor: '#0066CC', // Restore blue background
     height: 56,
     width: 56,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 0,
     margin: 0,
+    right: 0,
+    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+  },
+  tilesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    width: '100%',
+    gap: 0,
+  },
+  imageTile: {
+    width: '50%',
+    aspectRatio: 1,
+    borderRadius: 0,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+  },
+  parentTile: {
+    width: '50%',
+    aspectRatio: 1,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  selectedParentContainer: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedParentText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  clearParentButton: {
+    position: 'absolute',
+    bottom: 0,
+    alignSelf: 'center',
+    paddingVertical: 6,
+  },
+  clearButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#0066CC',
+    fontWeight: '500',
+  },
+  emptyParentContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parentPlaceholder: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 12,
+    textAlign: 'center',
   },
   modalContent: {
     padding: 16,
+    backgroundColor: '#fff', // Restore background color
   },
   formGroup: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  label: {
-    fontSize: 14,
+  titleInputContainer: {
+    marginTop: 16,
+  },
+  titleInput: {
+    fontSize: 24,
     fontWeight: '500',
-    marginBottom: 8,
     color: '#333',
+    padding: 0,
+    marginBottom: 24,
+    borderWidth: 0,
+    backgroundColor: '#fff', // Restore background color
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  notesInput: {
     fontSize: 16,
     color: '#333',
+    padding: 0,
+    borderWidth: 0,
+    minHeight: 100,
+    backgroundColor: '#fff', // Restore background color
+    borderBottomWidth: 1, // Add bottom border
+    borderBottomColor: '#f0f0f0', // Add bottom border color
   },
-  textArea: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-    paddingTop: 12,
+  parentCategoryText: {
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: 'transparent',
   },
-  // Add any additional styles here
-  filterModalContainer: {
+  parentCategoryItem: {
+    padding: 16,
+    backgroundColor: 'transparent',
+  },
+  parentCategoryDivider: {
+    height: 1,
+    backgroundColor: '#f5f5f5',
+    marginHorizontal: 16,
+  },
+  parentModalContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'transparent',
   },
-  filterModalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 30,
-    maxHeight: '70%',
-  },
-  filterHeader: {
+  parentModalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'transparent',
+    backgroundColor: 'transparent',
   },
-  filterTitle: {
+  parentModalTitle: {
     fontSize: 18,
     fontWeight: '600',
+    marginLeft: 10,
+    backgroundColor: 'transparent',
   },
-  filterOptions: {
-    paddingVertical: 16,
+  clearParentButtonHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  filterSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  filterOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  filterText: {
-    fontSize: 16,
+  clearButtonHeaderText: {
+    fontSize: 14,
+    color: '#0066CC',
+    fontWeight: '500',
   },
 });
