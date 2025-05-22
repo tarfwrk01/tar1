@@ -126,6 +126,36 @@ export default function TopBar({
       return;
     }
 
+    // If "Vendors" is selected, navigate to the vendors screen
+    if (item.name === 'Vendors') {
+      router.push('/(agents)/(products)/vendors');
+      return;
+    }
+    
+    // If "Brands" is selected, navigate to the brands screen
+    if (item.name === 'Brands') {
+      router.push('/(agents)/(products)/brands');
+      return;
+    }
+
+    // If "Warehouses" is selected, navigate to the warehouses screen
+    if (item.name === 'Warehouses') {
+      router.push('/(agents)/(products)/warehouses');
+      return;
+    }
+
+    // If "Stores" is selected, navigate to the stores screen
+    if (item.name === 'Stores') {
+      router.push('/(agents)/(products)/stores');
+      return;
+    }
+
+    // If "Tags" is selected, navigate to the tags screen
+    if (item.name === 'Tags') {
+      router.push('/(agents)/(products)/tags');
+      return;
+    }
+
     // If "R2 Upload" is selected, navigate to the R2 upload screen
     if (item.name === 'R2 Upload') {
       router.push('/(agents)/r2upload');
