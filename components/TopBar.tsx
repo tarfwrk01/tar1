@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    FlatList,
-    Modal,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ProductSubItem, useProduct } from '../app/context/product';
 
@@ -117,6 +117,12 @@ export default function TopBar({
     // If "Categories" is selected, navigate to the categories screen
     if (item.name === 'Categories') {
       router.push('/(agents)/(products)/categories');
+      return;
+    }
+
+    // If "Collections" is selected, navigate to the collections screen
+    if (item.name === 'Collections') {
+      router.push('/(agents)/(products)/collections');
       return;
     }
 

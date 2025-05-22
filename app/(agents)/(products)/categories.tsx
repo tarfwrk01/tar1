@@ -336,19 +336,34 @@ export default function CategoriesScreen() {
     }
   };
 
-  // Handle search input - simplified without filter logic
+  // Handle search input - enhanced for full text search
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-
+    
     if (text.trim() === '') {
       setFilteredCategories(categories);
     } else {
-      const filtered = categories.filter(category =>
-        category.name?.toLowerCase().includes(text.toLowerCase())
-      );
+      const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+      
+      const filtered = categories.filter(category => {
+        // Skip categories that don't have any searchable content
+        if (!category) return false;
+        
+        // Normalize searchable fields to lower case strings
+        const name = (category.name || '').toLowerCase();
+        const notes = (category.notes || '').toLowerCase();
+        
+        // Check each search term against all fields
+        return searchTerms.some(term => 
+          name.includes(term) || 
+          notes.includes(term)
+        );
+      });
+      
       setFilteredCategories(filtered);
     }
   };
+
   // Handle image change
   const handleImageChange = (imageUrl: string) => {
     setNewCategory({
@@ -444,14 +459,44 @@ export default function CategoriesScreen() {
 
   // Get parent categories and organize subcategories under them
   const getOrganizedCategories = () => {
+    let categoriesToDisplay;
+    
+    // If we're searching, show all categories that match regardless of hierarchy
+    if (searchQuery.trim() !== '') {
+      // Find all parent IDs of matched categories to ensure they're shown
+      const parentIdsToInclude = new Set<number | null>();
+      
+      // Add all matched categories
+      filteredCategories.forEach(category => {
+        // Include this category's parent chain
+        let current = category;
+        while (current.parent !== null) {
+          parentIdsToInclude.add(current.parent);
+          const parent = categories.find(c => c.id === current.parent);
+          if (!parent) break;
+          current = parent;
+        }
+      });
+      
+      // Get all categories that should be shown in the list
+      categoriesToDisplay = categories.filter(c => 
+        // Include if it's in filtered results or if it's a necessary parent
+        filteredCategories.some(fc => fc.id === c.id) || 
+        parentIdsToInclude.has(c.id)
+      );
+    } else {
+      // Not searching, use normal filtered categories
+      categoriesToDisplay = filteredCategories;
+    }
+    
     // First, identify root categories (no parent)
-    const rootCategories = filteredCategories.filter(c => c.parent === null);
+    const rootCategories = categoriesToDisplay.filter(c => c.parent === null);
     
     // Create a map to hold subcategories for each parent
     const childrenMap = new Map<number, Category[]>();
     
     // Group children by parent ID
-    filteredCategories.forEach(category => {
+    categoriesToDisplay.forEach(category => {
       if (category.parent !== null) {
         const children = childrenMap.get(category.parent) || [];
         children.push(category);
@@ -468,12 +513,18 @@ export default function CategoriesScreen() {
   // Render a root category with its children
   const renderCategoryWithChildren = ({ item }: { item: Category }) => {
     const children = childrenMap.get(item.id) || [];
+    const isMatch = searchQuery.trim() !== '' && 
+      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+       (item.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
     
     return (
       <View style={styles.categoryGroup}>
         {/* Parent category */}
         <TouchableOpacity 
-          style={styles.parentCategoryRow}
+          style={[
+            styles.parentCategoryRow,
+            isMatch ? styles.highlightedRow : null
+          ]}
           onPress={() => handleEditCategory(item)}
         >
           <Text style={styles.categoryName}>{item.name || 'Untitled Category'}</Text>
@@ -485,11 +536,17 @@ export default function CategoriesScreen() {
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
+              const isChildMatch = searchQuery.trim() !== '' && 
+                (child.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                 (child.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
               
               return (
                 <View key={child.id}>
                   <TouchableOpacity 
-                    style={styles.childCategoryRow}
+                    style={[
+                      styles.childCategoryRow,
+                      isChildMatch ? styles.highlightedRow : null
+                    ]}
                     onPress={() => handleEditCategory(child)}
                   >
                     <Text style={styles.childCategoryName}>{child.name}</Text>
@@ -498,15 +555,24 @@ export default function CategoriesScreen() {
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
-                      {grandChildren.map((grandChild) => (
-                        <TouchableOpacity 
-                          key={grandChild.id}
-                          style={styles.grandchildCategoryRow}
-                          onPress={() => handleEditCategory(grandChild)}
-                        >
-                          <Text style={styles.grandchildCategoryName}>{grandChild.name}</Text>
-                        </TouchableOpacity>
-                      ))}
+                      {grandChildren.map((grandChild) => {
+                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                          (grandChild.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (grandChild.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
+                          
+                        return (
+                          <TouchableOpacity 
+                            key={grandChild.id}
+                            style={[
+                              styles.grandchildCategoryRow,
+                              isGrandChildMatch ? styles.highlightedRow : null
+                            ]}
+                            onPress={() => handleEditCategory(grandChild)}
+                          >
+                            <Text style={styles.grandchildCategoryName}>{grandChild.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
@@ -549,34 +615,89 @@ export default function CategoriesScreen() {
   }, []);
 
   // Get the depth of a category in the hierarchy
-  const getCategoryDepth = (categoryId: number | null, depthMap: Map<number, number> = new Map()): number => {
+  const getCategoryDepth = (categoryId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root category (null parent) has depth 0
     if (categoryId === null) return 0;
     
+    // Cycle detection: if we've seen this ID during the current traversal, there's a cycle
+    if (visited.has(categoryId)) {
+      console.warn(`Circular reference detected in categories hierarchy at ID: ${categoryId}`);
+      return 0; // Break the cycle
+    }
+    
     // If we've already calculated this category's depth, return it
     if (depthMap.has(categoryId)) return depthMap.get(categoryId)!;
+    
+    // Add this ID to the visited set
+    visited.add(categoryId);
     
     // Find the category object
     const category = categories.find(c => c.id === categoryId);
     if (!category) return 0;
     
     // Calculate depth as 1 + parent's depth
-    const depth = 1 + getCategoryDepth(category.parent, depthMap);
+    const depth = 1 + getCategoryDepth(category.parent, depthMap, visited);
     depthMap.set(categoryId, depth);
+    
+    // Remove this ID from visited set when done with this branch
+    visited.delete(categoryId);
     
     return depth;
   };
 
-  // Check if selecting a category as parent would exceed max depth
+  // Check if selecting a category as parent would exceed max depth or create a cycle
   const wouldExceedMaxDepth = (categoryId: number): boolean => {
-    // Max depth allowed is 3
-    const MAX_DEPTH = 2; // 0-indexed, so 2 means 3 levels
+    // Max depth allowed is 2 (for 3 levels total: parent + child + grandchild)
+    const MAX_DEPTH = 2;
+    
+    // Special case: if we're in edit mode and this is the selected category ID,
+    // it can't be a parent of itself
+    if (selectedCategory && selectedCategory.id === categoryId) {
+      return true;
+    }
     
     // Calculate current depth of the category
     const currentDepth = getCategoryDepth(categoryId);
     
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
+  };
+
+  // Detect and prevent circular reference in parent selection
+  const wouldCreateCycle = (parentId: number): boolean => {
+    // If we're in add mode (no selected category), can't create a cycle
+    if (!selectedCategory) {
+      return false;
+    }
+    
+    const childId = selectedCategory.id;
+    let currentId = parentId;
+    const visited = new Set<number>();
+    
+    // Walk up the ancestor chain
+    while (currentId !== null) {
+      // If we find the child ID in the ancestors, it would create a cycle
+      if (currentId === childId) {
+        return true;
+      }
+      
+      // Avoid infinite loops due to existing cycles
+      if (visited.has(currentId)) {
+        return true;
+      }
+      
+      visited.add(currentId);
+      
+      // Find the parent of the current category
+      const current = categories.find(c => c.id === currentId);
+      if (!current || current.parent === null) {
+        break;
+      }
+      
+      currentId = current.parent;
+    }
+    
+    return false;
   };
 
   return (
@@ -591,7 +712,7 @@ export default function CategoriesScreen() {
         </TouchableOpacity>
 
         <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={18} color="#666" style={styles.searchIcon} />
+          {/* Search icon removed */}
           <TextInput
             style={styles.searchInput}
             placeholder="Search categories..."
@@ -838,9 +959,11 @@ export default function CategoriesScreen() {
           <FlatList
             data={categories.filter(c => {
               // Don't show the current category or any categories that would exceed max depth
-              const isCurrentCategory = selectedCategory ? c.id === selectedCategory.id : c.id === newCategory.id;
+              // or create a circular reference
+              const isCurrentCategory = selectedCategory ? c.id === selectedCategory.id : false;
               const exceedsMaxDepth = wouldExceedMaxDepth(c.id);
-              return !isCurrentCategory && !exceedsMaxDepth;
+              const wouldCycle = wouldCreateCycle(c.id);
+              return !isCurrentCategory && !exceedsMaxDepth && !wouldCycle;
             })}
             renderItem={({ item }) => (
               <TouchableOpacity 
@@ -888,16 +1011,13 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     height: 40,
   },
-  searchIcon: {
-    marginRight: 6,
-    backgroundColor: 'transparent',
-  },
   searchInput: {
     flex: 1,
     height: 36,
     fontSize: 14,
     color: '#333',
     backgroundColor: 'transparent',
+    paddingLeft: 4, // Add a bit of left padding since icon is gone
   },
   searchDivider: {
     height: 1,
@@ -935,7 +1055,7 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#222',
+    color: '#0066CC', // Changed from '#222' to '#0066CC' for blue color
     flex: 1,
     backgroundColor: 'transparent',
   },
@@ -1176,5 +1296,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0066CC',
     fontWeight: '500',
+  },
+  highlightedRow: {
+    backgroundColor: '#f0f8ff', // Light blue background for matched items
   },
 });
