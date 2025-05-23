@@ -26,7 +26,6 @@ const productSubItems: ProductSubItem[] = [
   { id: '10', name: 'Metafields' },
   { id: '11', name: 'Options' },
   { id: '12', name: 'Media' },
-  { id: '13', name: 'R2 Upload' },
 ];
 
 interface TopBarProps {
@@ -162,9 +161,15 @@ export default function TopBar({
       return;
     }
 
-    // If "R2 Upload" is selected, navigate to the R2 upload screen
-    if (item.name === 'R2 Upload') {
-      router.push('/(agents)/r2upload');
+    // If "Options" is selected, navigate to the options screen
+    if (item.name === 'Options') {
+      router.push('/(agents)/(products)/options');
+      return;
+    }
+    
+    // If "Media" is selected, navigate to the media screen
+    if (item.name === 'Media') {
+      router.push('/(agents)/(products)/media');
       return;
     }
 
