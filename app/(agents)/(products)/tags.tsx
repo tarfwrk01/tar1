@@ -224,12 +224,6 @@ export default function TagsScreen() {
 
         // Refresh the tags list
         fetchTags();
-
-        Alert.alert(
-          'Success',
-          'Tag added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add tag:', responseText);
         Alert.alert(
@@ -316,12 +310,6 @@ export default function TagsScreen() {
 
         // Refresh the tags list
         fetchTags();
-
-        Alert.alert(
-          'Success',
-          'Tag updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update tag:', responseText);
         Alert.alert(

@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -204,7 +204,7 @@ export default function CategoriesScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);      if (response.ok) {
-      // Reset form and close modal
+        // Reset form and close modal
         setNewCategory({
           name: '',
           image: '[]',
@@ -216,12 +216,6 @@ export default function CategoriesScreen() {
 
         // Refresh the categories list
         fetchCategories();
-
-        Alert.alert(
-          'Success',
-          'Category added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add category:', responseText);
         Alert.alert(
@@ -310,12 +304,6 @@ export default function CategoriesScreen() {
 
         // Refresh the categories list
         fetchCategories();
-
-        Alert.alert(
-          'Success',
-          'Category updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update category:', responseText);
         Alert.alert(

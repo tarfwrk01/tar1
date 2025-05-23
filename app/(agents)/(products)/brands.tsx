@@ -224,12 +224,6 @@ export default function BrandsScreen() {
 
         // Refresh the brands list
         fetchBrands();
-
-        Alert.alert(
-          'Success',
-          'Brand added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add brand:', responseText);
         Alert.alert(
@@ -316,12 +310,6 @@ export default function BrandsScreen() {
 
         // Refresh the brands list
         fetchBrands();
-
-        Alert.alert(
-          'Success',
-          'Brand updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update brand:', responseText);
         Alert.alert(

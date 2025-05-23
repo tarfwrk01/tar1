@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -224,12 +224,6 @@ export default function WarehousesScreen() {
 
         // Refresh the warehouses list
         fetchWarehouses();
-
-        Alert.alert(
-          'Success',
-          'Warehouse added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add warehouse:', responseText);
         Alert.alert(
@@ -316,12 +310,6 @@ export default function WarehousesScreen() {
 
         // Refresh the warehouses list
         fetchWarehouses();
-
-        Alert.alert(
-          'Success',
-          'Warehouse updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update warehouse:', responseText);
         Alert.alert(

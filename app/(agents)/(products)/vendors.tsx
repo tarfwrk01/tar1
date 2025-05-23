@@ -224,12 +224,6 @@ export default function VendorsScreen() {
 
         // Refresh the vendors list
         fetchVendors();
-
-        Alert.alert(
-          'Success',
-          'Vendor added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add vendor:', responseText);
         Alert.alert(
@@ -316,12 +310,6 @@ export default function VendorsScreen() {
 
         // Refresh the vendors list
         fetchVendors();
-
-        Alert.alert(
-          'Success',
-          'Vendor updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update vendor:', responseText);
         Alert.alert(

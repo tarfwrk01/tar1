@@ -222,12 +222,6 @@ export default function OptionsScreen() {
 
         // Refresh the options list
         fetchOptions();
-
-        Alert.alert(
-          'Success',
-          'Option added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add option:', responseText);
         Alert.alert(
@@ -315,12 +309,6 @@ export default function OptionsScreen() {
 
         // Refresh the options list
         fetchOptions();
-
-        Alert.alert(
-          'Success',
-          'Option updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update option:', responseText);
         Alert.alert(

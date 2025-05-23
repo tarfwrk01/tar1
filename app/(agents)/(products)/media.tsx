@@ -4,17 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -234,12 +234,6 @@ export default function MediaScreen() {
 
         // Refresh the media list
         fetchMedia();
-
-        Alert.alert(
-          'Success',
-          'Media added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add media:', responseText);
         Alert.alert(
@@ -333,12 +327,6 @@ export default function MediaScreen() {
 
         // Refresh the media list
         fetchMedia();
-
-        Alert.alert(
-          'Success',
-          'Media updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update media:', responseText);
         Alert.alert(

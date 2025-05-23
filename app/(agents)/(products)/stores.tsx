@@ -224,12 +224,6 @@ export default function StoresScreen() {
 
         // Refresh the stores list
         fetchStores();
-
-        Alert.alert(
-          'Success',
-          'Store added successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to add store:', responseText);
         Alert.alert(
@@ -316,12 +310,6 @@ export default function StoresScreen() {
 
         // Refresh the stores list
         fetchStores();
-
-        Alert.alert(
-          'Success',
-          'Store updated successfully',
-          [{ text: 'OK' }]
-        );
       } else {
         console.error('Failed to update store:', responseText);
         Alert.alert(
