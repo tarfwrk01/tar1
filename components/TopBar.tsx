@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Dimensions,
-  FlatList,
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Dimensions,
+    FlatList,
+    Modal,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { ProductSubItem, useProduct } from '../app/context/product';
 
@@ -130,7 +130,7 @@ export default function TopBar({
       router.push('/(agents)/(products)/vendors');
       return;
     }
-    
+
     // If "Brands" is selected, navigate to the brands screen
     if (item.name === 'Brands') {
       router.push('/(agents)/(products)/brands');
@@ -154,7 +154,7 @@ export default function TopBar({
       router.push('/(agents)/(products)/tags');
       return;
     }
-    
+
     // If "Metafields" is selected, navigate to the metafields screen
     if (item.name === 'Metafields') {
       router.push('/(agents)/(products)/metafields');
@@ -166,10 +166,16 @@ export default function TopBar({
       router.push('/(agents)/(products)/options');
       return;
     }
-    
+
     // If "Media" is selected, navigate to the media screen
     if (item.name === 'Media') {
       router.push('/(agents)/(products)/media');
+      return;
+    }
+
+    // If "Inventory" is selected, navigate to the inventory screen
+    if (item.name === 'Inventory') {
+      router.push('/(agents)/(products)/inventory');
       return;
     }
 
