@@ -90,6 +90,25 @@ export default function ProductsScreen() {
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+
+  // Multi-select drawer states
+  const [optionsDrawerVisible, setOptionsDrawerVisible] = useState(false);
+  const [metafieldsDrawerVisible, setMetafieldsDrawerVisible] = useState(false);
+  const [availableOptions, setAvailableOptions] = useState<any[]>([]);
+  const [availableMetafields, setAvailableMetafields] = useState<any[]>([]);
+  const [selectedOptionIds, setSelectedOptionIds] = useState<number[]>([]);
+  const [selectedMetafieldIds, setSelectedMetafieldIds] = useState<number[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Create new item states
+  const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
+  const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
+  const [newOptionTitle, setNewOptionTitle] = useState('');
+  const [newOptionValue, setNewOptionValue] = useState('');
+  const [newMetafieldTitle, setNewMetafieldTitle] = useState('');
+  const [newMetafieldValue, setNewMetafieldValue] = useState('');
+  const [isCreatingOption, setIsCreatingOption] = useState(false);
+  const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
     images: '[]', // Empty JSON array
@@ -123,6 +142,100 @@ export default function ProductsScreen() {
     sellproducts: '[]', // Empty JSON array
   });
   const { profileData } = useOnboarding();
+
+  // Fetch available options for multi-select
+  const fetchAvailableOptions = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, parentid, title, value FROM options ORDER BY title LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const optionData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
+            title: row[2].type === 'null' ? '' : row[2].value,
+            value: row[3].type === 'null' ? '' : row[3].value
+          }));
+          setAvailableOptions(optionData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching options:', error);
+    }
+  };
+
+  // Fetch available metafields for multi-select
+  const fetchAvailableMetafields = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, parentid, title, value FROM metafields ORDER BY title LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const metafieldData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
+            title: row[2].type === 'null' ? '' : row[2].value,
+            value: row[3].type === 'null' ? '' : row[3].value
+          }));
+          setAvailableMetafields(metafieldData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching metafields:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -636,9 +749,229 @@ export default function ProductsScreen() {
     }
   };
 
+  // Helper functions for multi-select
+  const parseSelectedIds = (jsonString: string): number[] => {
+    try {
+      const parsed = JSON.parse(jsonString || '[]');
+      return Array.isArray(parsed) ? parsed.filter(id => typeof id === 'number') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const openOptionsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+    const currentIds = parseSelectedIds(currentProduct.options || '[]');
+    setSelectedOptionIds(currentIds);
+
+    // Fetch options first if not already loaded
+    if (availableOptions.length === 0) {
+      await fetchAvailableOptions();
+    }
+
+    setOptionsDrawerVisible(true);
+  };
+
+  const openMetafieldsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+    const currentIds = parseSelectedIds(currentProduct.metafields || '[]');
+    setSelectedMetafieldIds(currentIds);
+
+    // Fetch metafields first if not already loaded
+    if (availableMetafields.length === 0) {
+      await fetchAvailableMetafields();
+    }
+
+    setMetafieldsDrawerVisible(true);
+  };
+
+  const handleOptionsSelection = () => {
+    const selectedIdsJson = JSON.stringify(selectedOptionIds);
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, options: selectedIdsJson});
+    } else {
+      setNewProduct({...newProduct, options: selectedIdsJson});
+    }
+    setOptionsDrawerVisible(false);
+  };
+
+  const handleMetafieldsSelection = () => {
+    const selectedIdsJson = JSON.stringify(selectedMetafieldIds);
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, metafields: selectedIdsJson});
+    } else {
+      setNewProduct({...newProduct, metafields: selectedIdsJson});
+    }
+    setMetafieldsDrawerVisible(false);
+  };
+
+  const toggleOptionSelection = (optionId: number) => {
+    setSelectedOptionIds(prev =>
+      prev.includes(optionId)
+        ? prev.filter(id => id !== optionId)
+        : [...prev, optionId]
+    );
+  };
+
+  const toggleMetafieldSelection = (metafieldId: number) => {
+    setSelectedMetafieldIds(prev =>
+      prev.includes(metafieldId)
+        ? prev.filter(id => id !== metafieldId)
+        : [...prev, metafieldId]
+    );
+  };
+
+  // Helper function to get selected option names
+  const getSelectedOptionNames = (optionIds: number[]): string => {
+    if (optionIds.length === 0) return '';
+
+    const selectedOptions = availableOptions.filter(option => optionIds.includes(option.id));
+    if (selectedOptions.length === 0) return `${optionIds.length} options selected`;
+
+    if (selectedOptions.length <= 3) {
+      return selectedOptions.map(option => option.title).join(', ');
+    } else {
+      return `${selectedOptions.slice(0, 2).map(option => option.title).join(', ')} +${selectedOptions.length - 2} more`;
+    }
+  };
+
+  // Helper function to get selected metafield names
+  const getSelectedMetafieldNames = (metafieldIds: number[]): string => {
+    if (metafieldIds.length === 0) return '';
+
+    const selectedMetafields = availableMetafields.filter(metafield => metafieldIds.includes(metafield.id));
+    if (selectedMetafields.length === 0) return `${metafieldIds.length} metafields selected`;
+
+    if (selectedMetafields.length <= 3) {
+      return selectedMetafields.map(metafield => metafield.title).join(', ');
+    } else {
+      return `${selectedMetafields.slice(0, 2).map(metafield => metafield.title).join(', ')} +${selectedMetafields.length - 2} more`;
+    }
+  };
+
+  // Create new option function
+  const createNewOption = async () => {
+    if (!newOptionTitle.trim()) {
+      Alert.alert('Error', 'Option title is required');
+      return;
+    }
+
+    try {
+      setIsCreatingOption(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO options (parentid, title, value) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        // Reset form
+        setNewOptionTitle('');
+        setNewOptionValue('');
+        setCreateOptionModalVisible(false);
+
+        // Refresh options list
+        await fetchAvailableOptions();
+
+        Alert.alert('Success', 'Option created successfully');
+      } else {
+        throw new Error('Failed to create option');
+      }
+    } catch (error) {
+      console.error('Error creating option:', error);
+      Alert.alert('Error', 'Failed to create option. Please try again.');
+    } finally {
+      setIsCreatingOption(false);
+    }
+  };
+
+  // Create new metafield function
+  const createNewMetafield = async () => {
+    if (!newMetafieldTitle.trim()) {
+      Alert.alert('Error', 'Metafield title is required');
+      return;
+    }
+
+    try {
+      setIsCreatingMetafield(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO metafields (parentid, title, value) VALUES (NULL, '${newMetafieldTitle.replace(/'/g, "''")}', '${newMetafieldValue.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        // Reset form
+        setNewMetafieldTitle('');
+        setNewMetafieldValue('');
+        setCreateMetafieldModalVisible(false);
+
+        // Refresh metafields list
+        await fetchAvailableMetafields();
+
+        Alert.alert('Success', 'Metafield created successfully');
+      } else {
+        throw new Error('Failed to create metafield');
+      }
+    } catch (error) {
+      console.error('Error creating metafield:', error);
+      Alert.alert('Error', 'Failed to create metafield. Please try again.');
+    } finally {
+      setIsCreatingMetafield(false);
+    }
+  };
+
   // Fetch products on component mount
   useEffect(() => {
     fetchProducts();
+    fetchAvailableOptions();
+    fetchAvailableMetafields();
   }, []);
 
   // Handle edit button press
@@ -819,11 +1152,11 @@ export default function ProductsScreen() {
               { key: 'core', icon: 'cube-outline', label: 'Core' },
               { key: 'organization', icon: 'folder-outline', label: 'Organization' },
               { key: 'media', icon: 'image-outline', label: 'Media' },
-              { key: 'options', icon: 'options-outline', label: 'Options' },
               { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
               { key: 'sales', icon: 'cash-outline', label: 'Sales' },
               { key: 'channels', icon: 'globe-outline', label: 'Channels' },
               { key: 'seo', icon: 'search-outline', label: 'SEO' },
+              { key: 'options', icon: 'options-outline', label: 'Options' },
               { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
             ]}
           >
@@ -1009,45 +1342,6 @@ export default function ProductsScreen() {
               </View>
             </View>
 
-            {/* Options Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Options</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.options === '[]' ? '' : newProduct.options}
-                  onChangeText={(text) => setNewProduct({...newProduct, options: text || '[]'})}
-                  placeholder="Product options (JSON format)"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Modifiers</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.modifiers}
-                  onChangeText={(text) => setNewProduct({...newProduct, modifiers: text})}
-                  placeholder="Product modifiers"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Metafields</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.metafields}
-                  onChangeText={(text) => setNewProduct({...newProduct, metafields: text})}
-                  placeholder="Product metafields"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-            </View>
-
             {/* Notes Tab */}
             <View>
               <View style={styles.formField}>
@@ -1225,6 +1519,83 @@ export default function ProductsScreen() {
               </View>
             </View>
 
+            {/* Options Tab */}
+            <View>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Options</Text>
+                <TouchableOpacity
+                  style={styles.selectorButton}
+                  onPress={() => openOptionsDrawer(newProduct, false)}
+                >
+                  <View style={styles.selectorContent}>
+                    <View style={styles.selectorTextContainer}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(newProduct.options || '[]');
+                        const selectedNames = getSelectedOptionNames(selectedIds);
+
+                        if (selectedIds.length === 0) {
+                          return <Text style={styles.selectorPlaceholder}>Select options</Text>;
+                        } else if (selectedNames) {
+                          return (
+                            <View>
+                              <Text style={styles.selectorText}>{selectedNames}</Text>
+                              <Text style={styles.selectorCount}>{selectedIds.length} option{selectedIds.length !== 1 ? 's' : ''}</Text>
+                            </View>
+                          );
+                        } else {
+                          return <Text style={styles.selectorText}>{selectedIds.length} options selected</Text>;
+                        }
+                      })()}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Modifiers</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newProduct.modifiers}
+                  onChangeText={(text) => setNewProduct({...newProduct, modifiers: text})}
+                  placeholder="Product modifiers"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Metafields</Text>
+                <TouchableOpacity
+                  style={styles.selectorButton}
+                  onPress={() => openMetafieldsDrawer(newProduct, false)}
+                >
+                  <View style={styles.selectorContent}>
+                    <View style={styles.selectorTextContainer}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
+                        const selectedNames = getSelectedMetafieldNames(selectedIds);
+
+                        if (selectedIds.length === 0) {
+                          return <Text style={styles.selectorPlaceholder}>Select metafields</Text>;
+                        } else if (selectedNames) {
+                          return (
+                            <View>
+                              <Text style={styles.selectorText}>{selectedNames}</Text>
+                              <Text style={styles.selectorCount}>{selectedIds.length} metafield{selectedIds.length !== 1 ? 's' : ''}</Text>
+                            </View>
+                          );
+                        } else {
+                          return <Text style={styles.selectorText}>{selectedIds.length} metafields selected</Text>;
+                        }
+                      })()}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Inventory Tab */}
             <View>
               <View style={styles.noProductSelected}>
@@ -1276,11 +1647,11 @@ export default function ProductsScreen() {
                 { key: 'core', icon: 'cube-outline', label: 'Core' },
                 { key: 'organization', icon: 'folder-outline', label: 'Organization' },
                 { key: 'media', icon: 'image-outline', label: 'Media' },
-                { key: 'options', icon: 'options-outline', label: 'Options' },
                 { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
                 { key: 'sales', icon: 'cash-outline', label: 'Sales' },
                 { key: 'channels', icon: 'globe-outline', label: 'Channels' },
                 { key: 'seo', icon: 'search-outline', label: 'SEO' },
+                { key: 'options', icon: 'options-outline', label: 'Options' },
                 { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
               ]}
             >
@@ -1466,45 +1837,6 @@ export default function ProductsScreen() {
                 </View>
               </View>
 
-              {/* Options Tab */}
-              <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Options</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.options === '[]' ? '' : selectedProductForEdit.options}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, options: text || '[]'})}
-                    placeholder="Product options (JSON format)"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Modifiers</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.modifiers}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, modifiers: text})}
-                    placeholder="Product modifiers"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Metafields</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.metafields}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, metafields: text})}
-                    placeholder="Product metafields"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
-              </View>
-
               {/* Notes Tab */}
               <View>
                 <View style={styles.formField}>
@@ -1682,6 +2014,83 @@ export default function ProductsScreen() {
                 </View>
               </View>
 
+              {/* Options Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Options</Text>
+                  <TouchableOpacity
+                    style={styles.selectorButton}
+                    onPress={() => openOptionsDrawer(selectedProductForEdit, true)}
+                  >
+                    <View style={styles.selectorContent}>
+                      <View style={styles.selectorTextContainer}>
+                        {(() => {
+                          const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
+                          const selectedNames = getSelectedOptionNames(selectedIds);
+
+                          if (selectedIds.length === 0) {
+                            return <Text style={styles.selectorPlaceholder}>Select options</Text>;
+                          } else if (selectedNames) {
+                            return (
+                              <View>
+                                <Text style={styles.selectorText}>{selectedNames}</Text>
+                                <Text style={styles.selectorCount}>{selectedIds.length} option{selectedIds.length !== 1 ? 's' : ''}</Text>
+                              </View>
+                            );
+                          } else {
+                            return <Text style={styles.selectorText}>{selectedIds.length} options selected</Text>;
+                          }
+                        })()}
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Modifiers</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.modifiers}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, modifiers: text})}
+                    placeholder="Product modifiers"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Metafields</Text>
+                  <TouchableOpacity
+                    style={styles.selectorButton}
+                    onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
+                  >
+                    <View style={styles.selectorContent}>
+                      <View style={styles.selectorTextContainer}>
+                        {(() => {
+                          const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
+                          const selectedNames = getSelectedMetafieldNames(selectedIds);
+
+                          if (selectedIds.length === 0) {
+                            return <Text style={styles.selectorPlaceholder}>Select metafields</Text>;
+                          } else if (selectedNames) {
+                            return (
+                              <View>
+                                <Text style={styles.selectorText}>{selectedNames}</Text>
+                                <Text style={styles.selectorCount}>{selectedIds.length} metafield{selectedIds.length !== 1 ? 's' : ''}</Text>
+                              </View>
+                            );
+                          } else {
+                            return <Text style={styles.selectorText}>{selectedIds.length} metafields selected</Text>;
+                          }
+                        })()}
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Inventory Tab */}
               <View>
                 {inventoryLoading ? (
@@ -1801,6 +2210,364 @@ export default function ProductsScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Options Multi-Select Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={optionsDrawerVisible}
+        onRequestClose={() => setOptionsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setOptionsDrawerVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Options</Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={() => setCreateOptionModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#0066CC" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleOptionsSelection}
+              >
+                <Text style={styles.saveButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.selectionInfo}>
+            <Text style={styles.selectionText}>
+              {selectedOptionIds.length} option{selectedOptionIds.length !== 1 ? 's' : ''} selected
+            </Text>
+          </View>
+
+          <FlatList
+            data={availableOptions.filter(option => option.parentid === null)}
+            renderItem={({ item }) => {
+              const children = availableOptions.filter(child => child.parentid === item.id);
+              return (
+                <View style={styles.optionGroup}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionItem,
+                      selectedOptionIds.includes(item.id) && styles.selectedOptionItem
+                    ]}
+                    onPress={() => toggleOptionSelection(item.id)}
+                  >
+                    <View style={styles.optionContent}>
+                      <Text style={styles.optionTitle}>{item.title}</Text>
+                      <Text style={styles.optionValue}>{item.value}</Text>
+                    </View>
+                    <View style={styles.checkbox}>
+                      {selectedOptionIds.includes(item.id) && (
+                        <Ionicons name="checkmark" size={16} color="#0066CC" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {children.map(child => {
+                    const grandChildren = availableOptions.filter(gc => gc.parentid === child.id);
+                    return (
+                      <View key={child.id}>
+                        <TouchableOpacity
+                          style={[
+                            styles.childOptionItem,
+                            selectedOptionIds.includes(child.id) && styles.selectedOptionItem
+                          ]}
+                          onPress={() => toggleOptionSelection(child.id)}
+                        >
+                          <View style={styles.optionContent}>
+                            <Text style={styles.childOptionTitle}>{child.title}</Text>
+                            <Text style={styles.childOptionValue}>{child.value}</Text>
+                          </View>
+                          <View style={styles.checkbox}>
+                            {selectedOptionIds.includes(child.id) && (
+                              <Ionicons name="checkmark" size={16} color="#0066CC" />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+
+                        {grandChildren.map(grandChild => (
+                          <TouchableOpacity
+                            key={grandChild.id}
+                            style={[
+                              styles.grandChildOptionItem,
+                              selectedOptionIds.includes(grandChild.id) && styles.selectedOptionItem
+                            ]}
+                            onPress={() => toggleOptionSelection(grandChild.id)}
+                          >
+                            <View style={styles.optionContent}>
+                              <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
+                              <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
+                            </View>
+                            <View style={styles.checkbox}>
+                              {selectedOptionIds.includes(grandChild.id) && (
+                                <Ionicons name="checkmark" size={16} color="#0066CC" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            }}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Metafields Multi-Select Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={metafieldsDrawerVisible}
+        onRequestClose={() => setMetafieldsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setMetafieldsDrawerVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Metafields</Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={() => setCreateMetafieldModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#0066CC" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleMetafieldsSelection}
+              >
+                <Text style={styles.saveButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.selectionInfo}>
+            <Text style={styles.selectionText}>
+              {selectedMetafieldIds.length} metafield{selectedMetafieldIds.length !== 1 ? 's' : ''} selected
+            </Text>
+          </View>
+
+          <FlatList
+            data={availableMetafields.filter(metafield => metafield.parentid === null)}
+            renderItem={({ item }) => {
+              const children = availableMetafields.filter(child => child.parentid === item.id);
+              return (
+                <View style={styles.optionGroup}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionItem,
+                      selectedMetafieldIds.includes(item.id) && styles.selectedOptionItem
+                    ]}
+                    onPress={() => toggleMetafieldSelection(item.id)}
+                  >
+                    <View style={styles.optionContent}>
+                      <Text style={styles.optionTitle}>{item.title}</Text>
+                      <Text style={styles.optionValue}>{item.value}</Text>
+                    </View>
+                    <View style={styles.checkbox}>
+                      {selectedMetafieldIds.includes(item.id) && (
+                        <Ionicons name="checkmark" size={16} color="#0066CC" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {children.map(child => {
+                    const grandChildren = availableMetafields.filter(gc => gc.parentid === child.id);
+                    return (
+                      <View key={child.id}>
+                        <TouchableOpacity
+                          style={[
+                            styles.childOptionItem,
+                            selectedMetafieldIds.includes(child.id) && styles.selectedOptionItem
+                          ]}
+                          onPress={() => toggleMetafieldSelection(child.id)}
+                        >
+                          <View style={styles.optionContent}>
+                            <Text style={styles.childOptionTitle}>{child.title}</Text>
+                            <Text style={styles.childOptionValue}>{child.value}</Text>
+                          </View>
+                          <View style={styles.checkbox}>
+                            {selectedMetafieldIds.includes(child.id) && (
+                              <Ionicons name="checkmark" size={16} color="#0066CC" />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+
+                        {grandChildren.map(grandChild => (
+                          <TouchableOpacity
+                            key={grandChild.id}
+                            style={[
+                              styles.grandChildOptionItem,
+                              selectedMetafieldIds.includes(grandChild.id) && styles.selectedOptionItem
+                            ]}
+                            onPress={() => toggleMetafieldSelection(grandChild.id)}
+                          >
+                            <View style={styles.optionContent}>
+                              <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
+                              <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
+                            </View>
+                            <View style={styles.checkbox}>
+                              {selectedMetafieldIds.includes(grandChild.id) && (
+                                <Ionicons name="checkmark" size={16} color="#0066CC" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            }}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Option Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createOptionModalVisible}
+        onRequestClose={() => setCreateOptionModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setCreateOptionModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create New Option</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewOption}
+              disabled={isCreatingOption}
+            >
+              {isCreatingOption ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.createFormContainer}>
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={newOptionTitle}
+                onChangeText={setNewOptionTitle}
+                placeholder="Option title"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Value</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newOptionValue}
+                onChangeText={setNewOptionValue}
+                placeholder="Option value"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Metafield Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createMetafieldModalVisible}
+        onRequestClose={() => setCreateMetafieldModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setCreateMetafieldModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create New Metafield</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewMetafield}
+              disabled={isCreatingMetafield}
+            >
+              {isCreatingMetafield ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.createFormContainer}>
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={newMetafieldTitle}
+                onChangeText={setNewMetafieldTitle}
+                placeholder="Metafield title"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Value</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newMetafieldValue}
+                onChangeText={setNewMetafieldValue}
+                placeholder="Metafield value"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -2122,5 +2889,138 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  // Multi-select drawer styles
+  selectorButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  selectorContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectorTextContainer: {
+    flex: 1,
+  },
+  selectorText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  selectorPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+  },
+  selectorCount: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  selectionInfo: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  selectionText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  optionGroup: {
+    marginBottom: 0,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  childOptionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingLeft: 32,
+    backgroundColor: '#fff',
+  },
+  grandChildOptionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingLeft: 48,
+    backgroundColor: '#fff',
+  },
+  selectedOptionItem: {
+    backgroundColor: '#f0f8ff',
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  optionValue: {
+    fontSize: 14,
+    color: '#666',
+  },
+  childOptionTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#444',
+    marginBottom: 2,
+  },
+  childOptionValue: {
+    fontSize: 13,
+    color: '#666',
+  },
+  grandChildOptionTitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#555',
+    marginBottom: 2,
+  },
+  grandChildOptionValue: {
+    fontSize: 12,
+    color: '#666',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  // Create new item styles
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  createButton: {
+    padding: 8,
+    marginRight: 8,
+    borderRadius: 4,
+    backgroundColor: '#f0f8ff',
+  },
+  createFormContainer: {
+    padding: 16,
+    flex: 1,
   },
 });
