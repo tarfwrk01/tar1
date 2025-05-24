@@ -16,25 +16,57 @@ interface VerticalTabViewProps {
 export default function VerticalTabView({ tabs, children }: VerticalTabViewProps) {
   const [activeTab, setActiveTab] = useState(0);
 
+  // Separate inventory tab from other tabs
+  const inventoryTabIndex = tabs.findIndex(tab => tab.key === 'inventory');
+  const regularTabs = tabs.filter(tab => tab.key !== 'inventory');
+  const inventoryTab = inventoryTabIndex !== -1 ? tabs[inventoryTabIndex] : null;
+
   return (
     <View style={styles.container}>
       <View style={styles.tabBar}>
-        {tabs.map((tab, index) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[
-              styles.tab,
-              activeTab === index && styles.activeTab
-            ]}
-            onPress={() => setActiveTab(index)}
-          >
-            <Ionicons
-              name={tab.icon as any}
-              size={24}
-              color={activeTab === index ? '#0066CC' : '#666'}
-            />
-          </TouchableOpacity>
-        ))}
+        {/* Regular tabs */}
+        <View style={styles.regularTabsContainer}>
+          {regularTabs.map((tab, index) => {
+            const originalIndex = tabs.findIndex(t => t.key === tab.key);
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[
+                  styles.tab,
+                  activeTab === originalIndex && styles.activeTab
+                ]}
+                onPress={() => setActiveTab(originalIndex)}
+              >
+                <Ionicons
+                  name={tab.icon as any}
+                  size={24}
+                  color={activeTab === originalIndex ? '#0066CC' : '#666'}
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Inventory tab at bottom */}
+        {inventoryTab && (
+          <View style={styles.bottomTabContainer}>
+            <TouchableOpacity
+              key={inventoryTab.key}
+              style={[
+                styles.tab,
+                styles.bottomTab,
+                activeTab === inventoryTabIndex && styles.activeTab
+              ]}
+              onPress={() => setActiveTab(inventoryTabIndex)}
+            >
+              <Ionicons
+                name={inventoryTab.icon as any}
+                size={24}
+                color={activeTab === inventoryTabIndex ? '#0066CC' : '#666'}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
       <View style={styles.tabContent}>
         <ScrollView style={styles.scrollContent}>
@@ -52,10 +84,17 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     width: 50,
-    backgroundColor: '#f8f8f8',
-    borderRightWidth: 0,
-    borderRightColor: '#eee',
+    backgroundColor: '#ffffff',
+    borderRightWidth: 1,
+    borderRightColor: '#f0f0f0',
     paddingTop: 0,
+    justifyContent: 'space-between',
+  },
+  regularTabsContainer: {
+    flex: 1,
+  },
+  bottomTabContainer: {
+    paddingBottom: 16,
   },
   tab: {
     paddingVertical: 16,
@@ -64,12 +103,19 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderLeftColor: 'transparent',
   },
+  bottomTab: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    marginTop: 8,
+  },
   activeTab: {
+    borderLeftWidth: 3,
     borderLeftColor: '#0066CC',
     backgroundColor: '#f0f7ff',
   },
   tabContent: {
     flex: 1,
+    backgroundColor: '#ffffff',
   },
   scrollContent: {
     padding: 16,

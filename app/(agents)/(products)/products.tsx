@@ -57,14 +57,39 @@ type Product = {
   sellproducts: string; // JSON array of product IDs
 };
 
+type InventoryItem = {
+  id: number;
+  productId: number;
+  sku: string;
+  image: string;
+  option1: string;
+  option2: string;
+  option3: string;
+  reorderlevel: number;
+  reorderqty: number;
+  warehouse: string;
+  expiry: string;
+  batchno: string;
+  quantity: number;
+  cost: number;
+  price: number;
+  margin: number;
+  saleprice: number;
+};
+
 export default function ProductsScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [selectedProductForInventory, setSelectedProductForInventory] = useState<Product | null>(null);
+  const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
     images: '[]', // Empty JSON array
@@ -359,6 +384,236 @@ export default function ProductsScreen() {
     }
   };
 
+  const editProduct = async () => {
+    if (!selectedProductForEdit) return;
+
+    try {
+      if (!selectedProductForEdit.title) {
+        Alert.alert('Error', 'Product title is required');
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Current date for updated timestamp
+      const now = new Date().toISOString();
+
+      // Create the update SQL
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `UPDATE products SET
+                title = '${(selectedProductForEdit.title || '').replace(/'/g, "''")}',
+                images = '${(selectedProductForEdit.images || '[]').replace(/'/g, "''")}',
+                excerpt = '${(selectedProductForEdit.excerpt || '').replace(/'/g, "''")}',
+                notes = '${(selectedProductForEdit.notes || '').replace(/'/g, "''")}',
+                type = '${(selectedProductForEdit.type || 'physical').replace(/'/g, "''")}',
+                category = '${(selectedProductForEdit.category || '').replace(/'/g, "''")}',
+                collection = '${(selectedProductForEdit.collection || '').replace(/'/g, "''")}',
+                unit = '${(selectedProductForEdit.unit || '').replace(/'/g, "''")}',
+                price = ${selectedProductForEdit.price || 0},
+                saleprice = ${selectedProductForEdit.saleprice || 0},
+                vendor = '${(selectedProductForEdit.vendor || '').replace(/'/g, "''")}',
+                brand = '${(selectedProductForEdit.brand || '').replace(/'/g, "''")}',
+                options = '${(selectedProductForEdit.options || '[]').replace(/'/g, "''")}',
+                modifiers = '${(selectedProductForEdit.modifiers || '').replace(/'/g, "''")}',
+                metafields = '${(selectedProductForEdit.metafields || '').replace(/'/g, "''")}',
+                saleinfo = '${(selectedProductForEdit.saleinfo || '').replace(/'/g, "''")}',
+                stores = '${(selectedProductForEdit.stores || '').replace(/'/g, "''")}',
+                location = '${(selectedProductForEdit.location || '').replace(/'/g, "''")}',
+                saleschannel = '${(selectedProductForEdit.saleschannel || '').replace(/'/g, "''")}',
+                pos = ${selectedProductForEdit.pos || 0},
+                website = ${selectedProductForEdit.website || 0},
+                seo = '${(selectedProductForEdit.seo || '{"slug":"", "title":"", "keywords":""}').replace(/'/g, "''")}',
+                tags = '${(selectedProductForEdit.tags || '').replace(/'/g, "''")}',
+                cost = ${selectedProductForEdit.cost || 0},
+                barcode = '${(selectedProductForEdit.barcode || '').replace(/'/g, "''")}',
+                updatedat = '${now}',
+                publish = '${(selectedProductForEdit.publish || 'draft').replace(/'/g, "''")}',
+                promoinfo = '${(selectedProductForEdit.promoinfo || '').replace(/'/g, "''")}',
+                featured = ${selectedProductForEdit.featured || 0},
+                relproducts = '${(selectedProductForEdit.relproducts || '[]').replace(/'/g, "''")}',
+                sellproducts = '${(selectedProductForEdit.sellproducts || '[]').replace(/'/g, "''")}'
+                WHERE id = ${selectedProductForEdit.id}`
+            }
+          }
+        ]
+      };
+
+      console.log('Edit API URL:', apiUrl);
+      console.log('Edit Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Update product
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseText = await response.text();
+      console.log('Edit response status:', response.status);
+      console.log('Edit response text:', responseText);
+
+      if (response.ok) {
+        // Reset form and close modal
+        setSelectedProductForEdit(null);
+        setEditModalVisible(false);
+
+        // Refresh product list
+        fetchProducts();
+
+        Alert.alert('Success', 'Product updated successfully');
+      } else {
+        console.error('Failed to update product:', responseText);
+        Alert.alert(
+          'Error',
+          'Failed to update product. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating product:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while updating the product. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchInventoryForProduct = async (productId: number) => {
+    try {
+      setInventoryLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Create request body with direct SQL
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `SELECT id, productId, sku, quantity, warehouse, cost, price, option1, option2, option3, reorderlevel, reorderqty, expiry, batchno, margin, saleprice, image FROM inventory WHERE productId = ${productId} ORDER BY id DESC LIMIT 100`
+            }
+          }
+        ]
+      };
+
+      console.log('Fetching inventory for product:', productId);
+      console.log('Fetch request body:', JSON.stringify(requestBody, null, 2));
+
+      // Fetch inventory
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseText = await response.text();
+      console.log('Fetch response status:', response.status);
+      console.log('Fetch response text:', responseText);
+
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed data:', JSON.stringify(data, null, 2));
+
+          if (data.results &&
+              data.results[0] &&
+              data.results[0].response &&
+              data.results[0].response.result &&
+              data.results[0].response.result.rows) {
+
+            // Extract the rows from the nested structure
+            const rows = data.results[0].response.result.rows;
+            console.log('Raw rows:', JSON.stringify(rows, null, 2));
+
+            // Transform the rows into a more usable format
+            const inventoryData = rows.map((row: any[]) => {
+              return {
+                id: parseInt(row[0].value),
+                productId: parseInt(row[1].value),
+                sku: row[2].type === 'null' ? '' : row[2].value,
+                quantity: row[3].type === 'null' ? 0 : parseInt(row[3].value),
+                warehouse: row[4].type === 'null' ? '' : row[4].value,
+                cost: row[5].type === 'null' ? 0 : parseFloat(row[5].value),
+                price: row[6].type === 'null' ? 0 : parseFloat(row[6].value),
+                option1: row[7].type === 'null' ? '' : row[7].value,
+                option2: row[8].type === 'null' ? '' : row[8].value,
+                option3: row[9].type === 'null' ? '' : row[9].value,
+                reorderlevel: row[10].type === 'null' ? 0 : parseInt(row[10].value),
+                reorderqty: row[11].type === 'null' ? 0 : parseInt(row[11].value),
+                expiry: row[12].type === 'null' ? '' : row[12].value,
+                batchno: row[13].type === 'null' ? '' : row[13].value,
+                margin: row[14].type === 'null' ? 0 : parseFloat(row[14].value),
+                saleprice: row[15].type === 'null' ? 0 : parseFloat(row[15].value),
+                image: row[16].type === 'null' ? '' : row[16].value
+              };
+            });
+
+            console.log('Transformed inventory data:', JSON.stringify(inventoryData, null, 2));
+            console.log('Setting inventory state with', inventoryData.length, 'items');
+            setInventory(inventoryData);
+          } else {
+            console.log('No inventory data found in response');
+            setInventory([]);
+          }
+        } catch (parseError) {
+          console.error('Error parsing JSON response:', parseError);
+          setInventory([]);
+        }
+      } else {
+        console.error('Failed to fetch inventory:', await response.text());
+        Alert.alert(
+          'Error',
+          'Failed to fetch inventory. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while fetching inventory. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -386,10 +641,38 @@ export default function ProductsScreen() {
     fetchProducts();
   }, []);
 
+  // Handle edit button press
+  const handleEditProduct = (product: Product) => {
+    setSelectedProductForEdit({...product});
+    setEditModalVisible(true);
+    // Fetch inventory for the selected product
+    fetchInventoryForProduct(product.id);
+  };
+
   const renderProductItem = ({ item }: { item: Product }) => (
-    <View style={styles.productItem}>
-      <Text style={styles.productTitle}>{item.title || 'Untitled Product'}</Text>
-    </View>
+    <TouchableOpacity
+      style={[
+        styles.productItem,
+        selectedProductForInventory?.id === item.id && styles.selectedProductItem
+      ]}
+      onPress={() => {
+        setSelectedProductForInventory(item);
+        fetchInventoryForProduct(item.id);
+      }}
+      onLongPress={() => handleEditProduct(item)}
+    >
+      <View style={styles.productContent}>
+        <Text style={styles.productTitle}>{item.title || 'Untitled Product'}</Text>
+        <Text style={styles.productSubtitle}>ID: {item.id} | Type: {item.type}</Text>
+        <Text style={styles.productPrice}>Price: ${item.price?.toFixed(2)}</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => handleEditProduct(item)}
+      >
+        <Ionicons name="create-outline" size={20} color="#0066CC" />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 
   const renderEmptyList = () => (
@@ -398,6 +681,36 @@ export default function ProductsScreen() {
       <TouchableOpacity style={styles.refreshButton} onPress={fetchProducts}>
         <Text style={styles.refreshButtonText}>Refresh</Text>
       </TouchableOpacity>
+    </View>
+  );
+
+  const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
+    <View style={styles.inventoryItem}>
+      <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
+      <Text style={styles.inventorySubtitle}>Qty: {item.quantity} | Warehouse: {item.warehouse}</Text>
+      <Text style={styles.inventoryPrice}>Cost: ${item.cost?.toFixed(2)} | Price: ${item.price?.toFixed(2)}</Text>
+      {item.option1 && <Text style={styles.inventoryOption}>Option 1: {item.option1}</Text>}
+      {item.option2 && <Text style={styles.inventoryOption}>Option 2: {item.option2}</Text>}
+      {item.option3 && <Text style={styles.inventoryOption}>Option 3: {item.option3}</Text>}
+    </View>
+  );
+
+  const renderInventoryEmptyList = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>
+        {selectedProductForInventory
+          ? `No inventory found for "${selectedProductForInventory.title}"`
+          : 'Select a product to view its inventory'
+        }
+      </Text>
+      {selectedProductForInventory && (
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={() => fetchInventoryForProduct(selectedProductForInventory.id)}
+        >
+          <Text style={styles.refreshButtonText}>Refresh</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -510,7 +823,8 @@ export default function ProductsScreen() {
               { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
               { key: 'sales', icon: 'cash-outline', label: 'Sales' },
               { key: 'channels', icon: 'globe-outline', label: 'Channels' },
-              { key: 'seo', icon: 'search-outline', label: 'SEO' }
+              { key: 'seo', icon: 'search-outline', label: 'SEO' },
+              { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
             ]}
           >
             {/* Core Tab */}
@@ -910,7 +1224,499 @@ export default function ProductsScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Inventory Tab */}
+            <View>
+              <View style={styles.noProductSelected}>
+                <Text style={styles.noProductText}>
+                  Inventory will be available after the product is created
+                </Text>
+              </View>
+            </View>
           </VerticalTabView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Edit Product Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={editModalVisible && selectedProductForEdit !== null}
+        onRequestClose={() => setEditModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setEditModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle} numberOfLines={1} ellipsizeMode="tail">
+              {selectedProductForEdit?.title || 'Edit Product'}
+            </Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={editProduct}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {selectedProductForEdit && (
+            <VerticalTabView
+              tabs={[
+                { key: 'core', icon: 'cube-outline', label: 'Core' },
+                { key: 'organization', icon: 'folder-outline', label: 'Organization' },
+                { key: 'media', icon: 'image-outline', label: 'Media' },
+                { key: 'options', icon: 'options-outline', label: 'Options' },
+                { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
+                { key: 'sales', icon: 'cash-outline', label: 'Sales' },
+                { key: 'channels', icon: 'globe-outline', label: 'Channels' },
+                { key: 'seo', icon: 'search-outline', label: 'SEO' },
+                { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
+              ]}
+            >
+              {/* Core Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Title *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.title}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, title: text})}
+                    placeholder="Product title"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Price *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.price?.toString()}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, price: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Sale Price</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.saleprice?.toString()}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleprice: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Cost</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.cost?.toString()}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, cost: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Excerpt</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.excerpt}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, excerpt: text})}
+                    placeholder="Short description"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+              </View>
+
+              {/* Organization Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Type</Text>
+                  <View style={styles.typeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.type === 'physical' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'physical'})}
+                    >
+                      <Text style={selectedProductForEdit.type === 'physical' ? styles.typeTextActive : styles.typeText}>
+                        Physical
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.type === 'digital' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'digital'})}
+                    >
+                      <Text style={selectedProductForEdit.type === 'digital' ? styles.typeTextActive : styles.typeText}>
+                        Digital
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.type === 'service' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'service'})}
+                    >
+                      <Text style={selectedProductForEdit.type === 'service' ? styles.typeTextActive : styles.typeText}>
+                        Service
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Category</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.category}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, category: text})}
+                    placeholder="Product category"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Collection</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.collection}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, collection: text})}
+                    placeholder="Product collection"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Unit</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.unit}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, unit: text})}
+                    placeholder="Unit of measurement"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Vendor</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.vendor}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, vendor: text})}
+                    placeholder="Product vendor"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Brand</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.brand}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, brand: text})}
+                    placeholder="Product brand"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Tags</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.tags}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, tags: text})}
+                    placeholder="Product tags (comma separated)"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Barcode</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.barcode}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, barcode: text})}
+                    placeholder="Product barcode/SKU"
+                  />
+                </View>
+              </View>
+
+              {/* Media Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <ImageUploader
+                    images={selectedProductForEdit.images || '[]'}
+                    onImagesChange={(images) =>
+                      setSelectedProductForEdit({...selectedProductForEdit, images: JSON.stringify(images)})
+                    }
+                  />
+                </View>
+              </View>
+
+              {/* Options Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Options</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.options === '[]' ? '' : selectedProductForEdit.options}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, options: text || '[]'})}
+                    placeholder="Product options (JSON format)"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Modifiers</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.modifiers}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, modifiers: text})}
+                    placeholder="Product modifiers"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Metafields</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.metafields}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, metafields: text})}
+                    placeholder="Product metafields"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+              </View>
+
+              {/* Notes Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Notes</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.notes}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, notes: text})}
+                    placeholder="Additional notes"
+                    multiline
+                    numberOfLines={6}
+                  />
+                </View>
+              </View>
+
+              {/* Sales Tab */}
+              <View>
+                <View style={styles.switchField}>
+                  <Text style={styles.inputLabel}>Featured Product</Text>
+                  <Switch
+                    value={selectedProductForEdit.featured === 1}
+                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, featured: value ? 1 : 0})}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Sale Info</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.saleinfo}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleinfo: text})}
+                    placeholder="Sale information"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Promo Info</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.promoinfo}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, promoinfo: text})}
+                    placeholder="Promotion information"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Related Products</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.relproducts === '[]' ? '' : selectedProductForEdit.relproducts}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, relproducts: text || '[]'})}
+                    placeholder="Related products (JSON format)"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Sell Products</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.sellproducts === '[]' ? '' : selectedProductForEdit.sellproducts}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, sellproducts: text || '[]'})}
+                    placeholder="Sell products (JSON format)"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+              </View>
+
+              {/* Channels Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Stores</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.stores}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, stores: text})}
+                    placeholder="Stores"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Location</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.location}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, location: text})}
+                    placeholder="Location"
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Sales Channel</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.saleschannel}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleschannel: text})}
+                    placeholder="Sales channel"
+                  />
+                </View>
+
+                <View style={styles.switchField}>
+                  <Text style={styles.inputLabel}>POS</Text>
+                  <Switch
+                    value={selectedProductForEdit.pos === 1}
+                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, pos: value ? 1 : 0})}
+                  />
+                </View>
+
+                <View style={styles.switchField}>
+                  <Text style={styles.inputLabel}>Website</Text>
+                  <Switch
+                    value={selectedProductForEdit.website === 1}
+                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, website: value ? 1 : 0})}
+                  />
+                </View>
+              </View>
+
+              {/* SEO Tab */}
+              <View>
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>SEO</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={selectedProductForEdit.seo === '{"slug":"", "title":"", "keywords":""}' ? '' : selectedProductForEdit.seo}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, seo: text || '{"slug":"", "title":"", "keywords":""}'})}
+                    placeholder="SEO information (JSON format)"
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Publish Status</Text>
+                  <View style={styles.typeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.publish === 'draft' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'draft'})}
+                    >
+                      <Text style={selectedProductForEdit.publish === 'draft' ? styles.typeTextActive : styles.typeText}>
+                        Draft
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.publish === 'active' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'active'})}
+                    >
+                      <Text style={selectedProductForEdit.publish === 'active' ? styles.typeTextActive : styles.typeText}>
+                        Active
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.typeButton,
+                        selectedProductForEdit.publish === 'archived' && styles.typeButtonActive
+                      ]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'archived'})}
+                    >
+                      <Text style={selectedProductForEdit.publish === 'archived' ? styles.typeTextActive : styles.typeText}>
+                        Archived
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* Inventory Tab */}
+              <View>
+                {inventoryLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#0066CC" />
+                    <Text style={styles.loadingText}>Loading inventory...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.simpleInventoryList}>
+                    {(() => {
+                      console.log('Current inventory state:', inventory);
+                      console.log('Selected product for edit:', selectedProductForEdit.id);
+                      const filteredInventory = inventory.filter(item => item.productId === selectedProductForEdit.id);
+                      console.log('Filtered inventory for product', selectedProductForEdit.id, ':', filteredInventory);
+                      console.log('Filtered inventory length:', filteredInventory.length);
+                      return filteredInventory.length > 0 ? (
+                        filteredInventory.map((item, index) => (
+                          <View key={item.id.toString()}>
+                            {renderInventoryItem({ item })}
+                            {index < filteredInventory.length - 1 && <View style={styles.separator} />}
+                          </View>
+                        ))
+                      ) : (
+                        <View style={styles.noProductSelected}>
+                          <Text style={styles.noProductText}>
+                            No inventory items found for this product (ID: {selectedProductForEdit.id})
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                )}
+              </View>
+            </VerticalTabView>
+          )}
         </SafeAreaView>
       </Modal>
 
@@ -1084,7 +1890,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   productItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
+  },
+  productContent: {
+    flex: 1,
+  },
+  editButton: {
+    padding: 8,
+    marginLeft: 12,
   },
   separator: {
     height: 1,
@@ -1092,7 +1907,23 @@ const styles = StyleSheet.create({
   },
   productTitle: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+    marginBottom: 4,
+  },
+  productSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  productPrice: {
+    fontSize: 14,
+    color: '#0066CC',
+  },
+  selectedProductItem: {
+    backgroundColor: '#f0f7ff',
+    borderLeftWidth: 3,
+    borderLeftColor: '#0066CC',
   },
   emptyContainer: {
     flex: 1,
@@ -1250,5 +2081,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  // Inventory styles
+  simpleInventoryList: {
+    // No borders, no background, just simple list
+  },
+  inventoryItem: {
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  inventoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  inventorySubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  inventoryPrice: {
+    fontSize: 12,
+    color: '#0066CC',
+    marginBottom: 2,
+  },
+  inventoryOption: {
+    fontSize: 11,
+    color: '#888',
+    marginBottom: 1,
+  },
+  noProductSelected: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  noProductText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
 });

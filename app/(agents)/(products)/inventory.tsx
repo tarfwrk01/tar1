@@ -4,19 +4,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
-import VerticalTabView from './VerticalTabView';
+import SingleImageUploader from './SingleImageUploader';
 
 type InventoryItem = {
   id: number;
@@ -49,7 +50,7 @@ export default function InventoryScreen() {
   const [newInventoryItem, setNewInventoryItem] = useState<Partial<InventoryItem>>({
     productId: 1,
     sku: '',
-    image: '',
+    image: '[]', // Empty JSON array
     option1: '',
     option2: '',
     option3: '',
@@ -267,7 +268,7 @@ export default function InventoryScreen() {
             setNewInventoryItem({
               productId: 1,
               sku: '',
-              image: '',
+              image: '[]',
               option1: '',
               option2: '',
               option3: '',
@@ -346,6 +347,14 @@ export default function InventoryScreen() {
       );
       setFilteredInventory(filtered);
     }
+  };
+
+  // Handle image change
+  const handleImageChange = (imageUrl: string) => {
+    setNewInventoryItem({
+      ...newInventoryItem,
+      image: imageUrl
+    });
   };
 
   // Fetch inventory on component mount
@@ -468,65 +477,67 @@ export default function InventoryScreen() {
             </TouchableOpacity>
           </View>
 
-          <VerticalTabView
-            tabs={[
-              { key: 'basic', icon: 'cube-outline', label: 'Basic' },
-              { key: 'options', icon: 'options-outline', label: 'Options' },
-              { key: 'stock', icon: 'layers-outline', label: 'Stock' },
-              { key: 'pricing', icon: 'cash-outline', label: 'Pricing' }
-            ]}
-          >
-            {/* Basic Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Product ID *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.productId?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, productId: parseInt(text) || 0})}
-                  placeholder="Product ID"
-                  keyboardType="numeric"
-                />
+          <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+            {/* Basic Information Tile */}
+            <View style={styles.formTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="cube-outline" size={20} color="#0066CC" />
+                <Text style={styles.tileTitle}>Basic Information</Text>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>SKU *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.sku}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, sku: text})}
-                  placeholder="Stock Keeping Unit"
-                />
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Product ID *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.productId?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, productId: parseInt(text) || 1})}
+                    placeholder="Product ID"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>SKU *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.sku}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, sku: text})}
+                    placeholder="Stock Keeping Unit"
+                  />
+                </View>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Image URL</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.image}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, image: text})}
-                  placeholder="Image URL"
-                />
+              <View style={styles.imageSection}>
+                <Text style={styles.inputLabel}>Product Image</Text>
+                <View style={styles.imageTile}>
+                  <SingleImageUploader
+                    imageUrl={newInventoryItem.image || '[]'}
+                    onImageChange={handleImageChange}
+                  />
+                </View>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Warehouse</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.warehouse}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, warehouse: text})}
-                  placeholder="Warehouse location"
-                />
-              </View>
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Warehouse</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.warehouse}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, warehouse: text})}
+                    placeholder="Warehouse location"
+                  />
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Batch Number</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.batchno}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, batchno: text})}
-                  placeholder="Batch number"
-                />
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Batch Number</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.batchno}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, batchno: text})}
+                    placeholder="Batch number"
+                  />
+                </View>
               </View>
 
               <View style={styles.formField}>
@@ -540,26 +551,33 @@ export default function InventoryScreen() {
               </View>
             </View>
 
-            {/* Options Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Option 1</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.option1}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option1: text})}
-                  placeholder="Option 1 (e.g., Size)"
-                />
+            {/* Product Options Tile */}
+            <View style={styles.formTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="options-outline" size={20} color="#0066CC" />
+                <Text style={styles.tileTitle}>Product Options</Text>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Option 2</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.option2}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option2: text})}
-                  placeholder="Option 2 (e.g., Color)"
-                />
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Option 1</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.option1}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option1: text})}
+                    placeholder="e.g., Size"
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Option 2</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.option2}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option2: text})}
+                    placeholder="e.g., Color"
+                  />
+                </View>
               </View>
 
               <View style={styles.formField}>
@@ -568,33 +586,40 @@ export default function InventoryScreen() {
                   style={styles.input}
                   value={newInventoryItem.option3}
                   onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option3: text})}
-                  placeholder="Option 3 (e.g., Material)"
+                  placeholder="e.g., Material"
                 />
               </View>
             </View>
 
-            {/* Stock Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Quantity *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.quantity?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, quantity: parseInt(text) || 0})}
-                  placeholder="Current quantity"
-                  keyboardType="numeric"
-                />
+            {/* Stock Management Tile */}
+            <View style={styles.formTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="layers-outline" size={20} color="#0066CC" />
+                <Text style={styles.tileTitle}>Stock Management</Text>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Reorder Level</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.reorderlevel?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, reorderlevel: parseInt(text) || 0})}
-                  placeholder="Minimum stock level"
-                  keyboardType="numeric"
-                />
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Quantity *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.quantity?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, quantity: parseInt(text) || 1})}
+                    placeholder="Current quantity"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Reorder Level</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.reorderlevel?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, reorderlevel: parseInt(text) || 0})}
+                    placeholder="Min stock level"
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
 
               <View style={styles.formField}>
@@ -609,53 +634,62 @@ export default function InventoryScreen() {
               </View>
             </View>
 
-            {/* Pricing Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Cost *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.cost?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, cost: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
+            {/* Pricing Tile */}
+            <View style={styles.formTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="cash-outline" size={20} color="#0066CC" />
+                <Text style={styles.tileTitle}>Pricing</Text>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Price *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.price?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, price: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Cost *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.cost?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, cost: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Price *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.price?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, price: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Sale Price</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.saleprice?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, saleprice: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
+              <View style={styles.tileRow}>
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Sale Price</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.saleprice?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, saleprice: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Margin</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.margin?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, margin: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
+                <View style={styles.halfField}>
+                  <Text style={styles.inputLabel}>Margin</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newInventoryItem.margin?.toString()}
+                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, margin: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
             </View>
-          </VerticalTabView>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -894,5 +928,62 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  // Tile-based form styles
+  formContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  formTile: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  tileTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 8,
+  },
+  tileRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  halfField: {
+    flex: 0.48,
+  },
+  imageSection: {
+    marginBottom: 16,
+  },
+  imageTile: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#eaeaea',
   },
 });
