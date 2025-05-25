@@ -3,7 +3,8 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
 
 // Custom tab button component that doesn't show press effects
@@ -27,6 +28,7 @@ const TabButton = ({
 
 export default function PrimaryLayout() {
   const { isLoading, user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (isLoading) {
     return (
@@ -50,8 +52,8 @@ export default function PrimaryLayout() {
         tabBarShowLabel: false,
         animation: 'none',
         tabBarStyle: {
-          height: 50,
-          paddingBottom: 5,
+          height: 50 + (Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 0),
+          paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 5,
           paddingTop: 5,
         },
         // Disable press effects
