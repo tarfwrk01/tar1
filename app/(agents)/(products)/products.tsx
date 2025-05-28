@@ -23,7 +23,7 @@ import VerticalTabView from './VerticalTabView';
 type Product = {
   id: number;
   title: string;
-  images: string; // JSON array of URLs
+  medias: string; // JSON array of URLs (renamed from images)
   excerpt: string;
   notes: string;
   type: string; // physical, digital, service
@@ -39,14 +39,12 @@ type Product = {
   metafields: string;
   saleinfo: string;
   stores: string;
-  location: string;
-  saleschannel: string;
   pos: number; // BOOLEAN stored as INTEGER (0 or 1)
   website: number; // BOOLEAN stored as INTEGER (0 or 1)
   seo: string; // JSON with slug, title, keywords
   tags: string;
   cost: number;
-  barcode: string;
+  qrcode: string; // renamed from barcode
   createdat: string;
   updatedat: string;
   publishat: string;
@@ -61,16 +59,18 @@ type InventoryItem = {
   id: number;
   productId: number;
   sku: string;
+  barcode: string;
   image: string;
   option1: string;
   option2: string;
   option3: string;
   reorderlevel: number;
-  reorderqty: number;
-  warehouse: string;
-  expiry: string;
-  batchno: string;
-  quantity: number;
+  path: string;
+  available: number;
+  committed: number;
+  unavailable: number;
+  onhand: number;
+  metafields: string;
   cost: number;
   price: number;
   margin: number;
@@ -111,7 +111,7 @@ export default function ProductsScreen() {
   const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
-    images: '[]', // Empty JSON array
+    medias: '[]', // Empty JSON array (renamed from images)
     excerpt: '',
     notes: '',
     type: 'physical',
@@ -127,14 +127,12 @@ export default function ProductsScreen() {
     metafields: '',
     saleinfo: '',
     stores: '',
-    location: '',
-    saleschannel: '',
     pos: 0,
     website: 0,
     seo: '{"slug":"", "title":"", "keywords":""}',
     tags: '',
     cost: 0,
-    barcode: '',
+    qrcode: '', // renamed from barcode
     publish: 'draft',
     promoinfo: '',
     featured: 0,
@@ -373,14 +371,14 @@ export default function ProductsScreen() {
             type: "execute",
             stmt: {
               sql: `INSERT INTO products (
-                title, images, excerpt, notes, type, category, collection, unit,
+                title, medias, excerpt, notes, type, category, collection, unit,
                 price, saleprice, vendor, brand, options, modifiers, metafields,
-                saleinfo, stores, location, saleschannel, pos, website, seo,
-                tags, cost, barcode, createdat, updatedat, publishat, publish,
+                saleinfo, stores, pos, website, seo,
+                tags, cost, qrcode, createdat, updatedat, publishat, publish,
                 promoinfo, featured, relproducts, sellproducts
               ) VALUES (
                 '${(newProduct.title || '').replace(/'/g, "''")}',
-                '${(newProduct.images || '[]').replace(/'/g, "''")}',
+                '${(newProduct.medias || '[]').replace(/'/g, "''")}',
                 '${(newProduct.excerpt || '').replace(/'/g, "''")}',
                 '${(newProduct.notes || '').replace(/'/g, "''")}',
                 '${(newProduct.type || 'physical').replace(/'/g, "''")}',
@@ -396,14 +394,12 @@ export default function ProductsScreen() {
                 '${(newProduct.metafields || '').replace(/'/g, "''")}',
                 '${(newProduct.saleinfo || '').replace(/'/g, "''")}',
                 '${(newProduct.stores || '').replace(/'/g, "''")}',
-                '${(newProduct.location || '').replace(/'/g, "''")}',
-                '${(newProduct.saleschannel || '').replace(/'/g, "''")}',
                 ${newProduct.pos || 0},
                 ${newProduct.website || 0},
                 '${(newProduct.seo || '{"slug":"", "title":"", "keywords":""}').replace(/'/g, "''")}',
                 '${(newProduct.tags || '').replace(/'/g, "''")}',
                 ${newProduct.cost || 0},
-                '${(newProduct.barcode || '').replace(/'/g, "''")}',
+                '${(newProduct.qrcode || '').replace(/'/g, "''")}',
                 '${now}',
                 '${now}',
                 '${now}',
@@ -441,7 +437,7 @@ export default function ProductsScreen() {
         // Reset form and close modal
         setNewProduct({
           title: '',
-          images: '[]',
+          medias: '[]',
           excerpt: '',
           notes: '',
           type: 'physical',
@@ -457,14 +453,12 @@ export default function ProductsScreen() {
           metafields: '',
           saleinfo: '',
           stores: '',
-          location: '',
-          saleschannel: '',
           pos: 0,
           website: 0,
           seo: '{"slug":"", "title":"", "keywords":""}',
           tags: '',
           cost: 0,
-          barcode: '',
+          qrcode: '',
           publish: 'draft',
           promoinfo: '',
           featured: 0,
@@ -531,7 +525,7 @@ export default function ProductsScreen() {
             stmt: {
               sql: `UPDATE products SET
                 title = '${(selectedProductForEdit.title || '').replace(/'/g, "''")}',
-                images = '${(selectedProductForEdit.images || '[]').replace(/'/g, "''")}',
+                medias = '${(selectedProductForEdit.medias || '[]').replace(/'/g, "''")}',
                 excerpt = '${(selectedProductForEdit.excerpt || '').replace(/'/g, "''")}',
                 notes = '${(selectedProductForEdit.notes || '').replace(/'/g, "''")}',
                 type = '${(selectedProductForEdit.type || 'physical').replace(/'/g, "''")}',
@@ -547,14 +541,12 @@ export default function ProductsScreen() {
                 metafields = '${(selectedProductForEdit.metafields || '').replace(/'/g, "''")}',
                 saleinfo = '${(selectedProductForEdit.saleinfo || '').replace(/'/g, "''")}',
                 stores = '${(selectedProductForEdit.stores || '').replace(/'/g, "''")}',
-                location = '${(selectedProductForEdit.location || '').replace(/'/g, "''")}',
-                saleschannel = '${(selectedProductForEdit.saleschannel || '').replace(/'/g, "''")}',
                 pos = ${selectedProductForEdit.pos || 0},
                 website = ${selectedProductForEdit.website || 0},
                 seo = '${(selectedProductForEdit.seo || '{"slug":"", "title":"", "keywords":""}').replace(/'/g, "''")}',
                 tags = '${(selectedProductForEdit.tags || '').replace(/'/g, "''")}',
                 cost = ${selectedProductForEdit.cost || 0},
-                barcode = '${(selectedProductForEdit.barcode || '').replace(/'/g, "''")}',
+                qrcode = '${(selectedProductForEdit.qrcode || '').replace(/'/g, "''")}',
                 updatedat = '${now}',
                 publish = '${(selectedProductForEdit.publish || 'draft').replace(/'/g, "''")}',
                 promoinfo = '${(selectedProductForEdit.promoinfo || '').replace(/'/g, "''")}',
@@ -635,7 +627,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `SELECT id, productId, sku, quantity, warehouse, cost, price, option1, option2, option3, reorderlevel, reorderqty, expiry, batchno, margin, saleprice, image FROM inventory WHERE productId = ${productId} ORDER BY id DESC LIMIT 100`
+              sql: `SELECT id, productId, sku, barcode, image, option1, option2, option3, reorderlevel, path, available, committed, unavailable, onhand, metafields, cost, price, margin, saleprice FROM inventory WHERE productId = ${productId} ORDER BY id DESC LIMIT 100`
             }
           }
         ]
@@ -679,20 +671,22 @@ export default function ProductsScreen() {
                 id: parseInt(row[0].value),
                 productId: parseInt(row[1].value),
                 sku: row[2].type === 'null' ? '' : row[2].value,
-                quantity: row[3].type === 'null' ? 0 : parseInt(row[3].value),
-                warehouse: row[4].type === 'null' ? '' : row[4].value,
-                cost: row[5].type === 'null' ? 0 : parseFloat(row[5].value),
-                price: row[6].type === 'null' ? 0 : parseFloat(row[6].value),
-                option1: row[7].type === 'null' ? '' : row[7].value,
-                option2: row[8].type === 'null' ? '' : row[8].value,
-                option3: row[9].type === 'null' ? '' : row[9].value,
-                reorderlevel: row[10].type === 'null' ? 0 : parseInt(row[10].value),
-                reorderqty: row[11].type === 'null' ? 0 : parseInt(row[11].value),
-                expiry: row[12].type === 'null' ? '' : row[12].value,
-                batchno: row[13].type === 'null' ? '' : row[13].value,
-                margin: row[14].type === 'null' ? 0 : parseFloat(row[14].value),
-                saleprice: row[15].type === 'null' ? 0 : parseFloat(row[15].value),
-                image: row[16].type === 'null' ? '' : row[16].value
+                barcode: row[3].type === 'null' ? '' : row[3].value,
+                image: row[4].type === 'null' ? '' : row[4].value,
+                option1: row[5].type === 'null' ? '' : row[5].value,
+                option2: row[6].type === 'null' ? '' : row[6].value,
+                option3: row[7].type === 'null' ? '' : row[7].value,
+                reorderlevel: row[8].type === 'null' ? 0 : parseInt(row[8].value),
+                path: row[9].type === 'null' ? '' : row[9].value,
+                available: row[10].type === 'null' ? 0 : parseInt(row[10].value),
+                committed: row[11].type === 'null' ? 0 : parseInt(row[11].value),
+                unavailable: row[12].type === 'null' ? 0 : parseInt(row[12].value),
+                onhand: row[13].type === 'null' ? 0 : parseInt(row[13].value),
+                metafields: row[14].type === 'null' ? '' : row[14].value,
+                cost: row[15].type === 'null' ? 0 : parseFloat(row[15].value),
+                price: row[16].type === 'null' ? 0 : parseFloat(row[16].value),
+                margin: row[17].type === 'null' ? 0 : parseFloat(row[17].value),
+                saleprice: row[18].type === 'null' ? 0 : parseFloat(row[18].value)
               };
             });
 
@@ -1020,8 +1014,9 @@ export default function ProductsScreen() {
   const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
     <View style={styles.inventoryItem}>
       <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
-      <Text style={styles.inventorySubtitle}>Qty: {item.quantity} | Warehouse: {item.warehouse}</Text>
+      <Text style={styles.inventorySubtitle}>Available: {item.available} | On Hand: {item.onhand} | Path: {item.path}</Text>
       <Text style={styles.inventoryPrice}>Cost: ${item.cost?.toFixed(2)} | Price: ${item.price?.toFixed(2)}</Text>
+      {item.barcode && <Text style={styles.inventoryOption}>Barcode: {item.barcode}</Text>}
       {item.option1 && <Text style={styles.inventoryOption}>Option 1: {item.option1}</Text>}
       {item.option2 && <Text style={styles.inventoryOption}>Option 2: {item.option2}</Text>}
       {item.option3 && <Text style={styles.inventoryOption}>Option 3: {item.option3}</Text>}
@@ -1320,12 +1315,12 @@ export default function ProductsScreen() {
               </View>
 
               <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Barcode</Text>
+                <Text style={styles.inputLabel}>QR Code</Text>
                 <TextInput
                   style={styles.input}
-                  value={newProduct.barcode}
-                  onChangeText={(text) => setNewProduct({...newProduct, barcode: text})}
-                  placeholder="Product barcode/SKU"
+                  value={newProduct.qrcode}
+                  onChangeText={(text) => setNewProduct({...newProduct, qrcode: text})}
+                  placeholder="Product QR code"
                 />
               </View>
             </View>
@@ -1334,9 +1329,9 @@ export default function ProductsScreen() {
             <View>
               <View style={styles.formField}>
                 <ImageUploader
-                  images={newProduct.images || '[]'}
+                  images={newProduct.medias || '[]'}
                   onImagesChange={(images) =>
-                    setNewProduct({...newProduct, images: JSON.stringify(images)})
+                    setNewProduct({...newProduct, medias: JSON.stringify(images)})
                   }
                 />
               </View>
@@ -1425,26 +1420,6 @@ export default function ProductsScreen() {
                   value={newProduct.stores}
                   onChangeText={(text) => setNewProduct({...newProduct, stores: text})}
                   placeholder="Stores"
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Location</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.location}
-                  onChangeText={(text) => setNewProduct({...newProduct, location: text})}
-                  placeholder="Location"
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Sales Channel</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.saleschannel}
-                  onChangeText={(text) => setNewProduct({...newProduct, saleschannel: text})}
-                  placeholder="Sales channel"
                 />
               </View>
 
@@ -1815,12 +1790,12 @@ export default function ProductsScreen() {
                 </View>
 
                 <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Barcode</Text>
+                  <Text style={styles.inputLabel}>QR Code</Text>
                   <TextInput
                     style={styles.input}
-                    value={selectedProductForEdit.barcode}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, barcode: text})}
-                    placeholder="Product barcode/SKU"
+                    value={selectedProductForEdit.qrcode}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, qrcode: text})}
+                    placeholder="Product QR code"
                   />
                 </View>
               </View>
@@ -1829,9 +1804,9 @@ export default function ProductsScreen() {
               <View>
                 <View style={styles.formField}>
                   <ImageUploader
-                    images={selectedProductForEdit.images || '[]'}
+                    images={selectedProductForEdit.medias || '[]'}
                     onImagesChange={(images) =>
-                      setSelectedProductForEdit({...selectedProductForEdit, images: JSON.stringify(images)})
+                      setSelectedProductForEdit({...selectedProductForEdit, medias: JSON.stringify(images)})
                     }
                   />
                 </View>
@@ -1920,26 +1895,6 @@ export default function ProductsScreen() {
                     value={selectedProductForEdit.stores}
                     onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, stores: text})}
                     placeholder="Stores"
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Location</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.location}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, location: text})}
-                    placeholder="Location"
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Sales Channel</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.saleschannel}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleschannel: text})}
-                    placeholder="Sales channel"
                   />
                 </View>
 

@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../../app/context/onboarding';
@@ -207,7 +207,7 @@ export default function ProductDataScreen() {
                   parentid INTEGER,
                   title TEXT,
                   value TEXT,
-                  group TEXT,
+                  "group" TEXT,
                   type TEXT,
                   filter INTEGER
                 )`
@@ -299,10 +299,7 @@ export default function ProductDataScreen() {
       )}
 
       <ScrollView style={styles.content}>
-        <Text style={styles.sectionTitle}>Product Database</Text>
-        <Text style={styles.description}>
-          Create tables in your Turso database to store product information. This will set up all the necessary tables for managing your products, inventory, categories, and more.
-        </Text>
+        
 
         <TouchableOpacity
           style={styles.createButton}
