@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../../app/context/onboarding';
@@ -54,7 +54,7 @@ export default function ProductDataScreen() {
                 sql: `CREATE TABLE IF NOT EXISTS products (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   title TEXT,
-                  images TEXT,
+                  medias TEXT,
                   excerpt TEXT,
                   notes TEXT,
                   type TEXT,
@@ -70,14 +70,12 @@ export default function ProductDataScreen() {
                   metafields TEXT,
                   saleinfo TEXT,
                   stores TEXT,
-                  location TEXT,
-                  saleschannel TEXT,
                   pos INTEGER,
                   website INTEGER,
                   seo TEXT,
                   tags TEXT,
                   cost REAL,
-                  barcode TEXT,
+                  qrcode TEXT,
                   createdat TEXT,
                   updatedat TEXT,
                   publishat TEXT,
@@ -96,21 +94,39 @@ export default function ProductDataScreen() {
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   productId INTEGER,
                   sku TEXT,
+                  barcode TEXT,
                   image TEXT,
                   option1 TEXT,
                   option2 TEXT,
                   option3 TEXT,
                   reorderlevel INTEGER,
-                  reorderqty INTEGER,
-                  warehouse TEXT,
-                  expiry TEXT,
-                  batchno TEXT,
-                  quantity INTEGER,
+                  path TEXT,
+                  available INTEGER,
+                  committed INTEGER,
+                  unavailable INTEGER,
+                  onhand INTEGER,
+                  metafields TEXT,
                   cost REAL,
                   price REAL,
                   margin REAL,
                   saleprice REAL,
                   FOREIGN KEY (productId) REFERENCES products(id)
+                )`
+              }
+            },
+            {
+              type: "execute",
+              stmt: {
+                sql: `CREATE TABLE IF NOT EXISTS stocks (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  parentid INTEGER,
+                  available INTEGER,
+                  committed INTEGER,
+                  datetime TEXT,
+                  expdate TEXT,
+                  fifo REAL,
+                  path TEXT,
+                  FOREIGN KEY (parentid) REFERENCES inventory(id)
                 )`
               }
             },
@@ -163,22 +179,12 @@ export default function ProductDataScreen() {
             {
               type: "execute",
               stmt: {
-                sql: `CREATE TABLE IF NOT EXISTS warehouses (
+                sql: `CREATE TABLE IF NOT EXISTS path (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT UNIQUE,
-                  image TEXT,
-                  notes TEXT
-                )`
-              }
-            },
-            {
-              type: "execute",
-              stmt: {
-                sql: `CREATE TABLE IF NOT EXISTS stores (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT UNIQUE,
-                  image TEXT,
-                  notes TEXT
+                  parentid INTEGER,
+                  title TEXT,
+                  notes TEXT,
+                  location TEXT
                 )`
               }
             },
@@ -200,7 +206,10 @@ export default function ProductDataScreen() {
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   parentid INTEGER,
                   title TEXT,
-                  value TEXT
+                  value TEXT,
+                  group TEXT,
+                  type TEXT,
+                  filter INTEGER
                 )`
               }
             },
@@ -211,7 +220,21 @@ export default function ProductDataScreen() {
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   parentid INTEGER,
                   title TEXT,
-                  value TEXT
+                  value TEXT,
+                  identifier TEXT
+                )`
+              }
+            },
+            {
+              type: "execute",
+              stmt: {
+                sql: `CREATE TABLE IF NOT EXISTS modifiers (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  title TEXT,
+                  notes TEXT,
+                  type TEXT,
+                  value REAL,
+                  identifier TEXT
                 )`
               }
             },
