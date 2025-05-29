@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -140,6 +140,40 @@ export default function ProductsScreen() {
     sellproducts: '[]', // Empty JSON array
   });
   const { profileData } = useOnboarding();
+
+  // Helper function to reset new product form
+  const resetNewProductForm = () => {
+    setNewProduct({
+      title: '',
+      medias: '[]',
+      excerpt: '',
+      notes: '',
+      type: 'physical',
+      category: '',
+      collection: '',
+      unit: '',
+      price: 0,
+      saleprice: 0,
+      vendor: '',
+      brand: '',
+      options: '[]',
+      modifiers: '',
+      metafields: '',
+      saleinfo: '',
+      stores: '',
+      pos: 0,
+      website: 0,
+      seo: '{"slug":"", "title":"", "keywords":""}',
+      tags: '',
+      cost: 0,
+      qrcode: '',
+      publish: 'draft',
+      promoinfo: '',
+      featured: 0,
+      relproducts: '[]',
+      sellproducts: '[]',
+    });
+  };
 
   // Fetch available options for multi-select
   const fetchAvailableOptions = async () => {
@@ -338,6 +372,135 @@ export default function ProductsScreen() {
     }
   };
 
+  // Fetch full product details for editing
+  const fetchProductForEdit = async (productId: number) => {
+    try {
+      setIsLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Create request body with direct SQL to fetch all product fields
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `SELECT id, title, medias, excerpt, notes, type, category, collection, unit,
+                    price, saleprice, vendor, brand, options, modifiers, metafields,
+                    saleinfo, stores, pos, website, seo, tags, cost, qrcode, createdat,
+                    updatedat, publishat, publish, promoinfo, featured, relproducts, sellproducts
+                    FROM products WHERE id = ${productId}`
+            }
+          }
+        ]
+      };
+
+      console.log('Fetching product details for edit:', productId);
+
+      // Fetch product details
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseText = await response.text();
+      console.log('Fetch product details response status:', response.status);
+
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+
+          if (data.results &&
+              data.results[0] &&
+              data.results[0].response &&
+              data.results[0].response.result &&
+              data.results[0].response.result.rows &&
+              data.results[0].response.result.rows.length > 0) {
+
+            // Extract the row from the nested structure
+            const row = data.results[0].response.result.rows[0];
+
+            // Transform the row into a Product object
+            const productData: Product = {
+              id: parseInt(row[0].value),
+              title: row[1].type === 'null' ? '' : row[1].value,
+              medias: row[2].type === 'null' ? '[]' : row[2].value,
+              excerpt: row[3].type === 'null' ? '' : row[3].value,
+              notes: row[4].type === 'null' ? '' : row[4].value,
+              type: row[5].type === 'null' ? 'physical' : row[5].value,
+              category: row[6].type === 'null' ? '' : row[6].value,
+              collection: row[7].type === 'null' ? '' : row[7].value,
+              unit: row[8].type === 'null' ? '' : row[8].value,
+              price: row[9].type === 'null' ? 0 : parseFloat(row[9].value),
+              saleprice: row[10].type === 'null' ? 0 : parseFloat(row[10].value),
+              vendor: row[11].type === 'null' ? '' : row[11].value,
+              brand: row[12].type === 'null' ? '' : row[12].value,
+              options: row[13].type === 'null' ? '[]' : row[13].value,
+              modifiers: row[14].type === 'null' ? '' : row[14].value,
+              metafields: row[15].type === 'null' ? '' : row[15].value,
+              saleinfo: row[16].type === 'null' ? '' : row[16].value,
+              stores: row[17].type === 'null' ? '' : row[17].value,
+              pos: row[18].type === 'null' ? 0 : parseInt(row[18].value),
+              website: row[19].type === 'null' ? 0 : parseInt(row[19].value),
+              seo: row[20].type === 'null' ? '{"slug":"", "title":"", "keywords":""}' : row[20].value,
+              tags: row[21].type === 'null' ? '' : row[21].value,
+              cost: row[22].type === 'null' ? 0 : parseFloat(row[22].value),
+              qrcode: row[23].type === 'null' ? '' : row[23].value,
+              createdat: row[24].type === 'null' ? '' : row[24].value,
+              updatedat: row[25].type === 'null' ? '' : row[25].value,
+              publishat: row[26].type === 'null' ? '' : row[26].value,
+              publish: row[27].type === 'null' ? 'draft' : row[27].value,
+              promoinfo: row[28].type === 'null' ? '' : row[28].value,
+              featured: row[29].type === 'null' ? 0 : parseInt(row[29].value),
+              relproducts: row[30].type === 'null' ? '[]' : row[30].value,
+              sellproducts: row[31].type === 'null' ? '[]' : row[31].value,
+            };
+
+            return productData;
+          } else {
+            console.log('No product details found in response');
+            return null;
+          }
+        } catch (parseError) {
+          console.error('Error parsing JSON response:', parseError);
+          return null;
+        }
+      } else {
+        console.error('Failed to fetch product details:', responseText);
+        Alert.alert(
+          'Error',
+          'Failed to fetch product details. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while fetching product details. Please try again.',
+        [{ text: 'OK' }]
+      );
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
 
   const addProduct = async () => {
@@ -435,36 +598,7 @@ export default function ProductsScreen() {
 
       if (response.ok) {
         // Reset form and close modal
-        setNewProduct({
-          title: '',
-          medias: '[]',
-          excerpt: '',
-          notes: '',
-          type: 'physical',
-          category: '',
-          collection: '',
-          unit: '',
-          price: 0,
-          saleprice: 0,
-          vendor: '',
-          brand: '',
-          options: '[]',
-          modifiers: '',
-          metafields: '',
-          saleinfo: '',
-          stores: '',
-          pos: 0,
-          website: 0,
-          seo: '{"slug":"", "title":"", "keywords":""}',
-          tags: '',
-          cost: 0,
-          qrcode: '',
-          publish: 'draft',
-          promoinfo: '',
-          featured: 0,
-          relproducts: '[]',
-          sellproducts: '[]',
-        });
+        resetNewProductForm();
         setModalVisible(false);
 
         // Refresh product list
@@ -969,11 +1103,24 @@ export default function ProductsScreen() {
   }, []);
 
   // Handle edit button press
-  const handleEditProduct = (product: Product) => {
-    setSelectedProductForEdit({...product});
-    setEditModalVisible(true);
-    // Fetch inventory for the selected product
-    fetchInventoryForProduct(product.id);
+  const handleEditProduct = async (product: Product) => {
+    try {
+      // Show modal immediately with basic product data
+      setSelectedProductForEdit({...product});
+      setEditModalVisible(true);
+
+      // Fetch full product details including medias in background
+      const fullProductData = await fetchProductForEdit(product.id);
+      if (fullProductData) {
+        setSelectedProductForEdit(fullProductData);
+      }
+
+      // Fetch inventory for the selected product
+      fetchInventoryForProduct(product.id);
+    } catch (error) {
+      console.error('Error loading product for edit:', error);
+      Alert.alert('Error', 'Failed to load product details for editing.');
+    }
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
@@ -1069,7 +1216,11 @@ export default function ProductsScreen() {
 
       <View style={styles.actionBar}>
         <TouchableOpacity
-          onPress={() => setModalVisible(true)}
+          onPress={() => {
+            // Reset form to initial state when opening new product modal
+            resetNewProductForm();
+            setModalVisible(true);
+          }}
         >
           <Ionicons name="add-outline" size={24} color="#000" />
         </TouchableOpacity>
@@ -1116,14 +1267,22 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => {
+          setModalVisible(false);
+          // Reset form when modal is closed
+          resetNewProductForm();
+        }}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
-              onPress={() => setModalVisible(false)}
+              onPress={() => {
+                setModalVisible(false);
+                // Reset form when back button is pressed
+                resetNewProductForm();
+              }}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#000" />
@@ -1147,10 +1306,8 @@ export default function ProductsScreen() {
               { key: 'core', icon: 'cube-outline', label: 'Core' },
               { key: 'organization', icon: 'folder-outline', label: 'Organization' },
               { key: 'media', icon: 'image-outline', label: 'Media' },
-              { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
-              { key: 'sales', icon: 'cash-outline', label: 'Sales' },
-              { key: 'channels', icon: 'globe-outline', label: 'Channels' },
-              { key: 'seo', icon: 'search-outline', label: 'SEO' },
+              { key: 'notes', icon: 'notes', label: 'Notes', iconLibrary: 'MaterialIcons' },
+              { key: 'storefront', icon: 'globe-outline', label: 'Storefront' },
               { key: 'options', icon: 'options-outline', label: 'Options' },
               { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
             ]}
@@ -1209,6 +1366,22 @@ export default function ProductsScreen() {
                   placeholder="Short description"
                   multiline
                   numberOfLines={3}
+                />
+              </View>
+
+              <View style={styles.switchField}>
+                <Text style={styles.inputLabel}>POS</Text>
+                <Switch
+                  value={newProduct.pos === 1}
+                  onValueChange={(value) => setNewProduct({...newProduct, pos: value ? 1 : 0})}
+                />
+              </View>
+
+              <View style={styles.switchField}>
+                <Text style={styles.inputLabel}>Website</Text>
+                <Switch
+                  value={newProduct.website === 1}
+                  onValueChange={(value) => setNewProduct({...newProduct, website: value ? 1 : 0})}
                 />
               </View>
             </View>
@@ -1323,6 +1496,16 @@ export default function ProductsScreen() {
                   placeholder="Product QR code"
                 />
               </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Stores</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProduct.stores}
+                  onChangeText={(text) => setNewProduct({...newProduct, stores: text})}
+                  placeholder="Stores"
+                />
+              </View>
             </View>
 
             {/* Media Tab */}
@@ -1338,21 +1521,20 @@ export default function ProductsScreen() {
             </View>
 
             {/* Notes Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Notes</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.notes}
-                  onChangeText={(text) => setNewProduct({...newProduct, notes: text})}
-                  placeholder="Additional notes"
-                  multiline
-                  numberOfLines={6}
-                />
-              </View>
+            <View style={styles.notesContainer}>
+              <TextInput
+                style={styles.notesInput}
+                value={newProduct.notes}
+                onChangeText={(text) => setNewProduct({...newProduct, notes: text})}
+                placeholder="Start typing your notes..."
+                multiline
+                textAlignVertical="top"
+                autoFocus={false}
+                returnKeyType="default"
+              />
             </View>
 
-            {/* Sales Tab */}
+            {/* Storefront Tab */}
             <View>
               <View style={styles.switchField}>
                 <Text style={styles.inputLabel}>Featured Product</Text>
@@ -1409,39 +1591,7 @@ export default function ProductsScreen() {
                   numberOfLines={4}
                 />
               </View>
-            </View>
 
-            {/* Channels Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Stores</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.stores}
-                  onChangeText={(text) => setNewProduct({...newProduct, stores: text})}
-                  placeholder="Stores"
-                />
-              </View>
-
-              <View style={styles.switchField}>
-                <Text style={styles.inputLabel}>POS</Text>
-                <Switch
-                  value={newProduct.pos === 1}
-                  onValueChange={(value) => setNewProduct({...newProduct, pos: value ? 1 : 0})}
-                />
-              </View>
-
-              <View style={styles.switchField}>
-                <Text style={styles.inputLabel}>Website</Text>
-                <Switch
-                  value={newProduct.website === 1}
-                  onValueChange={(value) => setNewProduct({...newProduct, website: value ? 1 : 0})}
-                />
-              </View>
-            </View>
-
-            {/* SEO Tab */}
-            <View>
               <View style={styles.formField}>
                 <Text style={styles.inputLabel}>SEO</Text>
                 <TextInput
@@ -1622,10 +1772,8 @@ export default function ProductsScreen() {
                 { key: 'core', icon: 'cube-outline', label: 'Core' },
                 { key: 'organization', icon: 'folder-outline', label: 'Organization' },
                 { key: 'media', icon: 'image-outline', label: 'Media' },
-                { key: 'notes', icon: 'document-text-outline', label: 'Notes' },
-                { key: 'sales', icon: 'cash-outline', label: 'Sales' },
-                { key: 'channels', icon: 'globe-outline', label: 'Channels' },
-                { key: 'seo', icon: 'search-outline', label: 'SEO' },
+                { key: 'notes', icon: 'notes', label: 'Notes', iconLibrary: 'MaterialIcons' },
+                { key: 'storefront', icon: 'globe-outline', label: 'Storefront' },
                 { key: 'options', icon: 'options-outline', label: 'Options' },
                 { key: 'inventory', icon: 'layers-outline', label: 'Inventory' }
               ]}
@@ -1684,6 +1832,22 @@ export default function ProductsScreen() {
                     placeholder="Short description"
                     multiline
                     numberOfLines={3}
+                  />
+                </View>
+
+                <View style={styles.switchField}>
+                  <Text style={styles.inputLabel}>POS</Text>
+                  <Switch
+                    value={selectedProductForEdit.pos === 1}
+                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, pos: value ? 1 : 0})}
+                  />
+                </View>
+
+                <View style={styles.switchField}>
+                  <Text style={styles.inputLabel}>Website</Text>
+                  <Switch
+                    value={selectedProductForEdit.website === 1}
+                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, website: value ? 1 : 0})}
                   />
                 </View>
               </View>
@@ -1798,36 +1962,51 @@ export default function ProductsScreen() {
                     placeholder="Product QR code"
                   />
                 </View>
+
+                <View style={styles.formField}>
+                  <Text style={styles.inputLabel}>Stores</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={selectedProductForEdit.stores}
+                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, stores: text})}
+                    placeholder="Stores"
+                  />
+                </View>
               </View>
 
               {/* Media Tab */}
               <View>
                 <View style={styles.formField}>
-                  <ImageUploader
-                    images={selectedProductForEdit.medias || '[]'}
-                    onImagesChange={(images) =>
-                      setSelectedProductForEdit({...selectedProductForEdit, medias: JSON.stringify(images)})
-                    }
-                  />
+                  {(() => {
+                    console.log('Media Tab - selectedProductForEdit.medias:', selectedProductForEdit.medias);
+                    console.log('Media Tab - medias type:', typeof selectedProductForEdit.medias);
+                    return (
+                      <ImageUploader
+                        images={selectedProductForEdit.medias || '[]'}
+                        onImagesChange={(images) =>
+                          setSelectedProductForEdit({...selectedProductForEdit, medias: JSON.stringify(images)})
+                        }
+                      />
+                    );
+                  })()}
                 </View>
               </View>
 
               {/* Notes Tab */}
-              <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Notes</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.notes}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, notes: text})}
-                    placeholder="Additional notes"
-                    multiline
-                    numberOfLines={6}
-                  />
-                </View>
+              <View style={styles.notesContainer}>
+                <TextInput
+                  style={styles.notesInput}
+                  value={selectedProductForEdit.notes}
+                  onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, notes: text})}
+                  placeholder="Start typing your notes..."
+                  multiline
+                  textAlignVertical="top"
+                  autoFocus={false}
+                  returnKeyType="default"
+                />
               </View>
 
-              {/* Sales Tab */}
+              {/* Storefront Tab */}
               <View>
                 <View style={styles.switchField}>
                   <Text style={styles.inputLabel}>Featured Product</Text>
@@ -1884,39 +2063,7 @@ export default function ProductsScreen() {
                     numberOfLines={4}
                   />
                 </View>
-              </View>
 
-              {/* Channels Tab */}
-              <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Stores</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.stores}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, stores: text})}
-                    placeholder="Stores"
-                  />
-                </View>
-
-                <View style={styles.switchField}>
-                  <Text style={styles.inputLabel}>POS</Text>
-                  <Switch
-                    value={selectedProductForEdit.pos === 1}
-                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, pos: value ? 1 : 0})}
-                  />
-                </View>
-
-                <View style={styles.switchField}>
-                  <Text style={styles.inputLabel}>Website</Text>
-                  <Switch
-                    value={selectedProductForEdit.website === 1}
-                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, website: value ? 1 : 0})}
-                  />
-                </View>
-              </View>
-
-              {/* SEO Tab */}
-              <View>
                 <View style={styles.formField}>
                   <Text style={styles.inputLabel}>SEO</Text>
                   <TextInput
@@ -2778,16 +2925,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    marginLeft: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   saveButton: {
     backgroundColor: '#0066CC',
     borderRadius: 0,
@@ -2977,5 +3114,23 @@ const styles = StyleSheet.create({
   createFormContainer: {
     padding: 16,
     flex: 1,
+  },
+  // Google Keep-like notes styles
+  notesContainer: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  notesInput: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'top',
+    fontFamily: 'System',
   },
 });

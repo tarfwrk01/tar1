@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
@@ -6,6 +7,7 @@ interface TabItem {
   key: string;
   icon: string;
   label: string;
+  iconLibrary?: 'Ionicons' | 'MaterialIcons';
 }
 
 interface VerticalTabViewProps {
@@ -15,6 +17,30 @@ interface VerticalTabViewProps {
 
 export default function VerticalTabView({ tabs, children }: VerticalTabViewProps) {
   const [activeTab, setActiveTab] = useState(0);
+
+  // Helper function to render the appropriate icon
+  const renderIcon = (tab: TabItem, isActive: boolean) => {
+    const color = isActive ? '#0066CC' : '#666';
+    const size = 24;
+
+    if (tab.iconLibrary === 'MaterialIcons') {
+      return (
+        <MaterialIcons
+          name={tab.icon as any}
+          size={size}
+          color={color}
+        />
+      );
+    } else {
+      return (
+        <Ionicons
+          name={tab.icon as any}
+          size={size}
+          color={color}
+        />
+      );
+    }
+  };
 
   // Separate bottom tabs (options and inventory) from other tabs
   const inventoryTabIndex = tabs.findIndex(tab => tab.key === 'inventory');
@@ -39,11 +65,7 @@ export default function VerticalTabView({ tabs, children }: VerticalTabViewProps
                 ]}
                 onPress={() => setActiveTab(originalIndex)}
               >
-                <Ionicons
-                  name={tab.icon as any}
-                  size={24}
-                  color={activeTab === originalIndex ? '#0066CC' : '#666'}
-                />
+                {renderIcon(tab, activeTab === originalIndex)}
               </TouchableOpacity>
             );
           })}
@@ -62,11 +84,7 @@ export default function VerticalTabView({ tabs, children }: VerticalTabViewProps
                 ]}
                 onPress={() => setActiveTab(optionsTabIndex)}
               >
-                <Ionicons
-                  name={optionsTab.icon as any}
-                  size={24}
-                  color={activeTab === optionsTabIndex ? '#0066CC' : '#666'}
-                />
+                {renderIcon(optionsTab, activeTab === optionsTabIndex)}
               </TouchableOpacity>
             )}
             {inventoryTab && (
@@ -78,11 +96,7 @@ export default function VerticalTabView({ tabs, children }: VerticalTabViewProps
                 ]}
                 onPress={() => setActiveTab(inventoryTabIndex)}
               >
-                <Ionicons
-                  name={inventoryTab.icon as any}
-                  size={24}
-                  color={activeTab === inventoryTabIndex ? '#0066CC' : '#666'}
-                />
+                {renderIcon(inventoryTab, activeTab === inventoryTabIndex)}
               </TouchableOpacity>
             )}
           </View>

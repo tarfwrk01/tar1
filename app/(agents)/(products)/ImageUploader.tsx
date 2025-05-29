@@ -6,7 +6,6 @@ import {
     Alert,
     Image,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -27,7 +26,7 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(() => {
     // Parse the JSON string of images into an array of UploadedImage objects
     try {
-      const parsedImages = JSON.parse(images);
+      const parsedImages = JSON.parse(images || '[]');
       if (Array.isArray(parsedImages)) {
         return parsedImages.map((url: string, index: number) => ({
           id: `existing-${index}`,
@@ -36,9 +35,37 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
       }
       return [];
     } catch (e) {
+      console.log('Error parsing images:', e);
       return [];
     }
   });
+
+  // Update uploadedImages when images prop changes
+  React.useEffect(() => {
+    console.log('ImageUploader: images prop changed:', images);
+    console.log('ImageUploader: images prop type:', typeof images);
+    try {
+      const parsedImages = JSON.parse(images || '[]');
+      console.log('ImageUploader: parsed images:', parsedImages);
+      console.log('ImageUploader: parsed images type:', typeof parsedImages);
+      console.log('ImageUploader: is array:', Array.isArray(parsedImages));
+      if (Array.isArray(parsedImages)) {
+        const newImages = parsedImages.map((url: string, index: number) => ({
+          id: `existing-${index}`,
+          url,
+        }));
+        console.log('ImageUploader: setting uploaded images:', newImages);
+        setUploadedImages(newImages);
+      } else {
+        console.log('ImageUploader: parsed images is not an array, setting empty array');
+        setUploadedImages([]);
+      }
+    } catch (e) {
+      console.log('Error parsing images in useEffect:', e);
+      console.log('ImageUploader: setting empty array due to parse error');
+      setUploadedImages([]);
+    }
+  }, [images]);
 
   // Request permission to access the media library
   const requestMediaLibraryPermission = async () => {
@@ -121,53 +148,46 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
     onImagesChange(updatedImages.map(img => img.url));
   };
 
-  // Render an uploaded image item
-  const renderImageItem = ({ item }: { item: UploadedImage }) => (
-    <View style={styles.imageItem}>
+  // Render an uploaded image tile
+  const renderImageTile = (item: UploadedImage) => (
+    <View key={item.id} style={styles.imageTile}>
       <Image
         source={{ uri: item.url }}
-        style={styles.thumbnail}
+        style={styles.tileImage}
         resizeMode="cover"
       />
       <TouchableOpacity
         style={styles.removeButton}
         onPress={() => removeImage(item.id)}
       >
-        <Ionicons name="close-circle" size={24} color="#ff4444" />
+        <Ionicons name="close-circle" size={20} color="#ff4444" />
       </TouchableOpacity>
     </View>
   );
 
+  // Render add image tile
+  const renderAddTile = () => (
+    <TouchableOpacity
+      style={styles.addTile}
+      onPress={pickImage}
+      disabled={isLoading}
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color="#666" />
+      ) : (
+        <Ionicons name="add" size={32} color="#666" />
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Product Images</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={pickImage}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.addButtonText}>Add Image</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <View style={styles.tilesGrid}>
+        {/* Add tile always comes first */}
+        {renderAddTile()}
 
-      <View style={styles.imageGrid}>
-        {uploadedImages.length > 0 ? (
-          uploadedImages.map((item) => (
-            <React.Fragment key={item.id}>
-              {renderImageItem({ item })}
-            </React.Fragment>
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="images-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No images added yet</Text>
-          </View>
-        )}
+        {/* Render existing image tiles */}
+        {uploadedImages.map((item) => renderImageTile(item))}
       </View>
     </View>
   );
@@ -177,64 +197,47 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  addButton: {
-    backgroundColor: '#0066CC',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  imageGrid: {
+  tilesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingBottom: 8,
+    gap: 8,
   },
-  imageItem: {
+  addTile: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  imageTile: {
     position: 'relative',
-    margin: 4,
-    borderRadius: 4,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     overflow: 'hidden',
-  },
-  thumbnail: {
-    width: 100,
-    height: 100,
+    marginRight: 8,
+    marginBottom: 8,
     backgroundColor: '#f0f0f0',
+  },
+  tileImage: {
+    width: '100%',
+    height: '100%',
   },
   removeButton: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 12,
-  },
-  emptyContainer: {
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    marginTop: 8,
-    color: '#999',
-    fontSize: 14,
   },
 });
