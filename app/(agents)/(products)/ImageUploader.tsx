@@ -5,7 +5,9 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    Modal,
     StyleSheet,
+    Text,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -23,6 +25,8 @@ interface ImageUploaderProps {
 
 export default function ImageUploader({ images, onImagesChange }: ImageUploaderProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
+  const [showOptionsDrawer, setShowOptionsDrawer] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(() => {
     // Parse the JSON string of images into an array of UploadedImage objects
     try {
@@ -139,6 +143,68 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
     }
   };
 
+  // Handle image tap to show options drawer
+  const handleImageTap = (image: UploadedImage) => {
+    setSelectedImage(image);
+    setShowOptionsDrawer(true);
+  };
+
+  // Handle change image option
+  const handleChangeImage = async () => {
+    setShowOptionsDrawer(false);
+    const hasPermission = await requestMediaLibraryPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0 && selectedImage) {
+        const selectedImageAsset = result.assets[0];
+        await replaceImage(selectedImage.id, selectedImageAsset.uri);
+      }
+    } catch (error) {
+      console.error('Error picking replacement image:', error);
+      Alert.alert(
+        'Error',
+        'Failed to pick image. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Replace an existing image
+  const replaceImage = async (id: string, imageUri: string) => {
+    try {
+      setIsLoading(true);
+
+      // Upload the new image to R2 storage
+      const publicUrl = await uploadProductImage(imageUri);
+
+      // Update the image in the list
+      const updatedImages = uploadedImages.map(img =>
+        img.id === id ? { ...img, url: publicUrl } : img
+      );
+      setUploadedImages(updatedImages);
+
+      // Update the parent component with the new images array
+      onImagesChange(updatedImages.map(img => img.url));
+
+    } catch (error) {
+      console.error('Error replacing image:', error);
+      Alert.alert(
+        'Error',
+        'Failed to replace image. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Remove an image from the list
   const removeImage = (id: string) => {
     const updatedImages = uploadedImages.filter(img => img.id !== id);
@@ -146,23 +212,28 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
 
     // Update the parent component with the new images array
     onImagesChange(updatedImages.map(img => img.url));
+    setShowOptionsDrawer(false);
+  };
+
+  // Close the options drawer
+  const closeOptionsDrawer = () => {
+    setShowOptionsDrawer(false);
+    setSelectedImage(null);
   };
 
   // Render an uploaded image tile
   const renderImageTile = (item: UploadedImage) => (
-    <View key={item.id} style={styles.imageTile}>
+    <TouchableOpacity
+      key={item.id}
+      style={styles.imageTile}
+      onPress={() => handleImageTap(item)}
+    >
       <Image
         source={{ uri: item.url }}
         style={styles.tileImage}
         resizeMode="cover"
       />
-      <TouchableOpacity
-        style={styles.removeButton}
-        onPress={() => removeImage(item.id)}
-      >
-        <Ionicons name="close-circle" size={20} color="#ff4444" />
-      </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   // Render add image tile
@@ -189,6 +260,43 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
         {/* Render existing image tiles */}
         {uploadedImages.map((item) => renderImageTile(item))}
       </View>
+
+      {/* Bottom Options Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showOptionsDrawer}
+        onRequestClose={closeOptionsDrawer}
+      >
+        <View style={styles.drawerOverlay}>
+          <TouchableOpacity
+            style={styles.drawerBackdrop}
+            onPress={closeOptionsDrawer}
+          />
+          <View style={styles.drawerContent}>
+            <TouchableOpacity
+              style={styles.drawerOption}
+              onPress={handleChangeImage}
+            >
+              <Text style={styles.drawerOptionText}>Change</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.drawerOption, styles.deleteOption]}
+              onPress={() => selectedImage && removeImage(selectedImage.id)}
+            >
+              <Text style={[styles.drawerOptionText, styles.deleteText]}>Delete</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.drawerOption, styles.closeOption]}
+              onPress={closeOptionsDrawer}
+            >
+              <Text style={styles.drawerOptionText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -200,28 +308,23 @@ const styles = StyleSheet.create({
   tilesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
   },
   addTile: {
-    width: 80,
-    height: 80,
+    width: '32%',
+    aspectRatio: 1,
     backgroundColor: '#f8f9fa',
-    borderRadius: 8,
     borderWidth: 2,
     borderColor: '#e9ecef',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
     marginBottom: 8,
   },
   imageTile: {
-    position: 'relative',
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+    width: '32%',
+    aspectRatio: 1,
     overflow: 'hidden',
-    marginRight: 8,
     marginBottom: 8,
     backgroundColor: '#f0f0f0',
   },
@@ -229,15 +332,46 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  removeButton: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+  // Bottom drawer styles
+  drawerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
+  },
+  drawerBackdrop: {
+    flex: 1,
+  },
+  drawerContent: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingTop: 8,
+    paddingBottom: 34,
+    paddingHorizontal: 20,
+  },
+  drawerOption: {
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  drawerOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  deleteOption: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    marginTop: 4,
+    paddingTop: 16,
+  },
+  deleteText: {
+    color: '#ff4444',
+  },
+  closeOption: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    marginTop: 4,
+    paddingTop: 16,
   },
 });

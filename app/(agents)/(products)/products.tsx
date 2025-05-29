@@ -9,7 +9,6 @@ import {
   FlatList,
   Modal,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -94,21 +93,35 @@ export default function ProductsScreen() {
   // Multi-select drawer states
   const [optionsDrawerVisible, setOptionsDrawerVisible] = useState(false);
   const [metafieldsDrawerVisible, setMetafieldsDrawerVisible] = useState(false);
+  const [modifiersDrawerVisible, setModifiersDrawerVisible] = useState(false);
   const [availableOptions, setAvailableOptions] = useState<any[]>([]);
   const [availableMetafields, setAvailableMetafields] = useState<any[]>([]);
+  const [availableModifiers, setAvailableModifiers] = useState<any[]>([]);
   const [selectedOptionIds, setSelectedOptionIds] = useState<number[]>([]);
   const [selectedMetafieldIds, setSelectedMetafieldIds] = useState<number[]>([]);
+  const [selectedModifierIds, setSelectedModifierIds] = useState<number[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Create new item states
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
+  const [createModifierModalVisible, setCreateModifierModalVisible] = useState(false);
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
+  const [newOptionIdentifier, setNewOptionIdentifier] = useState('');
   const [newMetafieldTitle, setNewMetafieldTitle] = useState('');
   const [newMetafieldValue, setNewMetafieldValue] = useState('');
+  const [newMetafieldGroup, setNewMetafieldGroup] = useState('');
+  const [newMetafieldType, setNewMetafieldType] = useState('');
+  const [newMetafieldFilter, setNewMetafieldFilter] = useState(0);
+  const [newModifierTitle, setNewModifierTitle] = useState('');
+  const [newModifierNotes, setNewModifierNotes] = useState('');
+  const [newModifierType, setNewModifierType] = useState('');
+  const [newModifierValue, setNewModifierValue] = useState(0);
+  const [newModifierIdentifier, setNewModifierIdentifier] = useState('');
   const [isCreatingOption, setIsCreatingOption] = useState(false);
   const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
+  const [isCreatingModifier, setIsCreatingModifier] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
     medias: '[]', // Empty JSON array (renamed from images)
@@ -127,8 +140,8 @@ export default function ProductsScreen() {
     metafields: '',
     saleinfo: '',
     stores: '',
-    pos: 0,
-    website: 0,
+    pos: 1,
+    website: 1,
     seo: '{"slug":"", "title":"", "keywords":""}',
     tags: '',
     cost: 0,
@@ -140,6 +153,31 @@ export default function ProductsScreen() {
     sellproducts: '[]', // Empty JSON array
   });
   const { profileData } = useOnboarding();
+
+  // Helper function to reset new option form
+  const resetNewOptionForm = () => {
+    setNewOptionTitle('');
+    setNewOptionValue('');
+    setNewOptionIdentifier('');
+  };
+
+  // Helper function to reset new metafield form
+  const resetNewMetafieldForm = () => {
+    setNewMetafieldTitle('');
+    setNewMetafieldValue('');
+    setNewMetafieldGroup('');
+    setNewMetafieldType('');
+    setNewMetafieldFilter(0);
+  };
+
+  // Helper function to reset new modifier form
+  const resetNewModifierForm = () => {
+    setNewModifierTitle('');
+    setNewModifierNotes('');
+    setNewModifierType('');
+    setNewModifierValue(0);
+    setNewModifierIdentifier('');
+  };
 
   // Helper function to reset new product form
   const resetNewProductForm = () => {
@@ -157,12 +195,12 @@ export default function ProductsScreen() {
       vendor: '',
       brand: '',
       options: '[]',
-      modifiers: '',
-      metafields: '',
+      modifiers: '[]',
+      metafields: '[]',
       saleinfo: '',
       stores: '',
-      pos: 0,
-      website: 0,
+      pos: 1,
+      website: 1,
       seo: '{"slug":"", "title":"", "keywords":""}',
       tags: '',
       cost: 0,
@@ -197,7 +235,7 @@ export default function ProductsScreen() {
             {
               type: "execute",
               stmt: {
-                sql: "SELECT id, parentid, title, value FROM options ORDER BY title LIMIT 100"
+                sql: "SELECT id, parentid, title, value, identifier FROM options ORDER BY title LIMIT 100"
               }
             }
           ]
@@ -212,7 +250,8 @@ export default function ProductsScreen() {
             id: parseInt(row[0].value),
             parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
             title: row[2].type === 'null' ? '' : row[2].value,
-            value: row[3].type === 'null' ? '' : row[3].value
+            value: row[3].type === 'null' ? '' : row[3].value,
+            identifier: row[4].type === 'null' ? '' : row[4].value
           }));
           setAvailableOptions(optionData);
         }
@@ -244,7 +283,7 @@ export default function ProductsScreen() {
             {
               type: "execute",
               stmt: {
-                sql: "SELECT id, parentid, title, value FROM metafields ORDER BY title LIMIT 100"
+                sql: "SELECT id, parentid, title, value, \"group\", type, filter FROM metafields ORDER BY title LIMIT 100"
               }
             }
           ]
@@ -259,13 +298,65 @@ export default function ProductsScreen() {
             id: parseInt(row[0].value),
             parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
             title: row[2].type === 'null' ? '' : row[2].value,
-            value: row[3].type === 'null' ? '' : row[3].value
+            value: row[3].type === 'null' ? '' : row[3].value,
+            group: row[4].type === 'null' ? '' : row[4].value,
+            type: row[5].type === 'null' ? '' : row[5].value,
+            filter: row[6].type === 'null' ? 0 : parseInt(row[6].value)
           }));
           setAvailableMetafields(metafieldData);
         }
       }
     } catch (error) {
       console.error('Error fetching metafields:', error);
+    }
+  };
+
+  // Fetch available modifiers for multi-select
+  const fetchAvailableModifiers = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, title, notes, type, value, identifier FROM modifiers ORDER BY title LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const modifierData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            title: row[1].type === 'null' ? '' : row[1].value,
+            notes: row[2].type === 'null' ? '' : row[2].value,
+            type: row[3].type === 'null' ? '' : row[3].value,
+            value: row[4].type === 'null' ? 0 : parseFloat(row[4].value),
+            identifier: row[5].type === 'null' ? '' : row[5].value
+          }));
+          setAvailableModifiers(modifierData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching modifiers:', error);
     }
   };
 
@@ -450,8 +541,8 @@ export default function ProductsScreen() {
               vendor: row[11].type === 'null' ? '' : row[11].value,
               brand: row[12].type === 'null' ? '' : row[12].value,
               options: row[13].type === 'null' ? '[]' : row[13].value,
-              modifiers: row[14].type === 'null' ? '' : row[14].value,
-              metafields: row[15].type === 'null' ? '' : row[15].value,
+              modifiers: row[14].type === 'null' ? '[]' : row[14].value,
+              metafields: row[15].type === 'null' ? '[]' : row[15].value,
               saleinfo: row[16].type === 'null' ? '' : row[16].value,
               stores: row[17].type === 'null' ? '' : row[17].value,
               pos: row[18].type === 'null' ? 0 : parseInt(row[18].value),
@@ -553,8 +644,8 @@ export default function ProductsScreen() {
                 '${(newProduct.vendor || '').replace(/'/g, "''")}',
                 '${(newProduct.brand || '').replace(/'/g, "''")}',
                 '${(newProduct.options || '[]').replace(/'/g, "''")}',
-                '${(newProduct.modifiers || '').replace(/'/g, "''")}',
-                '${(newProduct.metafields || '').replace(/'/g, "''")}',
+                '${(newProduct.modifiers || '[]').replace(/'/g, "''")}',
+                '${(newProduct.metafields || '[]').replace(/'/g, "''")}',
                 '${(newProduct.saleinfo || '').replace(/'/g, "''")}',
                 '${(newProduct.stores || '').replace(/'/g, "''")}',
                 ${newProduct.pos || 0},
@@ -671,8 +762,8 @@ export default function ProductsScreen() {
                 vendor = '${(selectedProductForEdit.vendor || '').replace(/'/g, "''")}',
                 brand = '${(selectedProductForEdit.brand || '').replace(/'/g, "''")}',
                 options = '${(selectedProductForEdit.options || '[]').replace(/'/g, "''")}',
-                modifiers = '${(selectedProductForEdit.modifiers || '').replace(/'/g, "''")}',
-                metafields = '${(selectedProductForEdit.metafields || '').replace(/'/g, "''")}',
+                modifiers = '${(selectedProductForEdit.modifiers || '[]').replace(/'/g, "''")}',
+                metafields = '${(selectedProductForEdit.metafields || '[]').replace(/'/g, "''")}',
                 saleinfo = '${(selectedProductForEdit.saleinfo || '').replace(/'/g, "''")}',
                 stores = '${(selectedProductForEdit.stores || '').replace(/'/g, "''")}',
                 pos = ${selectedProductForEdit.pos || 0},
@@ -949,6 +1040,37 @@ export default function ProductsScreen() {
     );
   };
 
+  const openModifiersDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+    const currentIds = parseSelectedIds(currentProduct.modifiers || '[]');
+    setSelectedModifierIds(currentIds);
+
+    // Fetch modifiers first if not already loaded
+    if (availableModifiers.length === 0) {
+      await fetchAvailableModifiers();
+    }
+
+    setModifiersDrawerVisible(true);
+  };
+
+  const handleModifiersSelection = () => {
+    const selectedIdsJson = JSON.stringify(selectedModifierIds);
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, modifiers: selectedIdsJson});
+    } else {
+      setNewProduct({...newProduct, modifiers: selectedIdsJson});
+    }
+    setModifiersDrawerVisible(false);
+  };
+
+  const toggleModifierSelection = (modifierId: number) => {
+    setSelectedModifierIds(prev =>
+      prev.includes(modifierId)
+        ? prev.filter(id => id !== modifierId)
+        : [...prev, modifierId]
+    );
+  };
+
   // Helper function to get selected option names
   const getSelectedOptionNames = (optionIds: number[]): string => {
     if (optionIds.length === 0) return '';
@@ -977,6 +1099,20 @@ export default function ProductsScreen() {
     }
   };
 
+  // Helper function to get selected modifier names
+  const getSelectedModifierNames = (modifierIds: number[]): string => {
+    if (modifierIds.length === 0) return '';
+
+    const selectedModifiers = availableModifiers.filter(modifier => modifierIds.includes(modifier.id));
+    if (selectedModifiers.length === 0) return `${modifierIds.length} modifiers selected`;
+
+    if (selectedModifiers.length <= 3) {
+      return selectedModifiers.map(modifier => modifier.title).join(', ');
+    } else {
+      return `${selectedModifiers.slice(0, 2).map(modifier => modifier.title).join(', ')} +${selectedModifiers.length - 2} more`;
+    }
+  };
+
   // Create new option function
   const createNewOption = async () => {
     if (!newOptionTitle.trim()) {
@@ -1000,7 +1136,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO options (parentid, title, value) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}')`
+              sql: `INSERT INTO options (parentid, title, value, identifier) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}', '${newOptionIdentifier.replace(/'/g, "''")}')`
             }
           }
         ]
@@ -1017,8 +1153,7 @@ export default function ProductsScreen() {
 
       if (response.ok) {
         // Reset form
-        setNewOptionTitle('');
-        setNewOptionValue('');
+        resetNewOptionForm();
         setCreateOptionModalVisible(false);
 
         // Refresh options list
@@ -1059,7 +1194,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO metafields (parentid, title, value) VALUES (NULL, '${newMetafieldTitle.replace(/'/g, "''")}', '${newMetafieldValue.replace(/'/g, "''")}')`
+              sql: `INSERT INTO metafields (parentid, title, value, "group", type, filter) VALUES (NULL, '${newMetafieldTitle.replace(/'/g, "''")}', '${newMetafieldValue.replace(/'/g, "''")}', '${newMetafieldGroup.replace(/'/g, "''")}', '${newMetafieldType.replace(/'/g, "''")}', ${newMetafieldFilter})`
             }
           }
         ]
@@ -1076,8 +1211,7 @@ export default function ProductsScreen() {
 
       if (response.ok) {
         // Reset form
-        setNewMetafieldTitle('');
-        setNewMetafieldValue('');
+        resetNewMetafieldForm();
         setCreateMetafieldModalVisible(false);
 
         // Refresh metafields list
@@ -1095,11 +1229,70 @@ export default function ProductsScreen() {
     }
   };
 
+  // Create new modifier function
+  const createNewModifier = async () => {
+    if (!newModifierTitle.trim()) {
+      Alert.alert('Error', 'Modifier title is required');
+      return;
+    }
+
+    try {
+      setIsCreatingModifier(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO modifiers (title, notes, type, value, identifier) VALUES ('${newModifierTitle.replace(/'/g, "''")}', '${newModifierNotes.replace(/'/g, "''")}', '${newModifierType.replace(/'/g, "''")}', ${newModifierValue}, '${newModifierIdentifier.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        // Reset form
+        resetNewModifierForm();
+        setCreateModifierModalVisible(false);
+
+        // Refresh modifiers list
+        await fetchAvailableModifiers();
+
+        Alert.alert('Success', 'Modifier created successfully');
+      } else {
+        throw new Error('Failed to create modifier');
+      }
+    } catch (error) {
+      console.error('Error creating modifier:', error);
+      Alert.alert('Error', 'Failed to create modifier. Please try again.');
+    } finally {
+      setIsCreatingModifier(false);
+    }
+  };
+
   // Fetch products on component mount
   useEffect(() => {
     fetchProducts();
     fetchAvailableOptions();
     fetchAvailableMetafields();
+    fetchAvailableModifiers();
   }, []);
 
   // Handle edit button press
@@ -1304,6 +1497,7 @@ export default function ProductsScreen() {
           <VerticalTabView
             tabs={[
               { key: 'core', icon: 'cube-outline', label: 'Core' },
+              { key: 'metafields', icon: 'numbers', label: 'Metafields', iconLibrary: 'MaterialIcons' },
               { key: 'organization', icon: 'folder-outline', label: 'Organization' },
               { key: 'media', icon: 'image-outline', label: 'Media' },
               { key: 'notes', icon: 'notes', label: 'Notes', iconLibrary: 'MaterialIcons' },
@@ -1314,203 +1508,158 @@ export default function ProductsScreen() {
           >
             {/* Core Tab */}
             <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Title *</Text>
+              <View style={[styles.formField, { marginTop: 0 }]}>
                 <TextInput
-                  style={styles.input}
+                  style={styles.notionTitleInput}
                   value={newProduct.title}
                   onChangeText={(text) => setNewProduct({...newProduct, title: text})}
                   placeholder="Product title"
+                  placeholderTextColor="#999"
                 />
               </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Price *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.price?.toString()}
-                  onChangeText={(text) => setNewProduct({...newProduct, price: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
+              <View style={styles.tilesContainer}>
+                <View style={styles.tilesRow}>
+                  <View style={[styles.tile, styles.tileLeft]}>
+                    <Text style={styles.priceTileValue}>${newProduct.price?.toFixed(2) || '0.00'}</Text>
+                    <Text style={styles.priceTileLabel}>Price</Text>
+                  </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Sale Price</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.saleprice?.toString()}
-                  onChangeText={(text) => setNewProduct({...newProduct, saleprice: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
+                  <View style={[styles.tile, styles.tileMiddle]}>
+                    <Text style={styles.priceTileValue}>${newProduct.saleprice?.toFixed(2) || '0.00'}</Text>
+                    <Text style={styles.priceTileLabel}>Sale Price</Text>
+                  </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Cost</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.cost?.toString()}
-                  onChangeText={(text) => setNewProduct({...newProduct, cost: parseFloat(text) || 0})}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
+                  <View style={[styles.tile, styles.tileRight]}>
+                    <Text style={styles.priceTileValue}>${newProduct.cost?.toFixed(2) || '0.00'}</Text>
+                    <Text style={styles.priceTileLabel}>Cost</Text>
+                  </View>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Excerpt</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.excerpt}
-                  onChangeText={(text) => setNewProduct({...newProduct, excerpt: text})}
-                  placeholder="Short description"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
+                <View style={styles.tilesRow}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.statusTileLeft]}
+                    onPress={() => setNewProduct({...newProduct, pos: newProduct.pos === 1 ? 0 : 1})}
+                  >
+                    <Text style={styles.statusTileLabel}>POS</Text>
+                    <Text style={styles.statusTileValue}>{newProduct.pos === 1 ? 'Active' : 'Inactive'}</Text>
+                  </TouchableOpacity>
 
-              <View style={styles.switchField}>
-                <Text style={styles.inputLabel}>POS</Text>
-                <Switch
-                  value={newProduct.pos === 1}
-                  onValueChange={(value) => setNewProduct({...newProduct, pos: value ? 1 : 0})}
-                />
+                  <TouchableOpacity
+                    style={[styles.tile, styles.statusTileRight]}
+                    onPress={() => setNewProduct({...newProduct, website: newProduct.website === 1 ? 0 : 1})}
+                  >
+                    <Text style={styles.statusTileLabel}>Website</Text>
+                    <Text style={styles.statusTileValue}>{newProduct.website === 1 ? 'Active' : 'Inactive'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+            </View>
 
-              <View style={styles.switchField}>
-                <Text style={styles.inputLabel}>Website</Text>
-                <Switch
-                  value={newProduct.website === 1}
-                  onValueChange={(value) => setNewProduct({...newProduct, website: value ? 1 : 0})}
-                />
+            {/* Metafields Tab */}
+            <View style={{ margin: -16, padding: 0 }}>
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                  onPress={() => openMetafieldsDrawer(newProduct, false)}
+                >
+                  <Text style={styles.orgTileLabel}>Metafields</Text>
+                  <Text style={styles.orgTileValue}>
+                    {(() => {
+                      const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
+                      if (selectedIds.length === 0) {
+                        return 'Select metafields';
+                      } else {
+                        return `${selectedIds.length} metafield${selectedIds.length !== 1 ? 's' : ''} selected`;
+                      }
+                    })()}
+                  </Text>
+                </TouchableOpacity>
+
+                {(() => {
+                  const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
+                  if (selectedIds.length > 0) {
+                    const selectedMetafields = availableMetafields.filter(metafield => selectedIds.includes(metafield.id));
+                    return selectedMetafields.map((metafield) => (
+                      <TouchableOpacity
+                        key={metafield.id}
+                        style={[styles.tile, styles.orgTileSingle]}
+                        onPress={() => openMetafieldsDrawer(newProduct, false)}
+                      >
+                        <Text style={styles.orgTileLabel}>{metafield.title}</Text>
+                        <Text style={styles.orgTileValue}>{metafield.value || 'Not set'}</Text>
+                      </TouchableOpacity>
+                    ));
+                  }
+                  return null;
+                })()}
               </View>
             </View>
 
             {/* Organization Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Type</Text>
-                <View style={styles.typeContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.type === 'physical' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, type: 'physical'})}
-                  >
-                    <Text style={newProduct.type === 'physical' ? styles.typeTextActive : styles.typeText}>
-                      Physical
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.type === 'digital' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, type: 'digital'})}
-                  >
-                    <Text style={newProduct.type === 'digital' ? styles.typeTextActive : styles.typeText}>
-                      Digital
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.type === 'service' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, type: 'service'})}
-                  >
-                    <Text style={newProduct.type === 'service' ? styles.typeTextActive : styles.typeText}>
-                      Service
-                    </Text>
-                  </TouchableOpacity>
+            <View style={{ margin: -16, padding: 0 }}>
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                  onPress={() => setNewProduct({...newProduct, type: newProduct.type === 'physical' ? 'digital' : newProduct.type === 'digital' ? 'service' : 'physical'})}
+                >
+                  <Text style={styles.orgTileLabel}>Type</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.type || 'Physical'}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => setNewProduct({...newProduct, featured: newProduct.featured === 1 ? 0 : 1})}
+                >
+                  <Text style={styles.orgTileLabel}>Featured</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.featured === 1 ? 'Yes' : 'No'}</Text>
+                </TouchableOpacity>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Category</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.category || 'Not set'}</Text>
                 </View>
-              </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Category</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.category}
-                  onChangeText={(text) => setNewProduct({...newProduct, category: text})}
-                  placeholder="Product category"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Collection</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.collection || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Collection</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.collection}
-                  onChangeText={(text) => setNewProduct({...newProduct, collection: text})}
-                  placeholder="Product collection"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Vendor</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.vendor || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Unit</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.unit}
-                  onChangeText={(text) => setNewProduct({...newProduct, unit: text})}
-                  placeholder="Unit of measurement"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Brand</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.brand || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Vendor</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.vendor}
-                  onChangeText={(text) => setNewProduct({...newProduct, vendor: text})}
-                  placeholder="Product vendor"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Unit</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.unit || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Brand</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.brand}
-                  onChangeText={(text) => setNewProduct({...newProduct, brand: text})}
-                  placeholder="Product brand"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>QR Code</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.qrcode || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Tags</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.tags}
-                  onChangeText={(text) => setNewProduct({...newProduct, tags: text})}
-                  placeholder="Product tags (comma separated)"
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Tags</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.tags || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>QR Code</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.qrcode}
-                  onChangeText={(text) => setNewProduct({...newProduct, qrcode: text})}
-                  placeholder="Product QR code"
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Stores</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newProduct.stores}
-                  onChangeText={(text) => setNewProduct({...newProduct, stores: text})}
-                  placeholder="Stores"
-                />
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Stores</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.stores || 'Not set'}</Text>
+                </View>
               </View>
             </View>
 
             {/* Media Tab */}
             <View>
-              <View style={styles.formField}>
+              <View style={[styles.formField, { marginTop: 0 }]}>
                 <ImageUploader
                   images={newProduct.medias || '[]'}
                   onImagesChange={(images) =>
@@ -1521,7 +1670,18 @@ export default function ProductsScreen() {
             </View>
 
             {/* Notes Tab */}
-            <View style={styles.notesContainer}>
+            <View style={[styles.notesContainer, { paddingTop: 0 }]}>
+              <TextInput
+                style={styles.excerptInput}
+                value={newProduct.excerpt}
+                onChangeText={(text) => setNewProduct({...newProduct, excerpt: text})}
+                placeholder="Short description..."
+                multiline
+                textAlignVertical="top"
+                autoFocus={false}
+                returnKeyType="default"
+              />
+              <View style={styles.notesDivider} />
               <TextInput
                 style={styles.notesInput}
                 value={newProduct.notes}
@@ -1535,195 +1695,131 @@ export default function ProductsScreen() {
             </View>
 
             {/* Storefront Tab */}
-            <View>
-              <View style={styles.switchField}>
-                <Text style={styles.inputLabel}>Featured Product</Text>
-                <Switch
-                  value={newProduct.featured === 1}
-                  onValueChange={(value) => setNewProduct({...newProduct, featured: value ? 1 : 0})}
-                />
-              </View>
+            <View style={{ margin: -16, padding: 0 }}>
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                  onPress={() => setNewProduct({...newProduct, featured: newProduct.featured === 1 ? 0 : 1})}
+                >
+                  <Text style={styles.orgTileLabel}>Featured</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.featured === 1 ? 'Yes' : 'No'}</Text>
+                </TouchableOpacity>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Sale Info</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.saleinfo}
-                  onChangeText={(text) => setNewProduct({...newProduct, saleinfo: text})}
-                  placeholder="Sale information"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => setNewProduct({...newProduct, publish: newProduct.publish === 'draft' ? 'active' : newProduct.publish === 'active' ? 'archived' : 'draft'})}
+                >
+                  <Text style={styles.orgTileLabel}>Publish Status</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.publish || 'Draft'}</Text>
+                </TouchableOpacity>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Promo Info</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.promoinfo}
-                  onChangeText={(text) => setNewProduct({...newProduct, promoinfo: text})}
-                  placeholder="Promotion information"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Sale Info</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.saleinfo || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Related Products</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.relproducts === '[]' ? '' : newProduct.relproducts}
-                  onChangeText={(text) => setNewProduct({...newProduct, relproducts: text || '[]'})}
-                  placeholder="Related products (JSON format)"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Promo Info</Text>
+                  <Text style={styles.orgTileValue}>{newProduct.promoinfo || 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Sell Products</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.sellproducts === '[]' ? '' : newProduct.sellproducts}
-                  onChangeText={(text) => setNewProduct({...newProduct, sellproducts: text || '[]'})}
-                  placeholder="Sell products (JSON format)"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>SEO</Text>
+                  <Text style={styles.orgTileValue}>{(newProduct.seo && newProduct.seo !== '{"slug":"", "title":"", "keywords":""}') ? 'Configured' : 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>SEO</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.seo === '{"slug":"", "title":"", "keywords":""}' ? '' : newProduct.seo}
-                  onChangeText={(text) => setNewProduct({...newProduct, seo: text || '{"slug":"", "title":"", "keywords":""}'})}
-                  placeholder="SEO information (JSON format)"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Related Products</Text>
+                  <Text style={styles.orgTileValue}>{(newProduct.relproducts && newProduct.relproducts !== '[]') ? 'Configured' : 'Not set'}</Text>
+                </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Publish Status</Text>
-                <View style={styles.typeContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.publish === 'draft' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, publish: 'draft'})}
-                  >
-                    <Text style={newProduct.publish === 'draft' ? styles.typeTextActive : styles.typeText}>
-                      Draft
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.publish === 'active' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, publish: 'active'})}
-                  >
-                    <Text style={newProduct.publish === 'active' ? styles.typeTextActive : styles.typeText}>
-                      Active
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      newProduct.publish === 'archived' && styles.typeButtonActive
-                    ]}
-                    onPress={() => setNewProduct({...newProduct, publish: 'archived'})}
-                  >
-                    <Text style={newProduct.publish === 'archived' ? styles.typeTextActive : styles.typeText}>
-                      Archived
-                    </Text>
-                  </TouchableOpacity>
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Sell Products</Text>
+                  <Text style={styles.orgTileValue}>{(newProduct.sellproducts && newProduct.sellproducts !== '[]') ? 'Configured' : 'Not set'}</Text>
                 </View>
               </View>
             </View>
 
             {/* Options Tab */}
-            <View>
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Options</Text>
+            <View style={{ margin: -16, padding: 0 }}>
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                 <TouchableOpacity
-                  style={styles.selectorButton}
+                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
                   onPress={() => openOptionsDrawer(newProduct, false)}
                 >
-                  <View style={styles.selectorContent}>
-                    <View style={styles.selectorTextContainer}>
-                      {(() => {
-                        const selectedIds = parseSelectedIds(newProduct.options || '[]');
-                        const selectedNames = getSelectedOptionNames(selectedIds);
-
-                        if (selectedIds.length === 0) {
-                          return <Text style={styles.selectorPlaceholder}>Select options</Text>;
-                        } else if (selectedNames) {
-                          return (
-                            <View>
-                              <Text style={styles.selectorText}>{selectedNames}</Text>
-                              <Text style={styles.selectorCount}>{selectedIds.length} option{selectedIds.length !== 1 ? 's' : ''}</Text>
-                            </View>
-                          );
-                        } else {
-                          return <Text style={styles.selectorText}>{selectedIds.length} options selected</Text>;
-                        }
-                      })()}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
-                  </View>
+                  <Text style={styles.orgTileLabel}>Options</Text>
+                  <Text style={styles.orgTileValue}>
+                    {(() => {
+                      const selectedIds = parseSelectedIds(newProduct.options || '[]');
+                      if (selectedIds.length === 0) {
+                        return 'Select options';
+                      } else {
+                        return `${selectedIds.length} option${selectedIds.length !== 1 ? 's' : ''} selected`;
+                      }
+                    })()}
+                  </Text>
                 </TouchableOpacity>
-              </View>
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Modifiers</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={newProduct.modifiers}
-                  onChangeText={(text) => setNewProduct({...newProduct, modifiers: text})}
-                  placeholder="Product modifiers"
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+                {(() => {
+                  const selectedIds = parseSelectedIds(newProduct.options || '[]');
+                  if (selectedIds.length > 0) {
+                    const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
+                    return selectedOptions.map((option) => (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[styles.tile, styles.orgTileSingle]}
+                        onPress={() => openOptionsDrawer(newProduct, false)}
+                      >
+                        <Text style={styles.orgTileLabel}>{option.title}</Text>
+                        <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                      </TouchableOpacity>
+                    ));
+                  }
+                  return null;
+                })()}
 
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Metafields</Text>
                 <TouchableOpacity
-                  style={styles.selectorButton}
-                  onPress={() => openMetafieldsDrawer(newProduct, false)}
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openModifiersDrawer(newProduct, false)}
                 >
-                  <View style={styles.selectorContent}>
-                    <View style={styles.selectorTextContainer}>
-                      {(() => {
-                        const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
-                        const selectedNames = getSelectedMetafieldNames(selectedIds);
-
-                        if (selectedIds.length === 0) {
-                          return <Text style={styles.selectorPlaceholder}>Select metafields</Text>;
-                        } else if (selectedNames) {
-                          return (
-                            <View>
-                              <Text style={styles.selectorText}>{selectedNames}</Text>
-                              <Text style={styles.selectorCount}>{selectedIds.length} metafield{selectedIds.length !== 1 ? 's' : ''}</Text>
-                            </View>
-                          );
-                        } else {
-                          return <Text style={styles.selectorText}>{selectedIds.length} metafields selected</Text>;
-                        }
-                      })()}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
-                  </View>
+                  <Text style={styles.orgTileLabel}>Modifiers</Text>
+                  <Text style={styles.orgTileValue}>
+                    {(() => {
+                      const selectedIds = parseSelectedIds(newProduct.modifiers || '[]');
+                      if (selectedIds.length === 0) {
+                        return 'Select modifiers';
+                      } else {
+                        return `${selectedIds.length} modifier${selectedIds.length !== 1 ? 's' : ''} selected`;
+                      }
+                    })()}
+                  </Text>
                 </TouchableOpacity>
+
+                {(() => {
+                  const selectedIds = parseSelectedIds(newProduct.modifiers || '[]');
+                  if (selectedIds.length > 0) {
+                    const selectedModifiers = availableModifiers.filter(modifier => selectedIds.includes(modifier.id));
+                    return selectedModifiers.map((modifier) => (
+                      <TouchableOpacity
+                        key={modifier.id}
+                        style={[styles.tile, styles.orgTileSingle]}
+                        onPress={() => openModifiersDrawer(newProduct, false)}
+                      >
+                        <Text style={styles.orgTileLabel}>{modifier.title}</Text>
+                        <Text style={styles.orgTileValue}>{modifier.value ? `$${modifier.value.toFixed(2)}` : 'Not set'}</Text>
+                      </TouchableOpacity>
+                    ));
+                  }
+                  return null;
+                })()}
+
+
               </View>
             </View>
 
             {/* Inventory Tab */}
-            <View>
-              <View style={styles.noProductSelected}>
+            <View style={{ margin: -16, padding: 0 }}>
+              <View style={[styles.noProductSelected, { marginTop: 0, paddingTop: 0 }]}>
                 <Text style={styles.noProductText}>
                   Inventory will be available after the product is created
                 </Text>
@@ -1770,6 +1866,7 @@ export default function ProductsScreen() {
             <VerticalTabView
               tabs={[
                 { key: 'core', icon: 'cube-outline', label: 'Core' },
+                { key: 'metafields', icon: 'numbers', label: 'Metafields', iconLibrary: 'MaterialIcons' },
                 { key: 'organization', icon: 'folder-outline', label: 'Organization' },
                 { key: 'media', icon: 'image-outline', label: 'Media' },
                 { key: 'notes', icon: 'notes', label: 'Notes', iconLibrary: 'MaterialIcons' },
@@ -1780,203 +1877,158 @@ export default function ProductsScreen() {
             >
               {/* Core Tab */}
               <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Title *</Text>
+                <View style={[styles.formField, { marginTop: 0 }]}>
                   <TextInput
-                    style={styles.input}
+                    style={styles.notionTitleInput}
                     value={selectedProductForEdit.title}
                     onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, title: text})}
                     placeholder="Product title"
+                    placeholderTextColor="#999"
                   />
                 </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Price *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.price?.toString()}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, price: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
+                <View style={styles.tilesContainer}>
+                  <View style={styles.tilesRow}>
+                    <View style={[styles.tile, styles.tileLeft]}>
+                      <Text style={styles.priceTileValue}>${selectedProductForEdit.price?.toFixed(2) || '0.00'}</Text>
+                      <Text style={styles.priceTileLabel}>Price</Text>
+                    </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Sale Price</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.saleprice?.toString()}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleprice: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
+                    <View style={[styles.tile, styles.tileMiddle]}>
+                      <Text style={styles.priceTileValue}>${selectedProductForEdit.saleprice?.toFixed(2) || '0.00'}</Text>
+                      <Text style={styles.priceTileLabel}>Sale Price</Text>
+                    </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Cost</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.cost?.toString()}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, cost: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
+                    <View style={[styles.tile, styles.tileRight]}>
+                      <Text style={styles.priceTileValue}>${selectedProductForEdit.cost?.toFixed(2) || '0.00'}</Text>
+                      <Text style={styles.priceTileLabel}>Cost</Text>
+                    </View>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Excerpt</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.excerpt}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, excerpt: text})}
-                    placeholder="Short description"
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
+                  <View style={styles.tilesRow}>
+                    <TouchableOpacity
+                      style={[styles.tile, styles.statusTileLeft]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, pos: selectedProductForEdit.pos === 1 ? 0 : 1})}
+                    >
+                      <Text style={styles.statusTileLabel}>POS</Text>
+                      <Text style={styles.statusTileValue}>{selectedProductForEdit.pos === 1 ? 'Active' : 'Inactive'}</Text>
+                    </TouchableOpacity>
 
-                <View style={styles.switchField}>
-                  <Text style={styles.inputLabel}>POS</Text>
-                  <Switch
-                    value={selectedProductForEdit.pos === 1}
-                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, pos: value ? 1 : 0})}
-                  />
+                    <TouchableOpacity
+                      style={[styles.tile, styles.statusTileRight]}
+                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, website: selectedProductForEdit.website === 1 ? 0 : 1})}
+                    >
+                      <Text style={styles.statusTileLabel}>Website</Text>
+                      <Text style={styles.statusTileValue}>{selectedProductForEdit.website === 1 ? 'Active' : 'Inactive'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              </View>
 
-                <View style={styles.switchField}>
-                  <Text style={styles.inputLabel}>Website</Text>
-                  <Switch
-                    value={selectedProductForEdit.website === 1}
-                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, website: value ? 1 : 0})}
-                  />
+              {/* Metafields Tab */}
+              <View style={{ margin: -16, padding: 0 }}>
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                    onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
+                  >
+                    <Text style={styles.orgTileLabel}>Metafields</Text>
+                    <Text style={styles.orgTileValue}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
+                        if (selectedIds.length === 0) {
+                          return 'Select metafields';
+                        } else {
+                          return `${selectedIds.length} metafield${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        }
+                      })()}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {(() => {
+                    const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
+                    if (selectedIds.length > 0) {
+                      const selectedMetafields = availableMetafields.filter(metafield => selectedIds.includes(metafield.id));
+                      return selectedMetafields.map((metafield) => (
+                        <TouchableOpacity
+                          key={metafield.id}
+                          style={[styles.tile, styles.orgTileSingle]}
+                          onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
+                        >
+                          <Text style={styles.orgTileLabel}>{metafield.title}</Text>
+                          <Text style={styles.orgTileValue}>{metafield.value || 'Not set'}</Text>
+                        </TouchableOpacity>
+                      ));
+                    }
+                    return null;
+                  })()}
                 </View>
               </View>
 
               {/* Organization Tab */}
-              <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Type</Text>
-                  <View style={styles.typeContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.type === 'physical' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'physical'})}
-                    >
-                      <Text style={selectedProductForEdit.type === 'physical' ? styles.typeTextActive : styles.typeText}>
-                        Physical
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.type === 'digital' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'digital'})}
-                    >
-                      <Text style={selectedProductForEdit.type === 'digital' ? styles.typeTextActive : styles.typeText}>
-                        Digital
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.type === 'service' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: 'service'})}
-                    >
-                      <Text style={selectedProductForEdit.type === 'service' ? styles.typeTextActive : styles.typeText}>
-                        Service
-                      </Text>
-                    </TouchableOpacity>
+              <View style={{ margin: -16, padding: 0 }}>
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                    onPress={() => setSelectedProductForEdit({...selectedProductForEdit, type: selectedProductForEdit.type === 'physical' ? 'digital' : selectedProductForEdit.type === 'digital' ? 'service' : 'physical'})}
+                  >
+                    <Text style={styles.orgTileLabel}>Type</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.type || 'Physical'}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => setSelectedProductForEdit({...selectedProductForEdit, featured: selectedProductForEdit.featured === 1 ? 0 : 1})}
+                  >
+                    <Text style={styles.orgTileLabel}>Featured</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.featured === 1 ? 'Yes' : 'No'}</Text>
+                  </TouchableOpacity>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Category</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.category || 'Not set'}</Text>
                   </View>
-                </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.category}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, category: text})}
-                    placeholder="Product category"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Collection</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.collection || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Collection</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.collection}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, collection: text})}
-                    placeholder="Product collection"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Vendor</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.vendor || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Unit</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.unit}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, unit: text})}
-                    placeholder="Unit of measurement"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Brand</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.brand || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Vendor</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.vendor}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, vendor: text})}
-                    placeholder="Product vendor"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Unit</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.unit || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Brand</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.brand}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, brand: text})}
-                    placeholder="Product brand"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>QR Code</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.qrcode || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Tags</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.tags}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, tags: text})}
-                    placeholder="Product tags (comma separated)"
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Tags</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.tags || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>QR Code</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.qrcode}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, qrcode: text})}
-                    placeholder="Product QR code"
-                  />
-                </View>
-
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Stores</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={selectedProductForEdit.stores}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, stores: text})}
-                    placeholder="Stores"
-                  />
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Stores</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.stores || 'Not set'}</Text>
+                  </View>
                 </View>
               </View>
 
               {/* Media Tab */}
               <View>
-                <View style={styles.formField}>
+                <View style={[styles.formField, { marginTop: 0 }]}>
                   {(() => {
                     console.log('Media Tab - selectedProductForEdit.medias:', selectedProductForEdit.medias);
                     console.log('Media Tab - medias type:', typeof selectedProductForEdit.medias);
@@ -1993,7 +2045,18 @@ export default function ProductsScreen() {
               </View>
 
               {/* Notes Tab */}
-              <View style={styles.notesContainer}>
+              <View style={[styles.notesContainer, { paddingTop: 0 }]}>
+                <TextInput
+                  style={styles.excerptInput}
+                  value={selectedProductForEdit.excerpt}
+                  onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, excerpt: text})}
+                  placeholder="Short description..."
+                  multiline
+                  textAlignVertical="top"
+                  autoFocus={false}
+                  returnKeyType="default"
+                />
+                <View style={styles.notesDivider} />
                 <TextInput
                   style={styles.notesInput}
                   value={selectedProductForEdit.notes}
@@ -2007,194 +2070,130 @@ export default function ProductsScreen() {
               </View>
 
               {/* Storefront Tab */}
-              <View>
-                <View style={styles.switchField}>
-                  <Text style={styles.inputLabel}>Featured Product</Text>
-                  <Switch
-                    value={selectedProductForEdit.featured === 1}
-                    onValueChange={(value) => setSelectedProductForEdit({...selectedProductForEdit, featured: value ? 1 : 0})}
-                  />
-                </View>
+              <View style={{ margin: -16, padding: 0 }}>
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                    onPress={() => setSelectedProductForEdit({...selectedProductForEdit, featured: selectedProductForEdit.featured === 1 ? 0 : 1})}
+                  >
+                    <Text style={styles.orgTileLabel}>Featured</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.featured === 1 ? 'Yes' : 'No'}</Text>
+                  </TouchableOpacity>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Sale Info</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.saleinfo}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, saleinfo: text})}
-                    placeholder="Sale information"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: selectedProductForEdit.publish === 'draft' ? 'active' : selectedProductForEdit.publish === 'active' ? 'archived' : 'draft'})}
+                  >
+                    <Text style={styles.orgTileLabel}>Publish Status</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.publish || 'Draft'}</Text>
+                  </TouchableOpacity>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Promo Info</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.promoinfo}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, promoinfo: text})}
-                    placeholder="Promotion information"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Sale Info</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.saleinfo || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Related Products</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.relproducts === '[]' ? '' : selectedProductForEdit.relproducts}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, relproducts: text || '[]'})}
-                    placeholder="Related products (JSON format)"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Promo Info</Text>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.promoinfo || 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Sell Products</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.sellproducts === '[]' ? '' : selectedProductForEdit.sellproducts}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, sellproducts: text || '[]'})}
-                    placeholder="Sell products (JSON format)"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>SEO</Text>
+                    <Text style={styles.orgTileValue}>{(selectedProductForEdit.seo && selectedProductForEdit.seo !== '{"slug":"", "title":"", "keywords":""}') ? 'Configured' : 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>SEO</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.seo === '{"slug":"", "title":"", "keywords":""}' ? '' : selectedProductForEdit.seo}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, seo: text || '{"slug":"", "title":"", "keywords":""}'})}
-                    placeholder="SEO information (JSON format)"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Related Products</Text>
+                    <Text style={styles.orgTileValue}>{(selectedProductForEdit.relproducts && selectedProductForEdit.relproducts !== '[]') ? 'Configured' : 'Not set'}</Text>
+                  </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Publish Status</Text>
-                  <View style={styles.typeContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.publish === 'draft' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'draft'})}
-                    >
-                      <Text style={selectedProductForEdit.publish === 'draft' ? styles.typeTextActive : styles.typeText}>
-                        Draft
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.publish === 'active' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'active'})}
-                    >
-                      <Text style={selectedProductForEdit.publish === 'active' ? styles.typeTextActive : styles.typeText}>
-                        Active
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.typeButton,
-                        selectedProductForEdit.publish === 'archived' && styles.typeButtonActive
-                      ]}
-                      onPress={() => setSelectedProductForEdit({...selectedProductForEdit, publish: 'archived'})}
-                    >
-                      <Text style={selectedProductForEdit.publish === 'archived' ? styles.typeTextActive : styles.typeText}>
-                        Archived
-                      </Text>
-                    </TouchableOpacity>
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Sell Products</Text>
+                    <Text style={styles.orgTileValue}>{(selectedProductForEdit.sellproducts && selectedProductForEdit.sellproducts !== '[]') ? 'Configured' : 'Not set'}</Text>
                   </View>
                 </View>
               </View>
 
               {/* Options Tab */}
-              <View>
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Options</Text>
+              <View style={{ margin: -16, padding: 0 }}>
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                   <TouchableOpacity
-                    style={styles.selectorButton}
+                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
                     onPress={() => openOptionsDrawer(selectedProductForEdit, true)}
                   >
-                    <View style={styles.selectorContent}>
-                      <View style={styles.selectorTextContainer}>
-                        {(() => {
-                          const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
-                          const selectedNames = getSelectedOptionNames(selectedIds);
-
-                          if (selectedIds.length === 0) {
-                            return <Text style={styles.selectorPlaceholder}>Select options</Text>;
-                          } else if (selectedNames) {
-                            return (
-                              <View>
-                                <Text style={styles.selectorText}>{selectedNames}</Text>
-                                <Text style={styles.selectorCount}>{selectedIds.length} option{selectedIds.length !== 1 ? 's' : ''}</Text>
-                              </View>
-                            );
-                          } else {
-                            return <Text style={styles.selectorText}>{selectedIds.length} options selected</Text>;
-                          }
-                        })()}
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#666" />
-                    </View>
+                    <Text style={styles.orgTileLabel}>Options</Text>
+                    <Text style={styles.orgTileValue}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
+                        if (selectedIds.length === 0) {
+                          return 'Select options';
+                        } else {
+                          return `${selectedIds.length} option${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        }
+                      })()}
+                    </Text>
                   </TouchableOpacity>
-                </View>
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Modifiers</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={selectedProductForEdit.modifiers}
-                    onChangeText={(text) => setSelectedProductForEdit({...selectedProductForEdit, modifiers: text})}
-                    placeholder="Product modifiers"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                  {(() => {
+                    const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
+                    if (selectedIds.length > 0) {
+                      const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
+                      return selectedOptions.map((option) => (
+                        <TouchableOpacity
+                          key={option.id}
+                          style={[styles.tile, styles.orgTileSingle]}
+                          onPress={() => openOptionsDrawer(selectedProductForEdit, true)}
+                        >
+                          <Text style={styles.orgTileLabel}>{option.title}</Text>
+                          <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                        </TouchableOpacity>
+                      ));
+                    }
+                    return null;
+                  })()}
 
-                <View style={styles.formField}>
-                  <Text style={styles.inputLabel}>Metafields</Text>
                   <TouchableOpacity
-                    style={styles.selectorButton}
-                    onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openModifiersDrawer(selectedProductForEdit, true)}
                   >
-                    <View style={styles.selectorContent}>
-                      <View style={styles.selectorTextContainer}>
-                        {(() => {
-                          const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
-                          const selectedNames = getSelectedMetafieldNames(selectedIds);
-
-                          if (selectedIds.length === 0) {
-                            return <Text style={styles.selectorPlaceholder}>Select metafields</Text>;
-                          } else if (selectedNames) {
-                            return (
-                              <View>
-                                <Text style={styles.selectorText}>{selectedNames}</Text>
-                                <Text style={styles.selectorCount}>{selectedIds.length} metafield{selectedIds.length !== 1 ? 's' : ''}</Text>
-                              </View>
-                            );
-                          } else {
-                            return <Text style={styles.selectorText}>{selectedIds.length} metafields selected</Text>;
-                          }
-                        })()}
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#666" />
-                    </View>
+                    <Text style={styles.orgTileLabel}>Modifiers</Text>
+                    <Text style={styles.orgTileValue}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(selectedProductForEdit.modifiers || '[]');
+                        if (selectedIds.length === 0) {
+                          return 'Select modifiers';
+                        } else {
+                          return `${selectedIds.length} modifier${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        }
+                      })()}
+                    </Text>
                   </TouchableOpacity>
+
+                  {(() => {
+                    const selectedIds = parseSelectedIds(selectedProductForEdit.modifiers || '[]');
+                    if (selectedIds.length > 0) {
+                      const selectedModifiers = availableModifiers.filter(modifier => selectedIds.includes(modifier.id));
+                      return selectedModifiers.map((modifier) => (
+                        <TouchableOpacity
+                          key={modifier.id}
+                          style={[styles.tile, styles.orgTileSingle]}
+                          onPress={() => openModifiersDrawer(selectedProductForEdit, true)}
+                        >
+                          <Text style={styles.orgTileLabel}>{modifier.title}</Text>
+                          <Text style={styles.orgTileValue}>{modifier.value ? `$${modifier.value.toFixed(2)}` : 'Not set'}</Text>
+                        </TouchableOpacity>
+                      ));
+                    }
+                    return null;
+                  })()}
+
+
                 </View>
               </View>
 
               {/* Inventory Tab */}
-              <View>
+              <View style={{ margin: -16, padding: 0 }}>
                 {inventoryLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#0066CC" />
@@ -2489,7 +2488,12 @@ export default function ProductsScreen() {
                   >
                     <View style={styles.optionContent}>
                       <Text style={styles.optionTitle}>{item.title}</Text>
-                      <Text style={styles.optionValue}>{item.value}</Text>
+                      <Text style={styles.optionValue}>
+                        {item.value}
+                        {item.group && ` | Group: ${item.group}`}
+                        {item.type && ` | Type: ${item.type}`}
+                        {item.filter === 1 && ` | Filterable`}
+                      </Text>
                     </View>
                     <View style={styles.checkbox}>
                       {selectedMetafieldIds.includes(item.id) && (
@@ -2511,7 +2515,12 @@ export default function ProductsScreen() {
                         >
                           <View style={styles.optionContent}>
                             <Text style={styles.childOptionTitle}>{child.title}</Text>
-                            <Text style={styles.childOptionValue}>{child.value}</Text>
+                            <Text style={styles.childOptionValue}>
+                              {child.value}
+                              {child.group && ` | Group: ${child.group}`}
+                              {child.type && ` | Type: ${child.type}`}
+                              {child.filter === 1 && ` | Filterable`}
+                            </Text>
                           </View>
                           <View style={styles.checkbox}>
                             {selectedMetafieldIds.includes(child.id) && (
@@ -2531,7 +2540,12 @@ export default function ProductsScreen() {
                           >
                             <View style={styles.optionContent}>
                               <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
-                              <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
+                              <Text style={styles.grandChildOptionValue}>
+                                {grandChild.value}
+                                {grandChild.group && ` | Group: ${grandChild.group}`}
+                                {grandChild.type && ` | Type: ${grandChild.type}`}
+                                {grandChild.filter === 1 && ` | Filterable`}
+                              </Text>
                             </View>
                             <View style={styles.checkbox}>
                               {selectedMetafieldIds.includes(grandChild.id) && (
@@ -2554,19 +2568,98 @@ export default function ProductsScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Create New Option Modal */}
+      {/* Modifiers Multi-Select Drawer */}
       <Modal
         animationType="slide"
         transparent={false}
-        visible={createOptionModalVisible}
-        onRequestClose={() => setCreateOptionModalVisible(false)}
+        visible={modifiersDrawerVisible}
+        onRequestClose={() => setModifiersDrawerVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
-              onPress={() => setCreateOptionModalVisible(false)}
+              onPress={() => setModifiersDrawerVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Modifiers</Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={() => setCreateModifierModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#0066CC" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleModifiersSelection}
+              >
+                <Text style={styles.saveButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.selectionInfo}>
+            <Text style={styles.selectionText}>
+              {selectedModifierIds.length} modifier{selectedModifierIds.length !== 1 ? 's' : ''} selected
+            </Text>
+          </View>
+
+          <FlatList
+            data={availableModifiers}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.optionItem,
+                  selectedModifierIds.includes(item.id) && styles.selectedOptionItem
+                ]}
+                onPress={() => toggleModifierSelection(item.id)}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{item.title}</Text>
+                  <Text style={styles.optionValue}>
+                    {item.type && `Type: ${item.type}`}
+                    {item.value && ` | Value: $${item.value.toFixed(2)}`}
+                    {item.identifier && ` | ID: ${item.identifier}`}
+                  </Text>
+                </View>
+                <View style={styles.checkbox}>
+                  {selectedModifierIds.includes(item.id) && (
+                    <Ionicons name="checkmark" size={16} color="#0066CC" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Option Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createOptionModalVisible}
+        onRequestClose={() => {
+          resetNewOptionForm();
+          setCreateOptionModalVisible(false);
+        }}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                resetNewOptionForm();
+                setCreateOptionModalVisible(false);
+              }}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#000" />
@@ -2598,6 +2691,17 @@ export default function ProductsScreen() {
             </View>
 
             <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Identifier</Text>
+              <TextInput
+                style={styles.input}
+                value={newOptionIdentifier}
+                onChangeText={setNewOptionIdentifier}
+                placeholder="Option identifier"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
               <Text style={styles.inputLabel}>Value</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
@@ -2618,14 +2722,20 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={createMetafieldModalVisible}
-        onRequestClose={() => setCreateMetafieldModalVisible(false)}
+        onRequestClose={() => {
+          resetNewMetafieldForm();
+          setCreateMetafieldModalVisible(false);
+        }}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
-              onPress={() => setCreateMetafieldModalVisible(false)}
+              onPress={() => {
+                resetNewMetafieldForm();
+                setCreateMetafieldModalVisible(false);
+              }}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#000" />
@@ -2657,12 +2767,150 @@ export default function ProductsScreen() {
             </View>
 
             <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Group</Text>
+              <TextInput
+                style={styles.input}
+                value={newMetafieldGroup}
+                onChangeText={setNewMetafieldGroup}
+                placeholder="Metafield group"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Type</Text>
+              <TextInput
+                style={styles.input}
+                value={newMetafieldType}
+                onChangeText={setNewMetafieldType}
+                placeholder="Metafield type (e.g., text, number, boolean)"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Filter</Text>
+              <TouchableOpacity
+                style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                onPress={() => setNewMetafieldFilter(newMetafieldFilter === 1 ? 0 : 1)}
+              >
+                <Text style={{ color: newMetafieldFilter === 1 ? '#333' : '#999' }}>
+                  {newMetafieldFilter === 1 ? 'Filterable' : 'Not filterable'}
+                </Text>
+                <View style={[styles.checkbox, newMetafieldFilter === 1 && { backgroundColor: '#0066CC', borderColor: '#0066CC' }]}>
+                  {newMetafieldFilter === 1 && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formField}>
               <Text style={styles.inputLabel}>Value</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={newMetafieldValue}
                 onChangeText={setNewMetafieldValue}
                 placeholder="Metafield value"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Modifier Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createModifierModalVisible}
+        onRequestClose={() => {
+          resetNewModifierForm();
+          setCreateModifierModalVisible(false);
+        }}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                resetNewModifierForm();
+                setCreateModifierModalVisible(false);
+              }}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create New Modifier</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewModifier}
+              disabled={isCreatingModifier}
+            >
+              {isCreatingModifier ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.createFormContainer}>
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={newModifierTitle}
+                onChangeText={setNewModifierTitle}
+                placeholder="Modifier title"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Type</Text>
+              <TextInput
+                style={styles.input}
+                value={newModifierType}
+                onChangeText={setNewModifierType}
+                placeholder="Modifier type (e.g., percentage, fixed)"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Value</Text>
+              <TextInput
+                style={styles.input}
+                value={newModifierValue.toString()}
+                onChangeText={(text) => setNewModifierValue(parseFloat(text) || 0)}
+                placeholder="0.00"
+                placeholderTextColor="#999"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Identifier</Text>
+              <TextInput
+                style={styles.input}
+                value={newModifierIdentifier}
+                onChangeText={setNewModifierIdentifier}
+                placeholder="Modifier identifier"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Notes</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newModifierNotes}
+                onChangeText={setNewModifierNotes}
+                placeholder="Modifier notes"
                 placeholderTextColor="#999"
                 multiline
                 numberOfLines={4}
@@ -3132,5 +3380,147 @@ const styles = StyleSheet.create({
     margin: 0,
     textAlignVertical: 'top',
     fontFamily: 'System',
+  },
+  // Notion-style title input
+  notionTitleInput: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#333',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    margin: 0,
+    marginBottom: 8,
+    textAlignVertical: 'top',
+    fontFamily: 'System',
+  },
+  // Unified tiles styles
+  tilesContainer: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    marginHorizontal: -16,
+  },
+  tilesRow: {
+    flexDirection: 'row',
+  },
+  tile: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 16,
+  },
+  // Pricing tiles (top row)
+  tileLeft: {
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    minHeight: 100,
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+  },
+  tileMiddle: {
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    minHeight: 100,
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+  },
+  tileRight: {
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    minHeight: 100,
+  },
+  // Status tiles (bottom row)
+  statusTileLeft: {
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    minHeight: 60,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+  },
+  statusTileRight: {
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    minHeight: 60,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  priceTileLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  priceTileValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  statusTileLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    alignSelf: 'center',
+  },
+  statusTileValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    alignSelf: 'center',
+  },
+  // Organization tiles styles
+  orgTilesContainer: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    marginHorizontal: -16,
+    marginTop: 0,
+  },
+  orgTileSingle: {
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    minHeight: 60,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  orgTileLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    alignSelf: 'center',
+  },
+  orgTileValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    alignSelf: 'center',
+    textTransform: 'capitalize',
+  },
+  // Excerpt input styles
+  excerptInput: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'top',
+    fontFamily: 'System',
+    minHeight: 80,
+    marginBottom: 16,
+  },
+  notesDivider: {
+    height: 1,
+    backgroundColor: '#e9ecef',
+    marginVertical: 16,
   },
 });

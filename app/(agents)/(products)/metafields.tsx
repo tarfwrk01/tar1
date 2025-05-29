@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -23,6 +23,9 @@ interface Metafield {
   parentid: number | null;
   title: string;
   value: string;
+  group: string;
+  type: string;
+  filter: number;
 }
 
 export default function MetafieldsScreen() {
@@ -38,6 +41,9 @@ export default function MetafieldsScreen() {
   const [newMetafield, setNewMetafield] = useState<Partial<Metafield>>({
     title: '',
     value: '',
+    group: '',
+    type: '',
+    filter: 0,
     parentid: null
   });
   const { profileData } = useOnboarding();
@@ -83,7 +89,7 @@ export default function MetafieldsScreen() {
             {
               type: "execute",
               stmt: {
-                sql: "SELECT id, parentid, title, value FROM metafields ORDER BY title LIMIT 100"
+                sql: "SELECT id, parentid, title, value, \"group\", type, filter FROM metafields ORDER BY title LIMIT 100"
               }
             }
           ]
@@ -115,7 +121,10 @@ export default function MetafieldsScreen() {
                 id: parseInt(row[0].value),
                 parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
                 title: row[2].type === 'null' ? '' : row[2].value,
-                value: row[3].type === 'null' ? '' : row[3].value
+                value: row[3].type === 'null' ? '' : row[3].value,
+                group: row[4].type === 'null' ? '' : row[4].value,
+                type: row[5].type === 'null' ? '' : row[5].value,
+                filter: row[6].type === 'null' ? 0 : parseInt(row[6].value)
               };
             });
 
@@ -180,11 +189,14 @@ export default function MetafieldsScreen() {
             type: "execute",
             stmt: {
               sql: `INSERT INTO metafields (
-                parentid, title, value
+                parentid, title, value, "group", type, filter
               ) VALUES (
                 ${newMetafield.parentid === null ? 'NULL' : Number(newMetafield.parentid)},
                 '${(newMetafield.title || '').replace(/'/g, "''")}',
-                '${(newMetafield.value || '').replace(/'/g, "''")}'
+                '${(newMetafield.value || '').replace(/'/g, "''")}',
+                '${(newMetafield.group || '').replace(/'/g, "''")}',
+                '${(newMetafield.type || '').replace(/'/g, "''")}',
+                ${newMetafield.filter || 0}
               )`
             }
           }
@@ -208,13 +220,16 @@ export default function MetafieldsScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewMetafield({
           title: '',
           value: '',
+          group: '',
+          type: '',
+          filter: 0,
           parentid: null
         });
         setSelectedParentMetafield(null);
@@ -245,7 +260,7 @@ export default function MetafieldsScreen() {
   // Edit metafield function
   const editMetafield = async () => {
     if (!selectedMetafield) return;
-    
+
     try {
       if (!selectedMetafield.title) {
         Alert.alert('Error', 'Metafield title is required');
@@ -275,6 +290,9 @@ export default function MetafieldsScreen() {
               sql: `UPDATE metafields SET
                 title = '${(selectedMetafield.title || '').replace(/'/g, "''")}',
                 value = '${(selectedMetafield.value || '').replace(/'/g, "''")}',
+                "group" = '${(selectedMetafield.group || '').replace(/'/g, "''")}',
+                type = '${(selectedMetafield.type || '').replace(/'/g, "''")}',
+                filter = ${selectedMetafield.filter || 0},
                 parentid = ${selectedMetafield.parentid === null ? 'NULL' : Number(selectedMetafield.parentid)}
                 WHERE id = ${selectedMetafield.id}`
             }
@@ -300,7 +318,7 @@ export default function MetafieldsScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedMetafield(null);
@@ -332,26 +350,26 @@ export default function MetafieldsScreen() {
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredMetafields(metafields);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = metafields.filter(metafield => {
         if (!metafield) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const title = (metafield.title || '').toLowerCase();
         const value = (metafield.value || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          title.includes(term) || 
+        return searchTerms.some(term =>
+          title.includes(term) ||
           value.includes(term)
         );
       });
-      
+
       setFilteredMetafields(filtered);
     }
   };
@@ -378,7 +396,7 @@ export default function MetafieldsScreen() {
   // Handle edit button press
   const handleEditMetafield = (metafield: Metafield) => {
     setSelectedMetafield({...metafield});
-    
+
     // Set the parent metafield if it exists
     if (metafield.parentid !== null) {
       const parentMetafield = metafields.find(m => m.id === metafield.parentid);
@@ -390,10 +408,10 @@ export default function MetafieldsScreen() {
     } else {
       setSelectedParentMetafield(null);
     }
-    
+
     setEditModalVisible(true);
   };
-  
+
   // Handle parent metafield selection for edit
   const handleEditParentMetafieldSelect = (metafield: Metafield) => {
     setSelectedParentMetafield(metafield);
@@ -405,7 +423,7 @@ export default function MetafieldsScreen() {
     }
     setParentMetafieldModalVisible(false);
   };
-  
+
   // Reset parent metafield for edit
   const resetEditParentMetafield = () => {
     setSelectedParentMetafield(null);
@@ -435,12 +453,12 @@ export default function MetafieldsScreen() {
   // Get parent metafields and organize children under them
   const getOrganizedMetafields = () => {
     let metafieldsToDisplay;
-    
+
     // If we're searching, show all metafields that match regardless of hierarchy
     if (searchQuery.trim() !== '') {
       // Find all parent IDs of matched metafields to ensure they're shown
       const parentIdsToInclude = new Set<number | null>();
-      
+
       // Add all matched metafields
       filteredMetafields.forEach(metafield => {
         // Include this metafield's parent chain
@@ -452,24 +470,24 @@ export default function MetafieldsScreen() {
           current = parent;
         }
       });
-      
+
       // Get all metafields that should be shown in the list
-      metafieldsToDisplay = metafields.filter(m => 
+      metafieldsToDisplay = metafields.filter(m =>
         // Include if it's in filtered results or if it's a necessary parent
-        filteredMetafields.some(fm => fm.id === m.id) || 
+        filteredMetafields.some(fm => fm.id === m.id) ||
         parentIdsToInclude.has(m.id)
       );
     } else {
       // Not searching, use normal filtered metafields
       metafieldsToDisplay = filteredMetafields;
     }
-    
+
     // First, identify root metafields (no parent)
     const rootMetafields = metafieldsToDisplay.filter(m => m.parentid === null);
-    
+
     // Create a map to hold sub-metafields for each parent
     const childrenMap = new Map<number, Metafield[]>();
-    
+
     // Group children by parent ID
     metafieldsToDisplay.forEach(metafield => {
       if (metafield.parentid !== null) {
@@ -478,7 +496,7 @@ export default function MetafieldsScreen() {
         childrenMap.set(metafield.parentid, children);
       }
     });
-    
+
     // Return the organized structure
     return { rootMetafields, childrenMap };
   };
@@ -488,14 +506,14 @@ export default function MetafieldsScreen() {
   // Render a root metafield with its children
   const renderMetafieldWithChildren = ({ item }: { item: Metafield }) => {
     const children = childrenMap.get(item.id) || [];
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
       <View style={styles.metafieldGroup}>
         {/* Parent metafield */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.parentMetafieldRow,
             isMatch ? styles.highlightedRow : null
@@ -504,23 +522,28 @@ export default function MetafieldsScreen() {
         >
           <View style={styles.metafieldInfo}>
             <Text style={styles.metafieldTitle}>{item.title || 'Untitled Metafield'}</Text>
-            <Text style={styles.metafieldValue}>{item.value}</Text>
+            <Text style={styles.metafieldValue}>
+              {item.value}
+              {item.group && ` | Group: ${item.group}`}
+              {item.type && ` | Type: ${item.type}`}
+              {item.filter === 1 && ` | Filterable`}
+            </Text>
           </View>
         </TouchableOpacity>
-        
+
         {/* Children/sub-metafields */}
         {children.length > 0 && (
           <View style={styles.childrenContainer}>
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
-              const isChildMatch = searchQuery.trim() !== '' && 
+              const isChildMatch = searchQuery.trim() !== '' &&
                 (child.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  (child.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-              
+
               return (
                 <View key={child.id}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.childMetafieldRow,
                       isChildMatch ? styles.highlightedRow : null
@@ -529,20 +552,25 @@ export default function MetafieldsScreen() {
                   >
                     <View style={styles.metafieldInfo}>
                       <Text style={styles.childMetafieldTitle}>{child.title}</Text>
-                      <Text style={styles.childMetafieldValue}>{child.value}</Text>
+                      <Text style={styles.childMetafieldValue}>
+                        {child.value}
+                        {child.group && ` | Group: ${child.group}`}
+                        {child.type && ` | Type: ${child.type}`}
+                        {child.filter === 1 && ` | Filterable`}
+                      </Text>
                     </View>
                   </TouchableOpacity>
-                  
+
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
                       {grandChildren.map((grandChild) => {
-                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                        const isGrandChildMatch = searchQuery.trim() !== '' &&
                           (grandChild.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (grandChild.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-                          
+
                         return (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={grandChild.id}
                             style={[
                               styles.grandchildMetafieldRow,
@@ -552,7 +580,12 @@ export default function MetafieldsScreen() {
                           >
                             <View style={styles.metafieldInfo}>
                               <Text style={styles.grandchildMetafieldTitle}>{grandChild.title}</Text>
-                              <Text style={styles.grandchildMetafieldValue}>{grandChild.value}</Text>
+                              <Text style={styles.grandchildMetafieldValue}>
+                                {grandChild.value}
+                                {grandChild.group && ` | Group: ${grandChild.group}`}
+                                {grandChild.type && ` | Type: ${grandChild.type}`}
+                                {grandChild.filter === 1 && ` | Filterable`}
+                              </Text>
                             </View>
                           </TouchableOpacity>
                         );
@@ -581,47 +614,47 @@ export default function MetafieldsScreen() {
   const getMetafieldDepth = (metafieldId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root metafield (null parent) has depth 0
     if (metafieldId === null) return 0;
-    
+
     // Cycle detection
     if (visited.has(metafieldId)) {
       console.warn(`Circular reference detected in metafields hierarchy at ID: ${metafieldId}`);
       return 0; // Break the cycle
     }
-    
+
     // If we've already calculated this metafield's depth, return it
     if (depthMap.has(metafieldId)) return depthMap.get(metafieldId)!;
-    
+
     // Add this ID to the visited set
     visited.add(metafieldId);
-    
+
     // Find the metafield object
     const metafield = metafields.find(m => m.id === metafieldId);
     if (!metafield) return 0;
-    
+
     // Calculate depth as 1 + parent's depth
     const depth = 1 + getMetafieldDepth(metafield.parentid, depthMap, visited);
     depthMap.set(metafieldId, depth);
-    
+
     // Remove this ID from visited set when done with this branch
     visited.delete(metafieldId);
-    
+
     return depth;
   };
 
   // Check if selecting a metafield as parent would exceed max depth or create a cycle
   const wouldExceedMaxDepth = (metafieldId: number): boolean => {
     // Explicitly setting max depth to 2 (for 3 levels total: parent + child + grandchild)
-    const MAX_DEPTH = 2; 
-    
+    const MAX_DEPTH = 2;
+
     // Special case: if we're in edit mode and this is the selected metafield ID,
     // it can't be a parent of itself
     if (selectedMetafield && selectedMetafield.id === metafieldId) {
       return true;
     }
-    
+
     // Calculate current depth of the metafield
     const currentDepth = getMetafieldDepth(metafieldId);
-    
+
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
   };
@@ -632,34 +665,34 @@ export default function MetafieldsScreen() {
     if (!selectedMetafield) {
       return false;
     }
-    
+
     const childId = selectedMetafield.id;
     let currentId = parentId;
     const visited = new Set<number>();
-    
+
     // Walk up the ancestor chain
     while (currentId !== null) {
       // If we find the child ID in the ancestors, it would create a cycle
       if (currentId === childId) {
         return true;
       }
-      
+
       // Avoid infinite loops due to existing cycles
       if (visited.has(currentId)) {
         return true;
       }
-      
+
       visited.add(currentId);
-      
+
       // Find the parent of the current metafield
       const current = metafields.find(m => m.id === currentId);
       if (!current || current.parentid === null) {
         break;
       }
-      
+
       currentId = current.parentid;
     }
-    
+
     return false;
   };
 
@@ -684,7 +717,7 @@ export default function MetafieldsScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -753,6 +786,45 @@ export default function MetafieldsScreen() {
             </View>
 
             <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Group</Text>
+              <TextInput
+                style={styles.titleInput}
+                value={newMetafield.group}
+                onChangeText={(text) => setNewMetafield({ ...newMetafield, group: text })}
+                placeholder="Metafield Group"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Type</Text>
+              <TextInput
+                style={styles.titleInput}
+                value={newMetafield.type}
+                onChangeText={(text) => setNewMetafield({ ...newMetafield, type: text })}
+                placeholder="Metafield Type (e.g., text, number, boolean)"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Filter</Text>
+              <TouchableOpacity
+                style={[styles.titleInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                onPress={() => setNewMetafield({ ...newMetafield, filter: newMetafield.filter === 1 ? 0 : 1 })}
+              >
+                <Text style={{ color: newMetafield.filter === 1 ? '#333' : '#999' }}>
+                  {newMetafield.filter === 1 ? 'Filterable' : 'Not filterable'}
+                </Text>
+                <View style={[styles.checkbox, newMetafield.filter === 1 && { backgroundColor: '#0066CC', borderColor: '#0066CC' }]}>
+                  {newMetafield.filter === 1 && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Value</Text>
               <TextInput
                 style={styles.valueInput}
@@ -775,7 +847,7 @@ export default function MetafieldsScreen() {
                     <Text style={styles.selectedParentText}>
                       {selectedParentMetafield.title}
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.clearParentButton}
                       onPress={resetParentMetafield}
                     >
@@ -840,6 +912,45 @@ export default function MetafieldsScreen() {
               </View>
 
               <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Group</Text>
+                <TextInput
+                  style={styles.titleInput}
+                  value={selectedMetafield.group}
+                  onChangeText={(text) => setSelectedMetafield({...selectedMetafield, group: text})}
+                  placeholder="Metafield Group"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Type</Text>
+                <TextInput
+                  style={styles.titleInput}
+                  value={selectedMetafield.type}
+                  onChangeText={(text) => setSelectedMetafield({...selectedMetafield, type: text})}
+                  placeholder="Metafield Type (e.g., text, number, boolean)"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Filter</Text>
+                <TouchableOpacity
+                  style={[styles.titleInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => setSelectedMetafield({...selectedMetafield, filter: selectedMetafield.filter === 1 ? 0 : 1})}
+                >
+                  <Text style={{ color: selectedMetafield.filter === 1 ? '#333' : '#999' }}>
+                    {selectedMetafield.filter === 1 ? 'Filterable' : 'Not filterable'}
+                  </Text>
+                  <View style={[styles.checkbox, selectedMetafield.filter === 1 && { backgroundColor: '#0066CC', borderColor: '#0066CC' }]}>
+                    {selectedMetafield.filter === 1 && (
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Value</Text>
                 <TextInput
                   style={styles.valueInput}
@@ -862,7 +973,7 @@ export default function MetafieldsScreen() {
                       <Text style={styles.selectedParentText}>
                         {selectedParentMetafield.title}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.clearParentButton}
                         onPress={resetEditParentMetafield}
                       >
@@ -905,22 +1016,22 @@ export default function MetafieldsScreen() {
               if (m.parentid !== null && getMetafieldDepth(m.id) >= 2) {
                 return false;
               }
-              
+
               // When editing, don't show the current metafield as a parent option
               // Also check if selecting this metafield would create a cycle
               if (selectedMetafield) {
                 // Don't show the metafield itself
                 if (m.id === selectedMetafield.id) return false;
-                
+
                 // Check if this would create a cycle
                 if (wouldCreateCycle(m.id)) return false;
               }
-              
+
               // Check if this would exceed max depth
               return !wouldExceedMaxDepth(m.id);
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.parentMetafieldItem}
                 onPress={() => {
                   if (selectedMetafield) {
@@ -1239,5 +1350,14 @@ const styles = StyleSheet.create({
   },
   highlightedRow: {
     backgroundColor: '#f0f8ff',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
