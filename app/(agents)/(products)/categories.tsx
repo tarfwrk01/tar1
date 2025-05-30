@@ -27,7 +27,7 @@ type Category = {
   parent: number | null;
 };
 
-export default function CategoriesScreen() {  
+export default function CategoriesScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
@@ -239,7 +239,7 @@ export default function CategoriesScreen() {
   // Edit category function
   const editCategory = async () => {
     if (!selectedCategory) return;
-    
+
     try {
       if (!selectedCategory.name) {
         Alert.alert('Error', 'Category name is required');
@@ -295,7 +295,7 @@ export default function CategoriesScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedCategory(null);
@@ -327,27 +327,27 @@ export default function CategoriesScreen() {
   // Handle search input - enhanced for full text search
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredCategories(categories);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = categories.filter(category => {
         // Skip categories that don't have any searchable content
         if (!category) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const name = (category.name || '').toLowerCase();
         const notes = (category.notes || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          name.includes(term) || 
+        return searchTerms.some(term =>
+          name.includes(term) ||
           notes.includes(term)
         );
       });
-      
+
       setFilteredCategories(filtered);
     }
   };
@@ -381,7 +381,7 @@ export default function CategoriesScreen() {
   // Handle edit button press
   const handleEditCategory = (category: Category) => {
     setSelectedCategory({...category});
-    
+
     // Set the parent category if it exists
     if (category.parent !== null) {
       const parentCategory = categories.find(c => c.id === category.parent);
@@ -393,10 +393,10 @@ export default function CategoriesScreen() {
     } else {
       setSelectedParentCategory(null);
     }
-    
+
     setEditModalVisible(true);
   };
-  
+
   // Handle parent category selection for edit
   const handleEditParentCategorySelect = (category: Category) => {
     setSelectedParentCategory(category);
@@ -408,7 +408,7 @@ export default function CategoriesScreen() {
     }
     setParentCategoryModalVisible(false);
   };
-  
+
   // Reset parent category for edit
   const resetEditParentCategory = () => {
     setSelectedParentCategory(null);
@@ -419,7 +419,7 @@ export default function CategoriesScreen() {
       });
     }
   };
-  
+
   // Handle edit image change
   const handleEditImageChange = (imageUrl: string) => {
     if (selectedCategory) {
@@ -448,12 +448,12 @@ export default function CategoriesScreen() {
   // Get parent categories and organize subcategories under them
   const getOrganizedCategories = () => {
     let categoriesToDisplay;
-    
+
     // If we're searching, show all categories that match regardless of hierarchy
     if (searchQuery.trim() !== '') {
       // Find all parent IDs of matched categories to ensure they're shown
       const parentIdsToInclude = new Set<number | null>();
-      
+
       // Add all matched categories
       filteredCategories.forEach(category => {
         // Include this category's parent chain
@@ -465,24 +465,24 @@ export default function CategoriesScreen() {
           current = parent;
         }
       });
-      
+
       // Get all categories that should be shown in the list
-      categoriesToDisplay = categories.filter(c => 
+      categoriesToDisplay = categories.filter(c =>
         // Include if it's in filtered results or if it's a necessary parent
-        filteredCategories.some(fc => fc.id === c.id) || 
+        filteredCategories.some(fc => fc.id === c.id) ||
         parentIdsToInclude.has(c.id)
       );
     } else {
       // Not searching, use normal filtered categories
       categoriesToDisplay = filteredCategories;
     }
-    
+
     // First, identify root categories (no parent)
     const rootCategories = categoriesToDisplay.filter(c => c.parent === null);
-    
+
     // Create a map to hold subcategories for each parent
     const childrenMap = new Map<number, Category[]>();
-    
+
     // Group children by parent ID
     categoriesToDisplay.forEach(category => {
       if (category.parent !== null) {
@@ -491,7 +491,7 @@ export default function CategoriesScreen() {
         childrenMap.set(category.parent, children);
       }
     });
-    
+
     // Return the organized structure
     return { rootCategories, childrenMap };
   };
@@ -501,14 +501,14 @@ export default function CategoriesScreen() {
   // Render a root category with its children
   const renderCategoryWithChildren = ({ item }: { item: Category }) => {
     const children = childrenMap.get(item.id) || [];
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
       <View style={styles.categoryGroup}>
         {/* Parent category */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.parentCategoryRow,
             isMatch ? styles.highlightedRow : null
@@ -517,20 +517,20 @@ export default function CategoriesScreen() {
         >
           <Text style={styles.categoryName}>{item.name || 'Untitled Category'}</Text>
         </TouchableOpacity>
-        
+
         {/* Children/subcategories */}
         {children.length > 0 && (
           <View style={styles.childrenContainer}>
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
-              const isChildMatch = searchQuery.trim() !== '' && 
+              const isChildMatch = searchQuery.trim() !== '' &&
                 (child.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  (child.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-              
+
               return (
                 <View key={child.id}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.childCategoryRow,
                       isChildMatch ? styles.highlightedRow : null
@@ -539,17 +539,17 @@ export default function CategoriesScreen() {
                   >
                     <Text style={styles.childCategoryName}>{child.name}</Text>
                   </TouchableOpacity>
-                  
+
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
                       {grandChildren.map((grandChild) => {
-                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                        const isGrandChildMatch = searchQuery.trim() !== '' &&
                           (grandChild.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (grandChild.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-                          
+
                         return (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={grandChild.id}
                             style={[
                               styles.grandchildCategoryRow,
@@ -606,30 +606,30 @@ export default function CategoriesScreen() {
   const getCategoryDepth = (categoryId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root category (null parent) has depth 0
     if (categoryId === null) return 0;
-    
+
     // Cycle detection: if we've seen this ID during the current traversal, there's a cycle
     if (visited.has(categoryId)) {
       console.warn(`Circular reference detected in categories hierarchy at ID: ${categoryId}`);
       return 0; // Break the cycle
     }
-    
+
     // If we've already calculated this category's depth, return it
     if (depthMap.has(categoryId)) return depthMap.get(categoryId)!;
-    
+
     // Add this ID to the visited set
     visited.add(categoryId);
-    
+
     // Find the category object
     const category = categories.find(c => c.id === categoryId);
     if (!category) return 0;
-    
+
     // Calculate depth as 1 + parent's depth
     const depth = 1 + getCategoryDepth(category.parent, depthMap, visited);
     depthMap.set(categoryId, depth);
-    
+
     // Remove this ID from visited set when done with this branch
     visited.delete(categoryId);
-    
+
     return depth;
   };
 
@@ -637,16 +637,16 @@ export default function CategoriesScreen() {
   const wouldExceedMaxDepth = (categoryId: number): boolean => {
     // Max depth allowed is 2 (for 3 levels total: parent + child + grandchild)
     const MAX_DEPTH = 2;
-    
+
     // Special case: if we're in edit mode and this is the selected category ID,
     // it can't be a parent of itself
     if (selectedCategory && selectedCategory.id === categoryId) {
       return true;
     }
-    
+
     // Calculate current depth of the category
     const currentDepth = getCategoryDepth(categoryId);
-    
+
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
   };
@@ -657,34 +657,34 @@ export default function CategoriesScreen() {
     if (!selectedCategory) {
       return false;
     }
-    
+
     const childId = selectedCategory.id;
     let currentId = parentId;
     const visited = new Set<number>();
-    
+
     // Walk up the ancestor chain
     while (currentId !== null) {
       // If we find the child ID in the ancestors, it would create a cycle
       if (currentId === childId) {
         return true;
       }
-      
+
       // Avoid infinite loops due to existing cycles
       if (visited.has(currentId)) {
         return true;
       }
-      
+
       visited.add(currentId);
-      
+
       // Find the parent of the current category
       const current = categories.find(c => c.id === currentId);
       if (!current || current.parent === null) {
         break;
       }
-      
+
       currentId = current.parent;
     }
-    
+
     return false;
   };
 
@@ -709,10 +709,10 @@ export default function CategoriesScreen() {
             placeholderTextColor="#999"
           />
         </View>
-        
+
         {/* Filter button removed */}
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -761,9 +761,7 @@ export default function CategoriesScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -786,7 +784,7 @@ export default function CategoriesScreen() {
                   onImageChange={handleImageChange}
                 />
               </View>
-              
+
               <TouchableOpacity
                 style={styles.parentTile}
                 onPress={() => setParentCategoryModalVisible(true)}
@@ -796,7 +794,7 @@ export default function CategoriesScreen() {
                     <Text style={styles.selectedParentText}>
                       {selectedParentCategory.name}
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.clearParentButton}
                       onPress={resetParentCategory}
                     >
@@ -855,9 +853,7 @@ export default function CategoriesScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -881,7 +877,7 @@ export default function CategoriesScreen() {
                     onImageChange={handleEditImageChange}
                   />
                 </View>
-                
+
                 <TouchableOpacity
                   style={styles.parentTile}
                   onPress={() => setParentCategoryModalVisible(true)}
@@ -891,7 +887,7 @@ export default function CategoriesScreen() {
                       <Text style={styles.selectedParentText}>
                         {selectedParentCategory.name}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.clearParentButton}
                         onPress={resetEditParentCategory}
                       >
@@ -954,7 +950,7 @@ export default function CategoriesScreen() {
               return !isCurrentCategory && !exceedsMaxDepth && !wouldCycle;
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.parentCategoryItem}
                 onPress={() => handleParentCategorySelect(item)}
               >
@@ -1138,18 +1134,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   saveButton: {
-    backgroundColor: '#0066CC', // Restore blue background
-    height: 56,
-    width: 56,
+    backgroundColor: '#0066CC',
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   tilesContainer: {
     flexDirection: 'row',

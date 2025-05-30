@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -198,8 +198,8 @@ export default function CollectionsScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewCollection({
@@ -236,7 +236,7 @@ export default function CollectionsScreen() {
   // Edit collection function
   const editCollection = async () => {
     if (!selectedCollection) return;
-    
+
     try {
       if (!selectedCollection.name) {
         Alert.alert('Error', 'Collection name is required');
@@ -292,7 +292,7 @@ export default function CollectionsScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedCollection(null);
@@ -324,27 +324,27 @@ export default function CollectionsScreen() {
   // Handle search input - enhanced for full text search
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredCollections(collections);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = collections.filter(collection => {
         // Skip collections that don't have any searchable content
         if (!collection) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const name = (collection.name || '').toLowerCase();
         const notes = (collection.notes || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          name.includes(term) || 
+        return searchTerms.some(term =>
+          name.includes(term) ||
           notes.includes(term)
         );
       });
-      
+
       setFilteredCollections(filtered);
     }
   };
@@ -379,7 +379,7 @@ export default function CollectionsScreen() {
   // Handle edit button press
   const handleEditCollection = (collection: Collection) => {
     setSelectedCollection({...collection});
-    
+
     // Set the parent collection if it exists
     if (collection.parent !== null) {
       const parentCollection = collections.find(c => c.id === collection.parent);
@@ -391,10 +391,10 @@ export default function CollectionsScreen() {
     } else {
       setSelectedParentCollection(null);
     }
-    
+
     setEditModalVisible(true);
   };
-  
+
   // Handle parent collection selection for edit
   const handleEditParentCollectionSelect = (collection: Collection) => {
     setSelectedParentCollection(collection);
@@ -406,7 +406,7 @@ export default function CollectionsScreen() {
     }
     setParentCollectionModalVisible(false);
   };
-  
+
   // Reset parent collection for edit
   const resetEditParentCollection = () => {
     setSelectedParentCollection(null);
@@ -417,7 +417,7 @@ export default function CollectionsScreen() {
       });
     }
   };
-  
+
   // Handle edit image change
   const handleEditImageChange = (imageUrl: string) => {
     if (selectedCollection) {
@@ -446,12 +446,12 @@ export default function CollectionsScreen() {
   // Get parent collections and organize subcollections under them
   const getOrganizedCollections = () => {
     let collectionsToDisplay;
-    
+
     // If we're searching, show all collections that match regardless of hierarchy
     if (searchQuery.trim() !== '') {
       // Find all parent IDs of matched collections to ensure they're shown
       const parentIdsToInclude = new Set<number | null>();
-      
+
       // Add all matched collections
       filteredCollections.forEach(collection => {
         // Include this collection's parent chain
@@ -463,24 +463,24 @@ export default function CollectionsScreen() {
           current = parent;
         }
       });
-      
+
       // Get all collections that should be shown in the list
-      collectionsToDisplay = collections.filter(c => 
+      collectionsToDisplay = collections.filter(c =>
         // Include if it's in filtered results or if it's a necessary parent
-        filteredCollections.some(fc => fc.id === c.id) || 
+        filteredCollections.some(fc => fc.id === c.id) ||
         parentIdsToInclude.has(c.id)
       );
     } else {
       // Not searching, use normal filtered collections
       collectionsToDisplay = filteredCollections;
     }
-    
+
     // First, identify root collections (no parent)
     const rootCollections = collectionsToDisplay.filter(c => c.parent === null);
-    
+
     // Create a map to hold subcollections for each parent
     const childrenMap = new Map<number, Collection[]>();
-    
+
     // Group children by parent ID
     collectionsToDisplay.forEach(collection => {
       if (collection.parent !== null) {
@@ -489,7 +489,7 @@ export default function CollectionsScreen() {
         childrenMap.set(collection.parent, children);
       }
     });
-    
+
     // Return the organized structure
     return { rootCollections, childrenMap };
   };
@@ -499,14 +499,14 @@ export default function CollectionsScreen() {
   // Render a root collection with its children
   const renderCollectionWithChildren = ({ item }: { item: Collection }) => {
     const children = childrenMap.get(item.id) || [];
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
       <View style={styles.collectionGroup}>
         {/* Parent collection */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.parentCollectionRow,
             isMatch ? styles.highlightedRow : null
@@ -515,20 +515,20 @@ export default function CollectionsScreen() {
         >
           <Text style={styles.collectionName}>{item.name || 'Untitled Collection'}</Text>
         </TouchableOpacity>
-        
+
         {/* Children/subcollections */}
         {children.length > 0 && (
           <View style={styles.childrenContainer}>
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
-              const isChildMatch = searchQuery.trim() !== '' && 
+              const isChildMatch = searchQuery.trim() !== '' &&
                 (child.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  (child.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-              
+
               return (
                 <View key={child.id}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.childCollectionRow,
                       isChildMatch ? styles.highlightedRow : null
@@ -537,17 +537,17 @@ export default function CollectionsScreen() {
                   >
                     <Text style={styles.childCollectionName}>{child.name}</Text>
                   </TouchableOpacity>
-                  
+
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
                       {grandChildren.map((grandChild) => {
-                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                        const isGrandChildMatch = searchQuery.trim() !== '' &&
                           (grandChild.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (grandChild.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-                          
+
                         return (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={grandChild.id}
                             style={[
                               styles.grandchildCollectionRow,
@@ -604,47 +604,47 @@ export default function CollectionsScreen() {
   const getCollectionDepth = (collectionId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root collection (null parent) has depth 0
     if (collectionId === null) return 0;
-    
+
     // Cycle detection: if we've seen this ID during the current traversal, there's a cycle
     if (visited.has(collectionId)) {
       console.warn(`Circular reference detected in collections hierarchy at ID: ${collectionId}`);
       return 0; // Break the cycle
     }
-    
+
     // If we've already calculated this collection's depth, return it
     if (depthMap.has(collectionId)) return depthMap.get(collectionId)!;
-    
+
     // Add this ID to the visited set
     visited.add(collectionId);
-    
+
     // Find the collection object
     const collection = collections.find(c => c.id === collectionId);
     if (!collection) return 0;
-    
+
     // Calculate depth as 1 + parent's depth
     const depth = 1 + getCollectionDepth(collection.parent, depthMap, visited);
     depthMap.set(collectionId, depth);
-    
+
     // Remove this ID from visited set when done with this branch
     visited.delete(collectionId);
-    
+
     return depth;
   };
 
   // Check if selecting a collection as parent would exceed max depth or create a cycle
   const wouldExceedMaxDepth = (collectionId: number): boolean => {
     // Explicitly setting max depth to 2 (for 3 levels total: parent + child + grandchild)
-    const MAX_DEPTH = 2; 
-    
+    const MAX_DEPTH = 2;
+
     // Special case: if we're in edit mode and this is the selected collection ID,
     // it can't be a parent of itself
     if (selectedCollection && selectedCollection.id === collectionId) {
       return true;
     }
-    
+
     // Calculate current depth of the collection
     const currentDepth = getCollectionDepth(collectionId);
-    
+
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
   };
@@ -655,34 +655,34 @@ export default function CollectionsScreen() {
     if (!selectedCollection) {
       return false;
     }
-    
+
     const childId = selectedCollection.id;
     let currentId = parentId;
     const visited = new Set<number>();
-    
+
     // Walk up the ancestor chain
     while (currentId !== null) {
       // If we find the child ID in the ancestors, it would create a cycle
       if (currentId === childId) {
         return true;
       }
-      
+
       // Avoid infinite loops due to existing cycles
       if (visited.has(currentId)) {
         return true;
       }
-      
+
       visited.add(currentId);
-      
+
       // Find the parent of the current collection
       const current = collections.find(c => c.id === currentId);
       if (!current || current.parent === null) {
         break;
       }
-      
+
       currentId = current.parent;
     }
-    
+
     return false;
   };
 
@@ -708,7 +708,7 @@ export default function CollectionsScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -757,9 +757,7 @@ export default function CollectionsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -782,7 +780,7 @@ export default function CollectionsScreen() {
                   onImageChange={handleImageChange}
                 />
               </View>
-              
+
               <TouchableOpacity
                 style={styles.parentTile}
                 onPress={() => setParentCollectionModalVisible(true)}
@@ -792,7 +790,7 @@ export default function CollectionsScreen() {
                     <Text style={styles.selectedParentText}>
                       {selectedParentCollection.name}
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.clearParentButton}
                       onPress={resetParentCollection}
                     >
@@ -851,9 +849,7 @@ export default function CollectionsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -877,7 +873,7 @@ export default function CollectionsScreen() {
                     onImageChange={handleEditImageChange}
                   />
                 </View>
-                
+
                 <TouchableOpacity
                   style={styles.parentTile}
                   onPress={() => setParentCollectionModalVisible(true)}
@@ -887,7 +883,7 @@ export default function CollectionsScreen() {
                       <Text style={styles.selectedParentText}>
                         {selectedParentCollection.name}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.clearParentButton}
                         onPress={resetEditParentCollection}
                       >
@@ -945,22 +941,22 @@ export default function CollectionsScreen() {
               if (c.parent !== null) {
                 return false;
               }
-              
+
               // When editing, don't show the current collection as a parent option
               // Also check if selecting this collection would create a cycle
               if (selectedCollection) {
                 // Don't show the collection itself
                 if (c.id === selectedCollection.id) return false;
-                
+
                 // Check if this would create a cycle
                 if (wouldCreateCycle(c.id)) return false;
               }
-              
+
               // Check if this would exceed max depth
               return !wouldExceedMaxDepth(c.id);
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.parentCollectionItem}
                 onPress={() => {
                   if (selectedCollection) {
@@ -1148,17 +1144,19 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    height: 56,
-    width: 56,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   tilesContainer: {
     flexDirection: 'row',

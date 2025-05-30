@@ -211,8 +211,8 @@ export default function TagsScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewTag({
@@ -247,7 +247,7 @@ export default function TagsScreen() {
   // Edit tag function
   const editTag = async () => {
     if (!selectedTag) return;
-    
+
     try {
       if (!selectedTag.name) {
         Alert.alert('Error', 'Tag name is required');
@@ -302,7 +302,7 @@ export default function TagsScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedTag(null);
@@ -333,26 +333,26 @@ export default function TagsScreen() {
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredTags(tags);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = tags.filter(tag => {
         if (!tag) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const name = (tag.name || '').toLowerCase();
         const notes = (tag.notes || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          name.includes(term) || 
+        return searchTerms.some(term =>
+          name.includes(term) ||
           notes.includes(term)
         );
       });
-      
+
       setFilteredTags(filtered);
     }
   };
@@ -370,7 +370,7 @@ export default function TagsScreen() {
     setSelectedTag({...tag});
     setEditModalVisible(true);
   };
-  
+
   // Handle edit image change
   const handleEditImageChange = (imageUrl: string) => {
     if (selectedTag) {
@@ -388,12 +388,12 @@ export default function TagsScreen() {
 
   // Render a tag item
   const renderTagItem = ({ item }: { item: Tag }) => {
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.tagRow,
           isMatch ? styles.highlightedRow : null
@@ -435,7 +435,7 @@ export default function TagsScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -484,9 +484,7 @@ export default function TagsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -554,9 +552,7 @@ export default function TagsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -732,17 +728,19 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    height: 56,
-    width: 56,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   imageTileContainer: {
     marginBottom: 24,

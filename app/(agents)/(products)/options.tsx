@@ -208,8 +208,8 @@ export default function OptionsScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewOption({
@@ -245,7 +245,7 @@ export default function OptionsScreen() {
   // Edit option function
   const editOption = async () => {
     if (!selectedOption) return;
-    
+
     try {
       if (!selectedOption.title) {
         Alert.alert('Error', 'Option title is required');
@@ -300,7 +300,7 @@ export default function OptionsScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedOption(null);
@@ -332,26 +332,26 @@ export default function OptionsScreen() {
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredOptions(options);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = options.filter(option => {
         if (!option) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const title = (option.title || '').toLowerCase();
         const value = (option.value || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          title.includes(term) || 
+        return searchTerms.some(term =>
+          title.includes(term) ||
           value.includes(term)
         );
       });
-      
+
       setFilteredOptions(filtered);
     }
   };
@@ -378,7 +378,7 @@ export default function OptionsScreen() {
   // Handle edit button press
   const handleEditOption = (option: Option) => {
     setSelectedOption({...option});
-    
+
     // Set the parent option if it exists
     if (option.parentid !== null) {
       const parentOption = options.find(m => m.id === option.parentid);
@@ -390,10 +390,10 @@ export default function OptionsScreen() {
     } else {
       setSelectedParentOption(null);
     }
-    
+
     setEditModalVisible(true);
   };
-  
+
   // Handle parent option selection for edit
   const handleEditParentOptionSelect = (option: Option) => {
     setSelectedParentOption(option);
@@ -405,7 +405,7 @@ export default function OptionsScreen() {
     }
     setParentOptionModalVisible(false);
   };
-  
+
   // Reset parent option for edit
   const resetEditParentOption = () => {
     setSelectedParentOption(null);
@@ -435,12 +435,12 @@ export default function OptionsScreen() {
   // Get parent options and organize children under them
   const getOrganizedOptions = () => {
     let optionsToDisplay;
-    
+
     // If we're searching, show all options that match regardless of hierarchy
     if (searchQuery.trim() !== '') {
       // Find all parent IDs of matched options to ensure they're shown
       const parentIdsToInclude = new Set<number | null>();
-      
+
       // Add all matched options
       filteredOptions.forEach(option => {
         // Include this option's parent chain
@@ -452,24 +452,24 @@ export default function OptionsScreen() {
           current = parent;
         }
       });
-      
+
       // Get all options that should be shown in the list
-      optionsToDisplay = options.filter(m => 
+      optionsToDisplay = options.filter(m =>
         // Include if it's in filtered results or if it's a necessary parent
-        filteredOptions.some(fm => fm.id === m.id) || 
+        filteredOptions.some(fm => fm.id === m.id) ||
         parentIdsToInclude.has(m.id)
       );
     } else {
       // Not searching, use normal filtered options
       optionsToDisplay = filteredOptions;
     }
-    
+
     // First, identify root options (no parent)
     const rootOptions = optionsToDisplay.filter(m => m.parentid === null);
-    
+
     // Create a map to hold sub-options for each parent
     const childrenMap = new Map<number, Option[]>();
-    
+
     // Group children by parent ID
     optionsToDisplay.forEach(option => {
       if (option.parentid !== null) {
@@ -478,7 +478,7 @@ export default function OptionsScreen() {
         childrenMap.set(option.parentid, children);
       }
     });
-    
+
     // Return the organized structure
     return { rootOptions, childrenMap };
   };
@@ -488,14 +488,14 @@ export default function OptionsScreen() {
   // Render a root option with its children
   const renderOptionWithChildren = ({ item }: { item: Option }) => {
     const children = childrenMap.get(item.id) || [];
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
       <View style={styles.optionGroup}>
         {/* Parent option */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.parentOptionRow,
             isMatch ? styles.highlightedRow : null
@@ -507,20 +507,20 @@ export default function OptionsScreen() {
             <Text style={styles.optionValue}>{item.value}</Text>
           </View>
         </TouchableOpacity>
-        
+
         {/* Children/sub-options */}
         {children.length > 0 && (
           <View style={styles.childrenContainer}>
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
-              const isChildMatch = searchQuery.trim() !== '' && 
+              const isChildMatch = searchQuery.trim() !== '' &&
                 (child.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  (child.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-              
+
               return (
                 <View key={child.id}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.childOptionRow,
                       isChildMatch ? styles.highlightedRow : null
@@ -532,17 +532,17 @@ export default function OptionsScreen() {
                       <Text style={styles.childOptionValue}>{child.value}</Text>
                     </View>
                   </TouchableOpacity>
-                  
+
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
                       {grandChildren.map((grandChild) => {
-                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                        const isGrandChildMatch = searchQuery.trim() !== '' &&
                           (grandChild.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (grandChild.value || '').toLowerCase().includes(searchQuery.toLowerCase()));
-                          
+
                         return (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={grandChild.id}
                             style={[
                               styles.grandchildOptionRow,
@@ -581,47 +581,47 @@ export default function OptionsScreen() {
   const getOptionDepth = (optionId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root option (null parent) has depth 0
     if (optionId === null) return 0;
-    
+
     // Cycle detection
     if (visited.has(optionId)) {
       console.warn(`Circular reference detected in options hierarchy at ID: ${optionId}`);
       return 0; // Break the cycle
     }
-    
+
     // If we've already calculated this option's depth, return it
     if (depthMap.has(optionId)) return depthMap.get(optionId)!;
-    
+
     // Add this ID to the visited set
     visited.add(optionId);
-    
+
     // Find the option object
     const option = options.find(m => m.id === optionId);
     if (!option) return 0;
-    
+
     // Calculate depth as 1 + parent's depth
     const depth = 1 + getOptionDepth(option.parentid, depthMap, visited);
     depthMap.set(optionId, depth);
-    
+
     // Remove this ID from visited set when done with this branch
     visited.delete(optionId);
-    
+
     return depth;
   };
 
   // Check if selecting an option as parent would exceed max depth or create a cycle
   const wouldExceedMaxDepth = (optionId: number): boolean => {
     // Explicitly setting max depth to 2 (for 3 levels total: parent + child + grandchild)
-    const MAX_DEPTH = 2; 
-    
+    const MAX_DEPTH = 2;
+
     // Special case: if we're in edit mode and this is the selected option ID,
     // it can't be a parent of itself
     if (selectedOption && selectedOption.id === optionId) {
       return true;
     }
-    
+
     // Calculate current depth of the option
     const currentDepth = getOptionDepth(optionId);
-    
+
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
   };
@@ -632,34 +632,34 @@ export default function OptionsScreen() {
     if (!selectedOption) {
       return false;
     }
-    
+
     const childId = selectedOption.id;
     let currentId = parentId;
     const visited = new Set<number>();
-    
+
     // Walk up the ancestor chain
     while (currentId !== null) {
       // If we find the child ID in the ancestors, it would create a cycle
       if (currentId === childId) {
         return true;
       }
-      
+
       // Avoid infinite loops due to existing cycles
       if (visited.has(currentId)) {
         return true;
       }
-      
+
       visited.add(currentId);
-      
+
       // Find the parent of the current option
       const current = options.find(m => m.id === currentId);
       if (!current || current.parentid === null) {
         break;
       }
-      
+
       currentId = current.parentid;
     }
-    
+
     return false;
   };
 
@@ -684,7 +684,7 @@ export default function OptionsScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -733,9 +733,7 @@ export default function OptionsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -775,7 +773,7 @@ export default function OptionsScreen() {
                     <Text style={styles.selectedParentText}>
                       {selectedParentOption.title}
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.clearParentButton}
                       onPress={resetParentOption}
                     >
@@ -819,9 +817,7 @@ export default function OptionsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -862,7 +858,7 @@ export default function OptionsScreen() {
                       <Text style={styles.selectedParentText}>
                         {selectedParentOption.title}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.clearParentButton}
                         onPress={resetEditParentOption}
                       >
@@ -905,22 +901,22 @@ export default function OptionsScreen() {
               if (m.parentid !== null && getOptionDepth(m.id) >= 2) {
                 return false;
               }
-              
+
               // When editing, don't show the current option as a parent option
               // Also check if selecting this option would create a cycle
               if (selectedOption) {
                 // Don't show the option itself
                 if (m.id === selectedOption.id) return false;
-                
+
                 // Check if this would create a cycle
                 if (wouldCreateCycle(m.id)) return false;
               }
-              
+
               // Check if this would exceed max depth
               return !wouldExceedMaxDepth(m.id);
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.parentOptionItem}
                 onPress={() => {
                   if (selectedOption) {
@@ -1126,17 +1122,19 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    height: 56,
-    width: 56,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   modalContent: {
     padding: 16,

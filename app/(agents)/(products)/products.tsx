@@ -83,6 +83,7 @@ export default function ProductsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -763,8 +764,6 @@ export default function ProductsScreen() {
 
         // Refresh product list
         fetchProducts();
-
-        Alert.alert('Success', 'Product added successfully');
       } else {
         console.error('Failed to add product:', responseText);
         Alert.alert(
@@ -877,8 +876,6 @@ export default function ProductsScreen() {
 
         // Refresh product list
         fetchProducts();
-
-        Alert.alert('Success', 'Product updated successfully');
       } else {
         console.error('Failed to update product:', responseText);
         Alert.alert(
@@ -1165,6 +1162,141 @@ export default function ProductsScreen() {
     setCategoriesDrawerVisible(false);
   };
 
+  // Helper function to organize categories hierarchically
+  const getHierarchicalCategories = () => {
+    const rootCategories = availableCategories.filter(cat => cat.parent === null);
+    return rootCategories;
+  };
+
+  // Helper function to get filtered categories based on search
+  const getFilteredCategories = () => {
+    if (categorySearchQuery.trim() === '') {
+      return getHierarchicalCategories();
+    }
+
+    const searchTerms = categorySearchQuery.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+
+    // Filter all categories (including children) for search
+    const allFilteredCategories = availableCategories.filter(category => {
+      if (!category) return false;
+
+      const name = (category.name || '').toLowerCase();
+      const notes = (category.notes || '').toLowerCase();
+
+      return searchTerms.some(term =>
+        name.includes(term) ||
+        notes.includes(term)
+      );
+    });
+
+    // For search results, return all matching categories (flat list)
+    return allFilteredCategories;
+  };
+
+  // Handle category search input
+  const handleCategorySearch = (text: string) => {
+    setCategorySearchQuery(text);
+  };
+
+  // Helper function to get children of a category (with search filter)
+  const getCategoryChildren = (parentId: number) => {
+    if (categorySearchQuery.trim() === '') {
+      return availableCategories.filter(cat => cat.parent === parentId);
+    }
+
+    // When searching, also filter children by search terms
+    const searchTerms = categorySearchQuery.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+
+    return availableCategories.filter(cat => {
+      if (cat.parent !== parentId) return false;
+
+      const name = (cat.name || '').toLowerCase();
+      const notes = (cat.notes || '').toLowerCase();
+
+      return searchTerms.some(term =>
+        name.includes(term) ||
+        notes.includes(term)
+      );
+    });
+  };
+
+  // Render simple category item (for search results)
+  const renderSimpleCategoryItem = ({ item }: { item: any }) => {
+    return (
+      <TouchableOpacity
+        style={styles.categoryItem}
+        onPress={() => selectCategory(item.id)}
+      >
+        <View style={styles.categoryContent}>
+          <Text style={styles.categoryTitle}>{item.name}</Text>
+          {item.notes && (
+            <Text style={styles.categoryNotes}>{item.notes}</Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render category with children (for hierarchical view)
+  const renderCategoryWithChildren = ({ item }: { item: any }) => {
+    const children = getCategoryChildren(item.id);
+
+    return (
+      <View style={styles.categoryGroup}>
+        {/* Parent category */}
+        <TouchableOpacity
+          style={styles.parentCategoryRow}
+          onPress={() => selectCategory(item.id)}
+        >
+          <Text style={styles.parentCategoryTitle}>{item.name}</Text>
+          {item.notes && (
+            <Text style={styles.parentCategoryNotes}>{item.notes}</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Children categories */}
+        {children.length > 0 && (
+          <View style={styles.childrenContainer}>
+            {children.map((child) => {
+              const grandChildren = getCategoryChildren(child.id);
+              return (
+                <View key={child.id}>
+                  <TouchableOpacity
+                    style={styles.childCategoryRow}
+                    onPress={() => selectCategory(child.id)}
+                  >
+                    <Text style={styles.childCategoryTitle}>{child.name}</Text>
+                    {child.notes && (
+                      <Text style={styles.childCategoryNotes}>{child.notes}</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Grandchildren categories */}
+                  {grandChildren.length > 0 && (
+                    <View style={styles.grandchildrenContainer}>
+                      {grandChildren.map((grandChild) => (
+                        <TouchableOpacity
+                          key={grandChild.id}
+                          style={styles.grandchildCategoryRow}
+                          onPress={() => selectCategory(grandChild.id)}
+                        >
+                          <Text style={styles.grandchildCategoryTitle}>{grandChild.name}</Text>
+                          {grandChild.notes && (
+                            <Text style={styles.grandchildCategoryNotes}>{grandChild.notes}</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Helper function to get selected option names
   const getSelectedOptionNames = (optionIds: number[]): string => {
     if (optionIds.length === 0) return '';
@@ -1252,8 +1384,6 @@ export default function ProductsScreen() {
 
         // Refresh options list
         await fetchAvailableOptions();
-
-        Alert.alert('Success', 'Option created successfully');
       } else {
         throw new Error('Failed to create option');
       }
@@ -1310,8 +1440,6 @@ export default function ProductsScreen() {
 
         // Refresh metafields list
         await fetchAvailableMetafields();
-
-        Alert.alert('Success', 'Metafield created successfully');
       } else {
         throw new Error('Failed to create metafield');
       }
@@ -1368,8 +1496,6 @@ export default function ProductsScreen() {
 
         // Refresh modifiers list
         await fetchAvailableModifiers();
-
-        Alert.alert('Success', 'Modifier created successfully');
       } else {
         throw new Error('Failed to create modifier');
       }
@@ -1426,8 +1552,6 @@ export default function ProductsScreen() {
 
         // Refresh categories list
         await fetchAvailableCategories();
-
-        Alert.alert('Success', 'Category created successfully');
       } else {
         throw new Error('Failed to create category');
       }
@@ -1631,26 +1755,13 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(false);
-          // Reset form when modal is closed
-          resetNewProductForm();
-        }}
+        onRequestClose={() => setModalVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                setModalVisible(false);
-                // Reset form when back button is pressed
-                resetNewProductForm();
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>New Product</Text>
             <TouchableOpacity
               style={styles.saveButton}
@@ -1723,6 +1834,16 @@ export default function ProductsScreen() {
                     <Text style={styles.statusTileLabel}>Website</Text>
                     <Text style={styles.statusTileValue}>{newProduct.website === 1 ? 'Active' : 'Inactive'}</Text>
                   </TouchableOpacity>
+                </View>
+
+                <View style={styles.tilesRow}>
+                  <View style={[styles.tile, styles.statusTileLeft]}>
+                    <Text style={styles.statusTileLabel}>QR Code</Text>
+                    <Text style={styles.statusTileValue}>{newProduct.qrcode || 'Not set'}</Text>
+                  </View>
+
+                  <View style={[styles.tile, styles.statusTileRight]}>
+                  </View>
                 </View>
               </View>
             </View>
@@ -1812,11 +1933,6 @@ export default function ProductsScreen() {
                 <View style={[styles.tile, styles.orgTileSingle]}>
                   <Text style={styles.orgTileLabel}>Unit</Text>
                   <Text style={styles.orgTileValue}>{newProduct.unit || 'Not set'}</Text>
-                </View>
-
-                <View style={[styles.tile, styles.orgTileSingle]}>
-                  <Text style={styles.orgTileLabel}>QR Code</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.qrcode || 'Not set'}</Text>
                 </View>
 
                 <View style={[styles.tile, styles.orgTileSingle]}>
@@ -2014,12 +2130,7 @@ export default function ProductsScreen() {
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setEditModalVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle} numberOfLines={1} ellipsizeMode="tail">
               {selectedProductForEdit?.title || 'Edit Product'}
             </Text>
@@ -2095,6 +2206,16 @@ export default function ProductsScreen() {
                       <Text style={styles.statusTileLabel}>Website</Text>
                       <Text style={styles.statusTileValue}>{selectedProductForEdit.website === 1 ? 'Active' : 'Inactive'}</Text>
                     </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.tilesRow}>
+                    <View style={[styles.tile, styles.statusTileLeft]}>
+                      <Text style={styles.statusTileLabel}>QR Code</Text>
+                      <Text style={styles.statusTileValue}>{selectedProductForEdit.qrcode || 'Not set'}</Text>
+                    </View>
+
+                    <View style={[styles.tile, styles.statusTileRight]}>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -2184,11 +2305,6 @@ export default function ProductsScreen() {
                   <View style={[styles.tile, styles.orgTileSingle]}>
                     <Text style={styles.orgTileLabel}>Unit</Text>
                     <Text style={styles.orgTileValue}>{selectedProductForEdit.unit || 'Not set'}</Text>
-                  </View>
-
-                  <View style={[styles.tile, styles.orgTileSingle]}>
-                    <Text style={styles.orgTileLabel}>QR Code</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.qrcode || 'Not set'}</Text>
                   </View>
 
                   <View style={[styles.tile, styles.orgTileSingle]}>
@@ -2829,54 +2945,47 @@ export default function ProductsScreen() {
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setCategoriesDrawerVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Category</Text>
             <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Category</Text>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => setCreateCategoryModalVisible(true)}
+            >
+              <Ionicons name="add" size={20} color="#0066CC" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.categorySearchContainer}>
+            <Ionicons name="search-outline" size={18} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.categorySearchInput}
+              placeholder="Search categories..."
+              value={categorySearchQuery}
+              onChangeText={handleCategorySearch}
+              placeholderTextColor="#999"
+            />
+            {categorySearchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setCategorySearchQuery('')}
+                style={styles.clearSearchButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <FlatList
-            data={availableCategories}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.categoryItem}
-                onPress={() => selectCategory(item.id)}
-              >
-                <View style={styles.categoryContent}>
-                  <Text style={styles.categoryTitle}>{item.name}</Text>
-                  {item.notes && (
-                    <Text style={styles.categoryNotes}>{item.notes}</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            )}
+            data={getFilteredCategories()}
+            renderItem={categorySearchQuery.trim() ? renderSimpleCategoryItem : renderCategoryWithChildren}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListHeaderComponent={() => (
-              <TouchableOpacity
-                style={styles.createNewButton}
-                onPress={() => setCreateCategoryModalVisible(true)}
-              >
-                <Ionicons name="add" size={20} color="#0066CC" />
-                <Text style={styles.createNewButtonText}>Create New Category</Text>
-              </TouchableOpacity>
-            )}
             ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No categories available</Text>
-                <TouchableOpacity
-                  style={styles.createNewButton}
-                  onPress={() => setCreateCategoryModalVisible(true)}
-                >
-                  <Ionicons name="add" size={20} color="#0066CC" />
-                  <Text style={styles.createNewButtonText}>Create New Category</Text>
-                </TouchableOpacity>
+                <Text style={styles.emptyText}>
+                  {categorySearchQuery.trim() ? 'No categories found' : 'No categories available'}
+                </Text>
               </View>
             )}
           />
@@ -2888,24 +2997,13 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={createOptionModalVisible}
-        onRequestClose={() => {
-          resetNewOptionForm();
-          setCreateOptionModalVisible(false);
-        }}
+        onRequestClose={() => setCreateOptionModalVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                resetNewOptionForm();
-                setCreateOptionModalVisible(false);
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>Create New Option</Text>
             <TouchableOpacity
               style={styles.saveButton}
@@ -2915,7 +3013,7 @@ export default function ProductsScreen() {
               {isCreatingOption ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -2964,24 +3062,13 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={createMetafieldModalVisible}
-        onRequestClose={() => {
-          resetNewMetafieldForm();
-          setCreateMetafieldModalVisible(false);
-        }}
+        onRequestClose={() => setCreateMetafieldModalVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                resetNewMetafieldForm();
-                setCreateMetafieldModalVisible(false);
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>Create New Metafield</Text>
             <TouchableOpacity
               style={styles.saveButton}
@@ -2991,7 +3078,7 @@ export default function ProductsScreen() {
               {isCreatingMetafield ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -3068,24 +3155,13 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={createModifierModalVisible}
-        onRequestClose={() => {
-          resetNewModifierForm();
-          setCreateModifierModalVisible(false);
-        }}
+        onRequestClose={() => setCreateModifierModalVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                resetNewModifierForm();
-                setCreateModifierModalVisible(false);
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>Create New Modifier</Text>
             <TouchableOpacity
               style={styles.saveButton}
@@ -3095,7 +3171,7 @@ export default function ProductsScreen() {
               {isCreatingModifier ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -3167,24 +3243,13 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={createCategoryModalVisible}
-        onRequestClose={() => {
-          resetNewCategoryForm();
-          setCreateCategoryModalVisible(false);
-        }}
+        onRequestClose={() => setCreateCategoryModalVisible(false)}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                resetNewCategoryForm();
-                setCreateCategoryModalVisible(false);
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>Create New Category</Text>
             <TouchableOpacity
               style={styles.saveButton}
@@ -3194,7 +3259,7 @@ export default function ProductsScreen() {
               {isCreatingCategory ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -3269,17 +3334,12 @@ export default function ProductsScreen() {
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.parentModalContainer}>
           <View style={styles.parentModalHeader}>
-            <TouchableOpacity
-              onPress={() => setParentCategoryModalVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.parentModalTitle}>Parent Category</Text>
           </View>
 
           <FlatList
-            data={availableCategories}
+            data={getHierarchicalCategories()}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.parentCategoryItem}
@@ -3339,6 +3399,27 @@ const styles = StyleSheet.create({
     height: 40,
     fontSize: 16,
     color: '#333',
+  },
+  // Category search styles
+  categorySearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 40,
+    marginHorizontal: 16,
+    marginVertical: 12,
+  },
+  categorySearchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
+    color: '#333',
+  },
+  clearSearchButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   filterModalContent: {
     backgroundColor: '#fff',
@@ -3460,7 +3541,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingLeft: 16,
+    paddingLeft: 0,
     paddingRight: 0,
     paddingVertical: 0,
     borderBottomWidth: 1,
@@ -3468,17 +3549,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     elevation: 0,
     shadowOpacity: 0,
+    height: 48,
+    position: 'relative',
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '500',
-    flex: 1,
     textAlign: 'left',
+    position: 'absolute',
+    left: 16,
+    right: 64,
+    top: 0,
+    bottom: 0,
+    textAlignVertical: 'center',
+    lineHeight: 48,
   },
   backButton: {
     padding: 12,
     height: 48,
     justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 48,
+    height: 48,
   },
   closeButton: {
     padding: 4,
@@ -3751,6 +3844,68 @@ const styles = StyleSheet.create({
   categoryNotes: {
     fontSize: 14,
     color: '#666',
+  },
+  // Hierarchical category styles
+  categoryGroup: {
+    marginBottom: 0,
+  },
+  parentCategoryRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  parentCategoryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0066CC',
+    marginBottom: 2,
+  },
+  parentCategoryNotes: {
+    fontSize: 14,
+    color: '#0066CC',
+    opacity: 0.7,
+  },
+  childrenContainer: {
+    marginLeft: 0,
+  },
+  childCategoryRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  childCategoryTitle: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#444',
+    marginBottom: 1,
+  },
+  childCategoryNotes: {
+    fontSize: 13,
+    color: '#666',
+  },
+  grandchildrenContainer: {
+    marginLeft: 16,
+  },
+  grandchildCategoryRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  grandchildCategoryTitle: {
+    fontSize: 14,
+    fontWeight: '300',
+    color: '#666',
+    marginBottom: 1,
+  },
+  grandchildCategoryNotes: {
+    fontSize: 12,
+    color: '#888',
   },
   // Create new item styles
   headerActions: {

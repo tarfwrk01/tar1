@@ -4,17 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -219,8 +219,8 @@ export default function MediaScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewMedia({
@@ -257,7 +257,7 @@ export default function MediaScreen() {
   // Edit media function
   const editMedia = async () => {
     if (!selectedMedia) return;
-    
+
     try {
       if (!selectedMedia.url) {
         Alert.alert('Error', 'Media URL is required');
@@ -318,7 +318,7 @@ export default function MediaScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedMedia(null);
@@ -350,26 +350,26 @@ export default function MediaScreen() {
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredMediaItems(mediaItems);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = mediaItems.filter(media => {
         if (!media) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const type = (media.type || '').toLowerCase();
         const url = (media.url || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          type.includes(term) || 
+        return searchTerms.some(term =>
+          type.includes(term) ||
           url.includes(term)
         );
       });
-      
+
       setFilteredMediaItems(filtered);
     }
   };
@@ -404,7 +404,7 @@ export default function MediaScreen() {
   // Handle edit button press
   const handleEditMedia = (media: Media) => {
     setSelectedMedia({...media});
-    
+
     // Set the parent media if it exists
     if (media.parentid !== null) {
       const parentMedia = mediaItems.find(m => m.id === media.parentid);
@@ -416,10 +416,10 @@ export default function MediaScreen() {
     } else {
       setSelectedParentMedia(null);
     }
-    
+
     setEditModalVisible(true);
   };
-  
+
   // Handle parent media selection for edit
   const handleEditParentMediaSelect = (media: Media) => {
     setSelectedParentMedia(media);
@@ -431,7 +431,7 @@ export default function MediaScreen() {
     }
     setParentMediaModalVisible(false);
   };
-  
+
   // Reset parent media for edit
   const resetEditParentMedia = () => {
     setSelectedParentMedia(null);
@@ -442,7 +442,7 @@ export default function MediaScreen() {
       });
     }
   };
-  
+
   // Handle edit URL change
   const handleEditUrlChange = (url: string) => {
     if (selectedMedia) {
@@ -471,12 +471,12 @@ export default function MediaScreen() {
   // Get parent mediaItems and organize children under them
   const getOrganizedMedia = () => {
     let mediaToDisplay;
-    
+
     // If we're searching, show all media that match regardless of hierarchy
     if (searchQuery.trim() !== '') {
       // Find all parent IDs of matched media to ensure they're shown
       const parentIdsToInclude = new Set<number | null>();
-      
+
       // Add all matched media
       filteredMediaItems.forEach(media => {
         // Include this media's parent chain
@@ -488,24 +488,24 @@ export default function MediaScreen() {
           current = parent;
         }
       });
-      
+
       // Get all media that should be shown in the list
-      mediaToDisplay = mediaItems.filter(m => 
+      mediaToDisplay = mediaItems.filter(m =>
         // Include if it's in filtered results or if it's a necessary parent
-        filteredMediaItems.some(fm => fm.id === m.id) || 
+        filteredMediaItems.some(fm => fm.id === m.id) ||
         parentIdsToInclude.has(m.id)
       );
     } else {
       // Not searching, use normal filtered media
       mediaToDisplay = filteredMediaItems;
     }
-    
+
     // First, identify root media (no parent)
     const rootMedia = mediaToDisplay.filter(m => m.parentid === null);
-    
+
     // Create a map to hold sub-media for each parent
     const childrenMap = new Map<number, Media[]>();
-    
+
     // Group children by parent ID
     mediaToDisplay.forEach(media => {
       if (media.parentid !== null) {
@@ -514,7 +514,7 @@ export default function MediaScreen() {
         childrenMap.set(media.parentid, children);
       }
     });
-    
+
     // Return the organized structure
     return { rootMedia, childrenMap };
   };
@@ -561,14 +561,14 @@ export default function MediaScreen() {
   // Render a root media item with its children
   const renderMediaWithChildren = ({ item }: { item: Media }) => {
     const children = childrenMap.get(item.id) || [];
-    const isMatch = searchQuery.trim() !== '' && 
-      ((item.type || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      ((item.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.url || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
       <View style={styles.mediaGroup}>
         {/* Parent media */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.parentMediaRow,
             isMatch ? styles.highlightedRow : null
@@ -577,26 +577,26 @@ export default function MediaScreen() {
         >
           <View style={styles.mediaPreviewContainer}>
             {item.type === 'image' && item.url ? (
-              <Image 
-                source={{ uri: item.url }} 
-                style={styles.mediaPreview} 
+              <Image
+                source={{ uri: item.url }}
+                style={styles.mediaPreview}
                 resizeMode="cover"
               />
             ) : (
               <View style={styles.mediaTypeIconContainer}>
-                <Ionicons 
+                <Ionicons
                   name={
-                    item.type === 'video' ? 'videocam' : 
-                    item.type === 'audio' ? 'musical-notes' : 
+                    item.type === 'video' ? 'videocam' :
+                    item.type === 'audio' ? 'musical-notes' :
                     item.type === 'document' ? 'document-text' : 'image'
-                  } 
-                  size={24} 
-                  color="#999" 
+                  }
+                  size={24}
+                  color="#999"
                 />
               </View>
             )}
           </View>
-          
+
           <View style={styles.mediaInfo}>
             <Text style={styles.mediaType}>{getMediaTypeDisplay(item.type || '')}</Text>
             <Text style={styles.mediaUrl} numberOfLines={1} ellipsizeMode="middle">
@@ -605,20 +605,20 @@ export default function MediaScreen() {
             <Text style={styles.mediaOrder}>Order: {item.order}</Text>
           </View>
         </TouchableOpacity>
-        
+
         {/* Children/sub-media */}
         {children.length > 0 && (
           <View style={styles.childrenContainer}>
             {children.map((child) => {
               // Get grandchildren for this child
               const grandChildren = childrenMap.get(child.id) || [];
-              const isChildMatch = searchQuery.trim() !== '' && 
+              const isChildMatch = searchQuery.trim() !== '' &&
                 ((child.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                  (child.url || '').toLowerCase().includes(searchQuery.toLowerCase()));
-              
+
               return (
                 <View key={child.id}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.childMediaRow,
                       isChildMatch ? styles.highlightedRow : null
@@ -627,26 +627,26 @@ export default function MediaScreen() {
                   >
                     <View style={styles.mediaPreviewContainer}>
                       {child.type === 'image' && child.url ? (
-                        <Image 
-                          source={{ uri: child.url }} 
-                          style={styles.mediaPreview} 
+                        <Image
+                          source={{ uri: child.url }}
+                          style={styles.mediaPreview}
                           resizeMode="cover"
                         />
                       ) : (
                         <View style={styles.mediaTypeIconContainer}>
-                          <Ionicons 
+                          <Ionicons
                             name={
-                              child.type === 'video' ? 'videocam' : 
-                              child.type === 'audio' ? 'musical-notes' : 
+                              child.type === 'video' ? 'videocam' :
+                              child.type === 'audio' ? 'musical-notes' :
                               child.type === 'document' ? 'document-text' : 'image'
-                            } 
-                            size={20} 
-                            color="#999" 
+                            }
+                            size={20}
+                            color="#999"
                           />
                         </View>
                       )}
                     </View>
-                    
+
                     <View style={styles.mediaInfo}>
                       <Text style={styles.childMediaType}>{getMediaTypeDisplay(child.type || '')}</Text>
                       <Text style={styles.childMediaUrl} numberOfLines={1} ellipsizeMode="middle">
@@ -655,17 +655,17 @@ export default function MediaScreen() {
                       <Text style={styles.childMediaOrder}>Order: {child.order}</Text>
                     </View>
                   </TouchableOpacity>
-                  
+
                   {/* Show grandchildren if they exist */}
                   {grandChildren.length > 0 && (
                     <View style={styles.grandchildrenContainer}>
                       {grandChildren.map((grandChild) => {
-                        const isGrandChildMatch = searchQuery.trim() !== '' && 
+                        const isGrandChildMatch = searchQuery.trim() !== '' &&
                           ((grandChild.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (grandChild.url || '').toLowerCase().includes(searchQuery.toLowerCase()));
-                          
+
                         return (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={grandChild.id}
                             style={[
                               styles.grandchildMediaRow,
@@ -675,26 +675,26 @@ export default function MediaScreen() {
                           >
                             <View style={styles.mediaPreviewContainer}>
                               {grandChild.type === 'image' && grandChild.url ? (
-                                <Image 
-                                  source={{ uri: grandChild.url }} 
-                                  style={styles.mediaPreview} 
+                                <Image
+                                  source={{ uri: grandChild.url }}
+                                  style={styles.mediaPreview}
                                   resizeMode="cover"
                                 />
                               ) : (
                                 <View style={styles.mediaTypeIconContainer}>
-                                  <Ionicons 
+                                  <Ionicons
                                     name={
-                                      grandChild.type === 'video' ? 'videocam' : 
-                                      grandChild.type === 'audio' ? 'musical-notes' : 
+                                      grandChild.type === 'video' ? 'videocam' :
+                                      grandChild.type === 'audio' ? 'musical-notes' :
                                       grandChild.type === 'document' ? 'document-text' : 'image'
-                                    } 
-                                    size={16} 
-                                    color="#999" 
+                                    }
+                                    size={16}
+                                    color="#999"
                                   />
                                 </View>
                               )}
                             </View>
-                            
+
                             <View style={styles.mediaInfo}>
                               <Text style={styles.grandchildMediaType}>{getMediaTypeDisplay(grandChild.type || '')}</Text>
                               <Text style={styles.grandchildMediaUrl} numberOfLines={1} ellipsizeMode="middle">
@@ -729,47 +729,47 @@ export default function MediaScreen() {
   const getMediaDepth = (mediaId: number | null, depthMap: Map<number, number> = new Map(), visited: Set<number> = new Set()): number => {
     // Base case: root media (null parent) has depth 0
     if (mediaId === null) return 0;
-    
+
     // Cycle detection
     if (visited.has(mediaId)) {
       console.warn(`Circular reference detected in media hierarchy at ID: ${mediaId}`);
       return 0; // Break the cycle
     }
-    
+
     // If we've already calculated this media's depth, return it
     if (depthMap.has(mediaId)) return depthMap.get(mediaId)!;
-    
+
     // Add this ID to the visited set
     visited.add(mediaId);
-    
+
     // Find the media object
     const media = mediaItems.find(m => m.id === mediaId);
     if (!media) return 0;
-    
+
     // Calculate depth as 1 + parent's depth
     const depth = 1 + getMediaDepth(media.parentid, depthMap, visited);
     depthMap.set(mediaId, depth);
-    
+
     // Remove this ID from visited set when done with this branch
     visited.delete(mediaId);
-    
+
     return depth;
   };
 
   // Check if selecting a media as parent would exceed max depth or create a cycle
   const wouldExceedMaxDepth = (mediaId: number): boolean => {
     // Explicitly setting max depth to 2 (for 3 levels total: parent + child + grandchild)
-    const MAX_DEPTH = 2; 
-    
+    const MAX_DEPTH = 2;
+
     // Special case: if we're in edit mode and this is the selected media ID,
     // it can't be a parent of itself
     if (selectedMedia && selectedMedia.id === mediaId) {
       return true;
     }
-    
+
     // Calculate current depth of the media
     const currentDepth = getMediaDepth(mediaId);
-    
+
     // If the current depth + 1 (for the new child) > MAX_DEPTH, it would exceed
     return currentDepth > MAX_DEPTH;
   };
@@ -780,34 +780,34 @@ export default function MediaScreen() {
     if (!selectedMedia) {
       return false;
     }
-    
+
     const childId = selectedMedia.id;
     let currentId = parentId;
     const visited = new Set<number>();
-    
+
     // Walk up the ancestor chain
     while (currentId !== null) {
       // If we find the child ID in the ancestors, it would create a cycle
       if (currentId === childId) {
         return true;
       }
-      
+
       // Avoid infinite loops due to existing cycles
       if (visited.has(currentId)) {
         return true;
       }
-      
+
       visited.add(currentId);
-      
+
       // Find the parent of the current media
       const current = mediaItems.find(m => m.id === currentId);
       if (!current || current.parentid === null) {
         break;
       }
-      
+
       currentId = current.parentid;
     }
-    
+
     return false;
   };
 
@@ -832,7 +832,7 @@ export default function MediaScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -881,9 +881,7 @@ export default function MediaScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -901,7 +899,7 @@ export default function MediaScreen() {
                     ]}
                     onPress={() => handleMediaTypeSelect(option.value)}
                   >
-                    <Text 
+                    <Text
                       style={[
                         styles.typeOptionText,
                         newMedia.type === option.value && styles.selectedTypeOptionText
@@ -959,7 +957,7 @@ export default function MediaScreen() {
                       {selectedParentMedia.type}: {selectedParentMedia.url?.substring(0, 30)}
                       {selectedParentMedia.url?.length > 30 ? '...' : ''}
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.clearParentButton}
                       onPress={resetParentMedia}
                     >
@@ -1003,9 +1001,7 @@ export default function MediaScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1024,7 +1020,7 @@ export default function MediaScreen() {
                       ]}
                       onPress={() => handleEditMediaTypeSelect(option.value)}
                     >
-                      <Text 
+                      <Text
                         style={[
                           styles.typeOptionText,
                           selectedMedia.type === option.value && styles.selectedTypeOptionText
@@ -1082,7 +1078,7 @@ export default function MediaScreen() {
                         {selectedParentMedia.type}: {selectedParentMedia.url?.substring(0, 30)}
                         {selectedParentMedia.url?.length > 30 ? '...' : ''}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.clearParentButton}
                         onPress={resetEditParentMedia}
                       >
@@ -1125,22 +1121,22 @@ export default function MediaScreen() {
               if (m.parentid !== null) {
                 return false;
               }
-              
+
               // When editing, don't show the current media as a parent option
               // Also check if selecting this media would create a cycle
               if (selectedMedia) {
                 // Don't show the media itself
                 if (m.id === selectedMedia.id) return false;
-                
+
                 // Check if this would create a cycle
                 if (wouldCreateCycle(m.id)) return false;
               }
-              
+
               // Check if this would exceed max depth
               return !wouldExceedMaxDepth(m.id);
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.parentMediaItem}
                 onPress={() => {
                   if (selectedMedia) {
@@ -1154,26 +1150,26 @@ export default function MediaScreen() {
                   {/* Media type icon or preview */}
                   <View style={styles.parentMediaPreviewContainer}>
                     {item.type === 'image' && item.url ? (
-                      <Image 
-                        source={{ uri: item.url }} 
-                        style={styles.parentMediaPreview} 
+                      <Image
+                        source={{ uri: item.url }}
+                        style={styles.parentMediaPreview}
                         resizeMode="cover"
                       />
                     ) : (
                       <View style={styles.parentMediaTypeIcon}>
-                        <Ionicons 
+                        <Ionicons
                           name={
-                            item.type === 'video' ? 'videocam' : 
-                            item.type === 'audio' ? 'musical-notes' : 
+                            item.type === 'video' ? 'videocam' :
+                            item.type === 'audio' ? 'musical-notes' :
                             item.type === 'document' ? 'document-text' : 'image'
-                          } 
-                          size={24} 
-                          color="#999" 
+                          }
+                          size={24}
+                          color="#999"
                         />
                       </View>
                     )}
                   </View>
-                  
+
                   {/* Media info */}
                   <View style={styles.parentMediaInfo}>
                     <Text style={styles.parentMediaType}>{getMediaTypeDisplay(item.type || '')}</Text>
@@ -1410,17 +1406,19 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    height: 56,
-    width: 56,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   modalContent: {
     padding: 16,

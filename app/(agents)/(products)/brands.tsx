@@ -211,8 +211,8 @@ export default function BrandsScreen() {
       // Get the response text
       const responseText = await response.text();
       console.log('Response status:', response.status);
-      console.log('Response text:', responseText);      
-      
+      console.log('Response text:', responseText);
+
       if (response.ok) {
         // Reset form and close modal
         setNewBrand({
@@ -247,7 +247,7 @@ export default function BrandsScreen() {
   // Edit brand function
   const editBrand = async () => {
     if (!selectedBrand) return;
-    
+
     try {
       if (!selectedBrand.name) {
         Alert.alert('Error', 'Brand name is required');
@@ -302,7 +302,7 @@ export default function BrandsScreen() {
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
-      
+
       if (response.ok) {
         // Reset form and close modal
         setSelectedBrand(null);
@@ -333,26 +333,26 @@ export default function BrandsScreen() {
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim() === '') {
       setFilteredBrands(brands);
     } else {
       const searchTerms = text.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-      
+
       const filtered = brands.filter(brand => {
         if (!brand) return false;
-        
+
         // Normalize searchable fields to lower case strings
         const name = (brand.name || '').toLowerCase();
         const notes = (brand.notes || '').toLowerCase();
-        
+
         // Check each search term against all fields
-        return searchTerms.some(term => 
-          name.includes(term) || 
+        return searchTerms.some(term =>
+          name.includes(term) ||
           notes.includes(term)
         );
       });
-      
+
       setFilteredBrands(filtered);
     }
   };
@@ -370,7 +370,7 @@ export default function BrandsScreen() {
     setSelectedBrand({...brand});
     setEditModalVisible(true);
   };
-  
+
   // Handle edit image change
   const handleEditImageChange = (imageUrl: string) => {
     if (selectedBrand) {
@@ -388,12 +388,12 @@ export default function BrandsScreen() {
 
   // Render a brand item
   const renderBrandItem = ({ item }: { item: Brand }) => {
-    const isMatch = searchQuery.trim() !== '' && 
-      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const isMatch = searchQuery.trim() !== '' &&
+      (item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        (item.notes || '').toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.brandRow,
           isMatch ? styles.highlightedRow : null
@@ -435,7 +435,7 @@ export default function BrandsScreen() {
           />
         </View>
       </View>
-      
+
       {/* Light divider added below search */}
       <View style={styles.searchDivider} />
 
@@ -484,9 +484,7 @@ export default function BrandsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -554,9 +552,7 @@ export default function BrandsScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </Text>
+                <Text style={styles.saveButtonText}>S</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -732,17 +728,19 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066CC',
-    height: 56,
-    width: 56,
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 50,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 0,
     margin: 0,
-    right: 0,
-    position: 'absolute',
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   imageTileContainer: {
     marginBottom: 24,

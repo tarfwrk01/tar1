@@ -20,7 +20,7 @@ const productSubItems: ProductSubItem[] = [
   { id: '4', name: 'Collections' },
   { id: '5', name: 'Vendors' },
   { id: '6', name: 'Brands' },
-  { id: '7', name: 'Warehouses' },
+
   { id: '8', name: 'Stores' },
   { id: '9', name: 'Tags' },
   { id: '10', name: 'Metafields' },
@@ -137,11 +137,7 @@ export default function TopBar({
       return;
     }
 
-    // If "Warehouses" is selected, navigate to the warehouses screen
-    if (item.name === 'Warehouses') {
-      router.push('/(agents)/(products)/warehouses');
-      return;
-    }
+
 
     // If "Stores" is selected, navigate to the stores screen
     if (item.name === 'Stores') {
