@@ -4,19 +4,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
 import ImageUploader from './ImageUploader';
+import SingleImageUploader from './SingleImageUploader';
 import VerticalTabView from './VerticalTabView';
 
 type Product = {
@@ -94,9 +96,11 @@ export default function ProductsScreen() {
   const [optionsDrawerVisible, setOptionsDrawerVisible] = useState(false);
   const [metafieldsDrawerVisible, setMetafieldsDrawerVisible] = useState(false);
   const [modifiersDrawerVisible, setModifiersDrawerVisible] = useState(false);
+  const [categoriesDrawerVisible, setCategoriesDrawerVisible] = useState(false);
   const [availableOptions, setAvailableOptions] = useState<any[]>([]);
   const [availableMetafields, setAvailableMetafields] = useState<any[]>([]);
   const [availableModifiers, setAvailableModifiers] = useState<any[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
   const [selectedOptionIds, setSelectedOptionIds] = useState<number[]>([]);
   const [selectedMetafieldIds, setSelectedMetafieldIds] = useState<number[]>([]);
   const [selectedModifierIds, setSelectedModifierIds] = useState<number[]>([]);
@@ -106,6 +110,7 @@ export default function ProductsScreen() {
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
   const [createModifierModalVisible, setCreateModifierModalVisible] = useState(false);
+  const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
   const [newOptionIdentifier, setNewOptionIdentifier] = useState('');
@@ -119,9 +124,16 @@ export default function ProductsScreen() {
   const [newModifierType, setNewModifierType] = useState('');
   const [newModifierValue, setNewModifierValue] = useState(0);
   const [newModifierIdentifier, setNewModifierIdentifier] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryImage, setNewCategoryImage] = useState('[]');
+  const [newCategoryNotes, setNewCategoryNotes] = useState('');
+  const [newCategoryParent, setNewCategoryParent] = useState<number | null>(null);
+  const [selectedParentCategory, setSelectedParentCategory] = useState<any | null>(null);
+  const [parentCategoryModalVisible, setParentCategoryModalVisible] = useState(false);
   const [isCreatingOption, setIsCreatingOption] = useState(false);
   const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
   const [isCreatingModifier, setIsCreatingModifier] = useState(false);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
     medias: '[]', // Empty JSON array (renamed from images)
@@ -177,6 +189,15 @@ export default function ProductsScreen() {
     setNewModifierType('');
     setNewModifierValue(0);
     setNewModifierIdentifier('');
+  };
+
+  // Helper function to reset new category form
+  const resetNewCategoryForm = () => {
+    setNewCategoryName('');
+    setNewCategoryImage('[]');
+    setNewCategoryNotes('');
+    setNewCategoryParent(null);
+    setSelectedParentCategory(null);
   };
 
   // Helper function to reset new product form
@@ -357,6 +378,54 @@ export default function ProductsScreen() {
       }
     } catch (error) {
       console.error('Error fetching modifiers:', error);
+    }
+  };
+
+  // Fetch available categories for selection
+  const fetchAvailableCategories = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, name, image, notes, parent FROM categories ORDER BY name LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const categoryData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            name: row[1].type === 'null' ? '' : row[1].value,
+            image: row[2].type === 'null' ? '[]' : row[2].value,
+            notes: row[3].type === 'null' ? '' : row[3].value,
+            parent: row[4].type === 'null' ? null : parseInt(row[4].value)
+          }));
+          setAvailableCategories(categoryData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -1071,6 +1140,31 @@ export default function ProductsScreen() {
     );
   };
 
+  const openCategoriesDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+
+    // Fetch categories first if not already loaded
+    if (availableCategories.length === 0) {
+      await fetchAvailableCategories();
+    }
+
+    setCategoriesDrawerVisible(true);
+  };
+
+  const selectCategory = (categoryId: number) => {
+    // Immediately apply the selection and close drawer
+    const selectedCategory = availableCategories.find(cat => cat.id === categoryId);
+    const categoryName = selectedCategory ? selectedCategory.name : '';
+
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, category: categoryName});
+    } else {
+      setNewProduct({...newProduct, category: categoryName});
+    }
+
+    setCategoriesDrawerVisible(false);
+  };
+
   // Helper function to get selected option names
   const getSelectedOptionNames = (optionIds: number[]): string => {
     if (optionIds.length === 0) return '';
@@ -1287,12 +1381,89 @@ export default function ProductsScreen() {
     }
   };
 
+  // Create new category function
+  const createNewCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert('Error', 'Category name is required');
+      return;
+    }
+
+    try {
+      setIsCreatingCategory(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO categories (name, image, notes, parent) VALUES ('${newCategoryName.replace(/'/g, "''")}', '${(newCategoryImage || '[]').replace(/'/g, "''")}', '${newCategoryNotes.replace(/'/g, "''")}', ${newCategoryParent === null ? 'NULL' : Number(newCategoryParent)})`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        // Reset form
+        resetNewCategoryForm();
+        setCreateCategoryModalVisible(false);
+
+        // Refresh categories list
+        await fetchAvailableCategories();
+
+        Alert.alert('Success', 'Category created successfully');
+      } else {
+        throw new Error('Failed to create category');
+      }
+    } catch (error) {
+      console.error('Error creating category:', error);
+      Alert.alert('Error', 'Failed to create category. Please try again.');
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
+
+  // Handle image change for new category
+  const handleCategoryImageChange = (imageUrl: string) => {
+    setNewCategoryImage(imageUrl);
+  };
+
+  // Handle parent category selection for new category
+  const handleParentCategorySelect = (category: any) => {
+    setSelectedParentCategory(category);
+    setNewCategoryParent(category.id);
+    setParentCategoryModalVisible(false);
+  };
+
+  // Reset parent category for new category
+  const resetParentCategory = () => {
+    setSelectedParentCategory(null);
+    setNewCategoryParent(null);
+  };
+
   // Fetch products on component mount
   useEffect(() => {
     fetchProducts();
     fetchAvailableOptions();
     fetchAvailableMetafields();
     fetchAvailableModifiers();
+    fetchAvailableCategories();
   }, []);
 
   // Handle edit button press
@@ -1615,10 +1786,13 @@ export default function ProductsScreen() {
                   <Text style={styles.orgTileValue}>{newProduct.featured === 1 ? 'Yes' : 'No'}</Text>
                 </TouchableOpacity>
 
-                <View style={[styles.tile, styles.orgTileSingle]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openCategoriesDrawer(newProduct, false)}
+                >
                   <Text style={styles.orgTileLabel}>Category</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.category || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.orgTileValue}>{newProduct.category || 'Select category'}</Text>
+                </TouchableOpacity>
 
                 <View style={[styles.tile, styles.orgTileSingle]}>
                   <Text style={styles.orgTileLabel}>Collection</Text>
@@ -1984,10 +2158,13 @@ export default function ProductsScreen() {
                     <Text style={styles.orgTileValue}>{selectedProductForEdit.featured === 1 ? 'Yes' : 'No'}</Text>
                   </TouchableOpacity>
 
-                  <View style={[styles.tile, styles.orgTileSingle]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openCategoriesDrawer(selectedProductForEdit, true)}
+                  >
                     <Text style={styles.orgTileLabel}>Category</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.category || 'Not set'}</Text>
-                  </View>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.category || 'Select category'}</Text>
+                  </TouchableOpacity>
 
                   <View style={[styles.tile, styles.orgTileSingle]}>
                     <Text style={styles.orgTileLabel}>Collection</Text>
@@ -2641,6 +2818,71 @@ export default function ProductsScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Categories Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={categoriesDrawerVisible}
+        onRequestClose={() => setCategoriesDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setCategoriesDrawerVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Category</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={availableCategories}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => selectCategory(item.id)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item.name}</Text>
+                  {item.notes && (
+                    <Text style={styles.categoryNotes}>{item.notes}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListHeaderComponent={() => (
+              <TouchableOpacity
+                style={styles.createNewButton}
+                onPress={() => setCreateCategoryModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#0066CC" />
+                <Text style={styles.createNewButtonText}>Create New Category</Text>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No categories available</Text>
+                <TouchableOpacity
+                  style={styles.createNewButton}
+                  onPress={() => setCreateCategoryModalVisible(true)}
+                >
+                  <Ionicons name="add" size={20} color="#0066CC" />
+                  <Text style={styles.createNewButtonText}>Create New Category</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
       {/* Create New Option Modal */}
       <Modal
         animationType="slide"
@@ -2917,6 +3159,143 @@ export default function ProductsScreen() {
               />
             </View>
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Category Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createCategoryModalVisible}
+        onRequestClose={() => {
+          resetNewCategoryForm();
+          setCreateCategoryModalVisible(false);
+        }}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                resetNewCategoryForm();
+                setCreateCategoryModalVisible(false);
+              }}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create New Category</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewCategory}
+              disabled={isCreatingCategory}
+            >
+              {isCreatingCategory ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
+              <TextInput
+                style={styles.titleInput}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Category Name"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.categoryTilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newCategoryImage || '[]'}
+                  onImageChange={handleCategoryImageChange}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.parentTile}
+                onPress={() => setParentCategoryModalVisible(true)}
+              >
+                {selectedParentCategory ? (
+                  <View style={styles.selectedParentContainer}>
+                    <Text style={styles.selectedParentText}>
+                      {selectedParentCategory.name}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.clearParentButton}
+                      onPress={resetParentCategory}
+                    >
+                      <Text style={styles.clearButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.emptyParentContainer}>
+                    <Ionicons name="folder-outline" size={32} color="#999" />
+                    <Text style={styles.parentPlaceholder}>Parent Category</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.notesInput}
+                value={newCategoryNotes}
+                onChangeText={setNewCategoryNotes}
+                placeholder="Add notes about this category..."
+                placeholderTextColor="#999"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Parent Category Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={parentCategoryModalVisible}
+        onRequestClose={() => setParentCategoryModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.parentModalContainer}>
+          <View style={styles.parentModalHeader}>
+            <TouchableOpacity
+              onPress={() => setParentCategoryModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.parentModalTitle}>Parent Category</Text>
+          </View>
+
+          <FlatList
+            data={availableCategories}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.parentCategoryItem}
+                onPress={() => handleParentCategorySelect(item)}
+              >
+                <Text style={styles.parentCategoryText}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            ItemSeparatorComponent={() => <View style={styles.parentCategoryDivider} />}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ color: '#666' }}>No categories available as parents</Text>
+              </View>
+            )}
+          />
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -3348,6 +3727,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 12,
   },
+  // Category item styles
+  categoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  selectedCategoryItem: {
+    backgroundColor: '#f0f8ff',
+  },
+  categoryContent: {
+    flex: 1,
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  categoryNotes: {
+    fontSize: 14,
+    color: '#666',
+  },
   // Create new item styles
   headerActions: {
     flexDirection: 'row',
@@ -3522,5 +3926,152 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e9ecef',
     marginVertical: 16,
+  },
+  // Create form styles
+  createFormContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  createNewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  createNewButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#0066CC',
+    marginLeft: 8,
+  },
+  // Categories modal styles (from categories.tsx)
+  formGroup: {
+    marginBottom: 24,
+  },
+  titleInputContainer: {
+    marginTop: 16,
+  },
+  titleInput: {
+    fontSize: 24,
+    fontWeight: '500',
+    color: '#333',
+    padding: 0,
+    marginBottom: 24,
+    borderWidth: 0,
+    backgroundColor: '#fff',
+  },
+  categoryTilesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    width: '100%',
+    gap: 0,
+  },
+  imageTile: {
+    width: '50%',
+    aspectRatio: 1,
+    borderRadius: 0,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+  },
+  parentTile: {
+    width: '50%',
+    aspectRatio: 1,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  selectedParentContainer: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedParentText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  clearParentButton: {
+    position: 'absolute',
+    bottom: 0,
+    alignSelf: 'center',
+    paddingVertical: 6,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: '#0066CC',
+    fontWeight: '500',
+  },
+  emptyParentContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parentPlaceholder: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#fff',
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  // Parent category modal styles
+  parentModalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  parentModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fff',
+  },
+  parentModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'left',
+    backgroundColor: 'transparent',
+    flex: 1,
+    paddingLeft: 8,
+  },
+  parentCategoryItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  parentCategoryText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  parentCategoryDivider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
   },
 });
