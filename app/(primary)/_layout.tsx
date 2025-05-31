@@ -30,6 +30,14 @@ export default function PrimaryLayout() {
   const { isLoading, user } = useAuth();
   const insets = useSafeAreaInsets();
 
+  // Set navigation bar background to black on Android
+  React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      const SystemUI = require('expo-system-ui');
+      SystemUI.setBackgroundColorAsync('#000000');
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -42,31 +50,34 @@ export default function PrimaryLayout() {
     return null; // Auth provider will redirect to login
   }
 
+  const LayoutWrapper = require('../../components/LayoutWrapper').default;
+
   return (
-    <Tabs
-      initialRouteName="index"
-      screenOptions={{
-        tabBarActiveTintColor: '#000000',
-        tabBarInactiveTintColor: '#999',
-        headerShown: false,
-        tabBarShowLabel: false,
-        animation: 'none',
-        tabBarStyle: {
-          height: 50 + (Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 0),
-          paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 5,
-          paddingTop: 5,
-        },
-        // Disable press effects
-        tabBarItemStyle: {
-          opacity: 1,
-        },
-        // Use custom button component to disable tap/press effects
-        tabBarButton: (props) => {
-          const { onPress, children } = props;
-          return <TabButton onPress={onPress}>{children}</TabButton>;
-        },
-      }}
-    >
+    <LayoutWrapper showTopBar={true} topBarTitle="Workspace">
+      <Tabs
+        initialRouteName="index"
+        screenOptions={{
+          tabBarActiveTintColor: '#000000',
+          tabBarInactiveTintColor: '#999',
+          headerShown: false,
+          tabBarShowLabel: false,
+          animation: 'none',
+          tabBarStyle: {
+            height: 50 + (Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 0),
+            paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 20) : 5,
+            paddingTop: 5,
+          },
+          // Disable press effects
+          tabBarItemStyle: {
+            opacity: 1,
+          },
+          // Use custom button component to disable tap/press effects
+          tabBarButton: (props) => {
+            const { onPress, children } = props;
+            return <TabButton onPress={onPress}>{children}</TabButton>;
+          },
+        }}
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -101,5 +112,6 @@ export default function PrimaryLayout() {
       />
 
     </Tabs>
+    </LayoutWrapper>
   );
 }

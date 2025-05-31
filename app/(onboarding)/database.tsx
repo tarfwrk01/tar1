@@ -1,19 +1,19 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
 import { useOnboarding } from '../context/onboarding';
 
 export default function DatabaseScreen() {
-  const { isLoading, updateOnboardingStep, userName, updateTursoDatabase } = useOnboarding();
+  const { isLoading, updateOnboardingStep, userName, updateTursoDatabase, profileData } = useOnboarding();
   const { user } = useAuth();
   const router = useRouter();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -403,6 +403,16 @@ export default function DatabaseScreen() {
       useNativeDriver: true,
     }).start();
 
+    // Check if user has already completed onboarding
+    if (profileData && profileData.profile && profileData.profile.length > 0) {
+      const profile = profileData.profile[0];
+      if (profile.onboardingCompleted === true) {
+        console.log('Database screen - User has already completed onboarding, redirecting to primary');
+        router.replace('/(primary)');
+        return;
+      }
+    }
+
     // Initialize onboarding step to 3 (skipping name step)
     const initializeStep = async () => {
       try {
@@ -415,9 +425,9 @@ export default function DatabaseScreen() {
 
     initializeStep();
 
-    // Start database creation process
+    // Start database creation process only if onboarding is not completed
     createTursoDatabase();
-  }, []);
+  }, [profileData]);
 
   // Render different content based on status
   const renderContent = () => {

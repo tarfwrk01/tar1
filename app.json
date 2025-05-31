@@ -33,6 +33,10 @@
         "backgroundColor": "#00000000",
         "translucent": true,
         "barStyle": "dark-content"
+      },
+      "navigationBar": {
+        "backgroundColor": "#000000",
+        "barStyle": "light-content"
       }
     },
     "web": {
@@ -49,7 +53,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4666e66b-a9f2-41a1-b4ad-cafeac68ec50"
+        "projectId": "0eda1f96-4b62-4f71-8741-a24761fc6292"
       }
     }
   }

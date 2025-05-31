@@ -1,14 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import TopBar from '../../components/TopBar';
 
 type Task = {
   id: string;
@@ -46,10 +44,7 @@ export default function TasksScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopBar title="Tasks" />
-
-      <View style={styles.content}>
+    <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Tasks</Text>
           <TouchableOpacity style={styles.addButton}>
@@ -99,7 +94,6 @@ export default function TasksScreen() {
           ))}
         </ScrollView>
       </View>
-    </SafeAreaView>
   );
 }
 

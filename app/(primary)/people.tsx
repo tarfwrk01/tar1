@@ -1,15 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import TopBar from '../../components/TopBar';
 
 type Person = {
   id: string;
@@ -59,10 +57,7 @@ export default function PeopleScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopBar title="People" />
-
-      <View style={styles.content}>
+    <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Team Members</Text>
           <TouchableOpacity style={styles.searchButton}>
@@ -103,7 +98,6 @@ export default function PeopleScreen() {
           ))}
         </ScrollView>
       </View>
-    </SafeAreaView>
   );
 }
 

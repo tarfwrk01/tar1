@@ -12,8 +12,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import TopBar from '../../components/TopBar';
 
 export default function AIChat() {
   const {
@@ -49,8 +47,7 @@ export default function AIChat() {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <TopBar title="AI Chat" />
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Error: {error.message}</Text>
           <TouchableOpacity
@@ -63,15 +60,12 @@ export default function AIChat() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopBar title="AI Chat" />
-
-      <View style={styles.chatContainer}>
+    <View style={styles.chatContainer}>
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -140,7 +134,6 @@ export default function AIChat() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
   );
 }
 
