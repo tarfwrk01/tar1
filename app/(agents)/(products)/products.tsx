@@ -7,6 +7,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Image,
     Modal,
     ScrollView,
     StyleSheet,
@@ -103,6 +104,7 @@ export default function ProductsScreen() {
   const [vendorsDrawerVisible, setVendorsDrawerVisible] = useState(false);
   const [brandsDrawerVisible, setBrandsDrawerVisible] = useState(false);
   const [tagsDrawerVisible, setTagsDrawerVisible] = useState(false);
+  const [unitsDrawerVisible, setUnitsDrawerVisible] = useState(false);
   const [availableOptions, setAvailableOptions] = useState<any[]>([]);
   const [availableMetafields, setAvailableMetafields] = useState<any[]>([]);
   const [availableModifiers, setAvailableModifiers] = useState<any[]>([]);
@@ -116,6 +118,16 @@ export default function ProductsScreen() {
   const [selectedModifierIds, setSelectedModifierIds] = useState<number[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Standard units for selection
+  const standardUnits = [
+    'units', 'pieces', 'items', 'pcs',
+    'kg', 'g', 'lb', 'oz',
+    'l', 'ml', 'gal', 'fl oz',
+    'm', 'cm', 'mm', 'ft', 'in',
+    'box', 'pack', 'set', 'pair',
+    'dozen', 'case', 'bundle', 'roll'
+  ];
 
   // Create new item states
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
@@ -1661,6 +1673,21 @@ export default function ProductsScreen() {
     );
   };
 
+  // Units drawer functions
+  const openUnitsDrawer = (editMode: boolean = false) => {
+    setIsEditMode(editMode);
+    setUnitsDrawerVisible(true);
+  };
+
+  const selectUnit = (unit: string) => {
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, unit: unit});
+    } else {
+      setNewProduct({...newProduct, unit: unit});
+    }
+    setUnitsDrawerVisible(false);
+  };
+
   // Helper function to get selected option names
   const getSelectedOptionNames = (optionIds: number[]): string => {
     if (optionIds.length === 0) return '';
@@ -2412,6 +2439,101 @@ export default function ProductsScreen() {
                   </View>
                 </View>
 
+                {/* Divider between first and second row */}
+                <View style={styles.tilesDivider} />
+
+                <View style={styles.tilesRow}>
+                  <View style={[styles.tile, styles.tileLeft]}>
+                    <View style={styles.imageTileContainer}>
+                      {(() => {
+                        try {
+                          console.log('Core tab - newProduct.medias raw value:', newProduct.medias);
+                          console.log('Core tab - newProduct.medias type:', typeof newProduct.medias);
+
+                          // Handle both string and array cases
+                          let mediaArray;
+                          if (typeof newProduct.medias === 'string') {
+                            const mediasValue = newProduct.medias || '[]';
+                            console.log('Core tab - mediasValue after fallback:', mediasValue);
+                            mediaArray = JSON.parse(mediasValue);
+                          } else if (Array.isArray(newProduct.medias)) {
+                            mediaArray = newProduct.medias;
+                          } else {
+                            mediaArray = [];
+                          }
+
+                          console.log('Core tab - mediaArray:', mediaArray);
+                          console.log('Core tab - mediaArray type:', typeof mediaArray);
+                          console.log('Core tab - mediaArray length:', Array.isArray(mediaArray) ? mediaArray.length : 'not array');
+
+                          // Filter out empty strings and null values
+                          const validImages = Array.isArray(mediaArray) ?
+                            mediaArray.filter((url: string) => url && typeof url === 'string' && url.trim() !== '') : [];
+                          console.log('Core tab - validImages:', validImages);
+                          console.log('Core tab - validImages length:', validImages.length);
+
+                          const firstImage = validImages.length > 0 ? validImages[0] : null;
+                          console.log('Core tab - firstImage:', firstImage);
+
+                          return firstImage ? (
+                            <Image
+                              key={firstImage}
+                              source={{ uri: firstImage }}
+                              style={styles.productImageTile}
+                              onLoad={() => console.log('Core tab - Image loaded successfully:', firstImage)}
+                              onError={(error) => console.log('Core tab - Image load error:', error.nativeEvent.error)}
+                            />
+                          ) : (
+                            <View style={styles.imagePlaceholder}>
+                              <Ionicons name="image-outline" size={24} color="#999" />
+                            </View>
+                          );
+                        } catch (error) {
+                          console.log('Core tab - error parsing media:', error);
+                          return (
+                            <View style={styles.imagePlaceholder}>
+                              <Ionicons name="image-outline" size={24} color="#999" />
+                            </View>
+                          );
+                        }
+                      })()}
+                    </View>
+                  </View>
+
+                  <View style={[styles.tile, styles.tileMiddle]}>
+                    <View style={styles.qrCodeContainer}>
+                      <View style={styles.qrCodeImage}>
+                        <View style={styles.qrPattern}>
+                          <View style={[styles.qrDot, { top: 2, left: 2 }]} />
+                          <View style={[styles.qrDot, { top: 2, right: 2 }]} />
+                          <View style={[styles.qrDot, { top: 8, left: 8 }]} />
+                          <View style={[styles.qrDot, { top: 8, right: 8 }]} />
+                          <View style={[styles.qrDot, { bottom: 2, left: 2 }]} />
+                          <View style={[styles.qrDot, { bottom: 2, right: 2 }]} />
+                          <View style={[styles.qrDot, { bottom: 8, left: 8 }]} />
+                          <View style={[styles.qrDot, { bottom: 8, right: 8 }]} />
+                          <View style={[styles.qrDot, { top: 14, left: 14 }]} />
+                          <View style={[styles.qrDot, { top: 14, right: 14 }]} />
+                          <View style={[styles.qrDot, { bottom: 14, left: 14 }]} />
+                          <View style={[styles.qrDot, { bottom: 14, right: 14 }]} />
+                        </View>
+                      </View>
+                      <Text style={styles.qrCodeValue}>{newProduct.qrcode || 'QR123456789'}</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.tile, styles.tileRight]}
+                    onPress={() => openUnitsDrawer(false)}
+                  >
+                    <View style={styles.stockRow}>
+                      <Text style={styles.stockTileValue}>{newProduct.stock || 0}</Text>
+                      <Text style={styles.stockTileUnit}> {newProduct.unit || 'units'}</Text>
+                    </View>
+                    <Text style={styles.priceTileLabel}>Stock</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <View style={styles.tilesRow}>
                   <TouchableOpacity
                     style={[styles.tile, styles.statusTileLeft]}
@@ -2428,18 +2550,6 @@ export default function ProductsScreen() {
                     <Text style={styles.statusTileLabel}>Website</Text>
                     <Text style={styles.statusTileValue}>{newProduct.website === 1 ? 'Active' : 'Inactive'}</Text>
                   </TouchableOpacity>
-                </View>
-
-                <View style={styles.tilesRow}>
-                  <View style={[styles.tile, styles.statusTileLeft]}>
-                    <Text style={styles.statusTileLabel}>QR Code</Text>
-                    <Text style={styles.statusTileValue}>{newProduct.qrcode || 'Not set'}</Text>
-                  </View>
-
-                  <View style={[styles.tile, styles.statusTileRight]}>
-                    <Text style={styles.statusTileLabel}>Stock</Text>
-                    <Text style={styles.statusTileValue}>{newProduct.stock || 0} {newProduct.unit || 'units'}</Text>
-                  </View>
                 </View>
               </View>
             </View>
@@ -2820,6 +2930,101 @@ export default function ProductsScreen() {
                     </View>
                   </View>
 
+                  {/* Divider between first and second row */}
+                  <View style={styles.tilesDivider} />
+
+                  <View style={styles.tilesRow}>
+                    <View style={[styles.tile, styles.tileLeft]}>
+                      <View style={styles.imageTileContainer}>
+                        {(() => {
+                          try {
+                            console.log('Edit Core tab - selectedProductForEdit.medias raw value:', selectedProductForEdit.medias);
+                            console.log('Edit Core tab - selectedProductForEdit.medias type:', typeof selectedProductForEdit.medias);
+
+                            // Handle both string and array cases
+                            let mediaArray;
+                            if (typeof selectedProductForEdit.medias === 'string') {
+                              const mediasValue = selectedProductForEdit.medias || '[]';
+                              console.log('Edit Core tab - mediasValue after fallback:', mediasValue);
+                              mediaArray = JSON.parse(mediasValue);
+                            } else if (Array.isArray(selectedProductForEdit.medias)) {
+                              mediaArray = selectedProductForEdit.medias;
+                            } else {
+                              mediaArray = [];
+                            }
+
+                            console.log('Edit Core tab - mediaArray:', mediaArray);
+                            console.log('Edit Core tab - mediaArray type:', typeof mediaArray);
+                            console.log('Edit Core tab - mediaArray length:', Array.isArray(mediaArray) ? mediaArray.length : 'not array');
+
+                            // Filter out empty strings and null values
+                            const validImages = Array.isArray(mediaArray) ?
+                              mediaArray.filter((url: string) => url && typeof url === 'string' && url.trim() !== '') : [];
+                            console.log('Edit Core tab - validImages:', validImages);
+                            console.log('Edit Core tab - validImages length:', validImages.length);
+
+                            const firstImage = validImages.length > 0 ? validImages[0] : null;
+                            console.log('Edit Core tab - firstImage:', firstImage);
+
+                            return firstImage ? (
+                              <Image
+                                key={firstImage}
+                                source={{ uri: firstImage }}
+                                style={styles.productImageTile}
+                                onLoad={() => console.log('Edit Core tab - Image loaded successfully:', firstImage)}
+                                onError={(error) => console.log('Edit Core tab - Image load error:', error.nativeEvent.error)}
+                              />
+                            ) : (
+                              <View style={styles.imagePlaceholder}>
+                                <Ionicons name="image-outline" size={24} color="#999" />
+                              </View>
+                            );
+                          } catch (error) {
+                            console.log('Edit Core tab - error parsing media:', error);
+                            return (
+                              <View style={styles.imagePlaceholder}>
+                                <Ionicons name="image-outline" size={24} color="#999" />
+                              </View>
+                            );
+                          }
+                        })()}
+                      </View>
+                    </View>
+
+                    <View style={[styles.tile, styles.tileMiddle]}>
+                      <View style={styles.qrCodeContainer}>
+                        <View style={styles.qrCodeImage}>
+                          <View style={styles.qrPattern}>
+                            <View style={[styles.qrDot, { top: 2, left: 2 }]} />
+                            <View style={[styles.qrDot, { top: 2, right: 2 }]} />
+                            <View style={[styles.qrDot, { top: 8, left: 8 }]} />
+                            <View style={[styles.qrDot, { top: 8, right: 8 }]} />
+                            <View style={[styles.qrDot, { bottom: 2, left: 2 }]} />
+                            <View style={[styles.qrDot, { bottom: 2, right: 2 }]} />
+                            <View style={[styles.qrDot, { bottom: 8, left: 8 }]} />
+                            <View style={[styles.qrDot, { bottom: 8, right: 8 }]} />
+                            <View style={[styles.qrDot, { top: 14, left: 14 }]} />
+                            <View style={[styles.qrDot, { top: 14, right: 14 }]} />
+                            <View style={[styles.qrDot, { bottom: 14, left: 14 }]} />
+                            <View style={[styles.qrDot, { bottom: 14, right: 14 }]} />
+                          </View>
+                        </View>
+                        <Text style={styles.qrCodeValue}>{selectedProductForEdit.qrcode || 'QR123456789'}</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.tile, styles.tileRight]}
+                      onPress={() => openUnitsDrawer(true)}
+                    >
+                      <View style={styles.stockRow}>
+                        <Text style={styles.stockTileValue}>{selectedProductForEdit.stock || 0}</Text>
+                        <Text style={styles.stockTileUnit}> {selectedProductForEdit.unit || 'units'}</Text>
+                      </View>
+                      <Text style={styles.priceTileLabel}>Stock</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.tilesRow}>
                     <TouchableOpacity
                       style={[styles.tile, styles.statusTileLeft]}
@@ -2836,18 +3041,6 @@ export default function ProductsScreen() {
                       <Text style={styles.statusTileLabel}>Website</Text>
                       <Text style={styles.statusTileValue}>{selectedProductForEdit.website === 1 ? 'Active' : 'Inactive'}</Text>
                     </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.tilesRow}>
-                    <View style={[styles.tile, styles.statusTileLeft]}>
-                      <Text style={styles.statusTileLabel}>QR Code</Text>
-                      <Text style={styles.statusTileValue}>{selectedProductForEdit.qrcode || 'Not set'}</Text>
-                    </View>
-
-                    <View style={[styles.tile, styles.statusTileRight]}>
-                      <Text style={styles.statusTileLabel}>Stock</Text>
-                      <Text style={styles.statusTileValue}>{selectedProductForEdit.stock || 0} {selectedProductForEdit.unit || 'units'}</Text>
-                    </View>
                   </View>
                 </View>
               </View>
@@ -4548,6 +4741,45 @@ export default function ProductsScreen() {
           />
         </SafeAreaView>
       </Modal>
+
+      {/* Units Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={unitsDrawerVisible}
+        onRequestClose={() => setUnitsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Unit</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => setUnitsDrawerVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={standardUnits}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.unitItem}
+                onPress={() => selectUnit(item)}
+              >
+                <Text style={styles.unitText}>{item}</Text>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -5159,25 +5391,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 16,
   },
-  // Pricing tiles (top row)
+  // Square tiles (pricing and second row)
   tileLeft: {
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-    minHeight: 100,
+    aspectRatio: 1,
     borderRightWidth: 1,
     borderRightColor: '#e9ecef',
   },
   tileMiddle: {
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-    minHeight: 100,
+    aspectRatio: 1,
     borderRightWidth: 1,
     borderRightColor: '#e9ecef',
   },
   tileRight: {
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-    minHeight: 100,
+    aspectRatio: 1,
   },
   // Status tiles (bottom row)
   statusTileLeft: {
@@ -5210,6 +5442,79 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
+  },
+  stockTileValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  stockTileUnit: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#666',
+  },
+  // QR Code styles
+  qrCodeContainer: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  qrCodeImage: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  qrCodePlaceholder: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#666',
+  },
+  qrCodeValue: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
+    textAlign: 'center',
+  },
+  qrPattern: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+  },
+  qrDot: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    backgroundColor: '#333',
+    borderRadius: 0.5,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
+  },
+  // Image tile styles
+  imageTileContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productImageTile: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusTileLabel: {
     fontSize: 14,
@@ -5271,6 +5576,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e9ecef',
     marginVertical: 16,
+  },
+  tilesDivider: {
+    height: 1,
+    backgroundColor: '#e9ecef',
+    marginHorizontal: -16,
   },
   // Create form styles
   createFormContainer: {
@@ -5418,5 +5728,15 @@ const styles = StyleSheet.create({
   parentCategoryDivider: {
     height: 1,
     backgroundColor: '#f0f0f0',
+  },
+  // Units selection styles
+  unitItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  unitText: {
+    fontSize: 16,
+    color: '#333',
   },
 });

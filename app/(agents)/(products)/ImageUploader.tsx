@@ -32,7 +32,9 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
     try {
       const parsedImages = JSON.parse(images || '[]');
       if (Array.isArray(parsedImages)) {
-        return parsedImages.map((url: string, index: number) => ({
+        // Filter out empty strings and null values
+        const validImages = parsedImages.filter((url: string) => url && url.trim() !== '');
+        return validImages.map((url: string, index: number) => ({
           id: `existing-${index}`,
           url,
         }));
@@ -54,7 +56,10 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
       console.log('ImageUploader: parsed images type:', typeof parsedImages);
       console.log('ImageUploader: is array:', Array.isArray(parsedImages));
       if (Array.isArray(parsedImages)) {
-        const newImages = parsedImages.map((url: string, index: number) => ({
+        // Filter out empty strings and null values
+        const validImages = parsedImages.filter((url: string) => url && url.trim() !== '');
+        console.log('ImageUploader: valid images after filtering:', validImages);
+        const newImages = validImages.map((url: string, index: number) => ({
           id: `existing-${index}`,
           url,
         }));
@@ -254,11 +259,11 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
   return (
     <View style={styles.container}>
       <View style={styles.tilesGrid}>
-        {/* Add tile always comes first */}
-        {renderAddTile()}
-
-        {/* Render existing image tiles */}
+        {/* Render existing image tiles first */}
         {uploadedImages.map((item) => renderImageTile(item))}
+
+        {/* Add tile comes after existing images */}
+        {renderAddTile()}
       </View>
 
       {/* Bottom Options Drawer */}
