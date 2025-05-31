@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../../app/context/onboarding';
@@ -76,6 +76,7 @@ export default function ProductDataScreen() {
                   tags TEXT,
                   cost REAL,
                   qrcode TEXT,
+                  stock INTEGER,
                   createdat TEXT,
                   updatedat TEXT,
                   publishat TEXT,
@@ -299,7 +300,7 @@ export default function ProductDataScreen() {
       )}
 
       <ScrollView style={styles.content}>
-        
+
 
         <TouchableOpacity
           style={styles.createButton}

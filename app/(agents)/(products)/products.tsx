@@ -46,6 +46,7 @@ type Product = {
   tags: string;
   cost: number;
   qrcode: string; // renamed from barcode
+  stock: number;
   createdat: string;
   updatedat: string;
   publishat: string;
@@ -98,13 +99,22 @@ export default function ProductsScreen() {
   const [metafieldsDrawerVisible, setMetafieldsDrawerVisible] = useState(false);
   const [modifiersDrawerVisible, setModifiersDrawerVisible] = useState(false);
   const [categoriesDrawerVisible, setCategoriesDrawerVisible] = useState(false);
+  const [collectionsDrawerVisible, setCollectionsDrawerVisible] = useState(false);
+  const [vendorsDrawerVisible, setVendorsDrawerVisible] = useState(false);
+  const [brandsDrawerVisible, setBrandsDrawerVisible] = useState(false);
+  const [tagsDrawerVisible, setTagsDrawerVisible] = useState(false);
   const [availableOptions, setAvailableOptions] = useState<any[]>([]);
   const [availableMetafields, setAvailableMetafields] = useState<any[]>([]);
   const [availableModifiers, setAvailableModifiers] = useState<any[]>([]);
   const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+  const [availableCollections, setAvailableCollections] = useState<any[]>([]);
+  const [availableVendors, setAvailableVendors] = useState<any[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<any[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [selectedOptionIds, setSelectedOptionIds] = useState<number[]>([]);
   const [selectedMetafieldIds, setSelectedMetafieldIds] = useState<number[]>([]);
   const [selectedModifierIds, setSelectedModifierIds] = useState<number[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Create new item states
@@ -112,6 +122,10 @@ export default function ProductsScreen() {
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
   const [createModifierModalVisible, setCreateModifierModalVisible] = useState(false);
   const [createCategoryModalVisible, setCreateCategoryModalVisible] = useState(false);
+  const [createCollectionModalVisible, setCreateCollectionModalVisible] = useState(false);
+  const [createVendorModalVisible, setCreateVendorModalVisible] = useState(false);
+  const [createBrandModalVisible, setCreateBrandModalVisible] = useState(false);
+  const [createTagModalVisible, setCreateTagModalVisible] = useState(false);
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
   const [newOptionIdentifier, setNewOptionIdentifier] = useState('');
@@ -129,12 +143,31 @@ export default function ProductsScreen() {
   const [newCategoryImage, setNewCategoryImage] = useState('[]');
   const [newCategoryNotes, setNewCategoryNotes] = useState('');
   const [newCategoryParent, setNewCategoryParent] = useState<number | null>(null);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionImage, setNewCollectionImage] = useState('[]');
+  const [newCollectionNotes, setNewCollectionNotes] = useState('');
+  const [newCollectionParent, setNewCollectionParent] = useState<number | null>(null);
+  const [newVendorName, setNewVendorName] = useState('');
+  const [newVendorImage, setNewVendorImage] = useState('[]');
+  const [newVendorNotes, setNewVendorNotes] = useState('');
+  const [newBrandName, setNewBrandName] = useState('');
+  const [newBrandImage, setNewBrandImage] = useState('[]');
+  const [newBrandNotes, setNewBrandNotes] = useState('');
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagImage, setNewTagImage] = useState('[]');
+  const [newTagNotes, setNewTagNotes] = useState('');
   const [selectedParentCategory, setSelectedParentCategory] = useState<any | null>(null);
+  const [selectedParentCollection, setSelectedParentCollection] = useState<any | null>(null);
   const [parentCategoryModalVisible, setParentCategoryModalVisible] = useState(false);
+  const [parentCollectionModalVisible, setParentCollectionModalVisible] = useState(false);
   const [isCreatingOption, setIsCreatingOption] = useState(false);
   const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
   const [isCreatingModifier, setIsCreatingModifier] = useState(false);
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const [isCreatingVendor, setIsCreatingVendor] = useState(false);
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
     medias: '[]', // Empty JSON array (renamed from images)
@@ -159,6 +192,7 @@ export default function ProductsScreen() {
     tags: '',
     cost: 0,
     qrcode: '', // renamed from barcode
+    stock: 0,
     publish: 'draft',
     promoinfo: '',
     featured: 0,
@@ -201,6 +235,36 @@ export default function ProductsScreen() {
     setSelectedParentCategory(null);
   };
 
+  // Helper function to reset new collection form
+  const resetNewCollectionForm = () => {
+    setNewCollectionName('');
+    setNewCollectionImage('[]');
+    setNewCollectionNotes('');
+    setNewCollectionParent(null);
+    setSelectedParentCollection(null);
+  };
+
+  // Helper function to reset new vendor form
+  const resetNewVendorForm = () => {
+    setNewVendorName('');
+    setNewVendorImage('[]');
+    setNewVendorNotes('');
+  };
+
+  // Helper function to reset new brand form
+  const resetNewBrandForm = () => {
+    setNewBrandName('');
+    setNewBrandImage('[]');
+    setNewBrandNotes('');
+  };
+
+  // Helper function to reset new tag form
+  const resetNewTagForm = () => {
+    setNewTagName('');
+    setNewTagImage('[]');
+    setNewTagNotes('');
+  };
+
   // Helper function to reset new product form
   const resetNewProductForm = () => {
     setNewProduct({
@@ -227,6 +291,7 @@ export default function ProductsScreen() {
       tags: '',
       cost: 0,
       qrcode: '',
+      stock: 0,
       publish: 'draft',
       promoinfo: '',
       featured: 0,
@@ -430,6 +495,195 @@ export default function ProductsScreen() {
     }
   };
 
+  // Fetch available collections for selection
+  const fetchAvailableCollections = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, name, image, notes, parent FROM collections ORDER BY name LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const collectionData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            name: row[1].type === 'null' ? '' : row[1].value,
+            image: row[2].type === 'null' ? '[]' : row[2].value,
+            notes: row[3].type === 'null' ? '' : row[3].value,
+            parent: row[4].type === 'null' ? null : parseInt(row[4].value)
+          }));
+          setAvailableCollections(collectionData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching collections:', error);
+    }
+  };
+
+  // Fetch available vendors for selection
+  const fetchAvailableVendors = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, name, image, notes FROM vendors ORDER BY name LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const vendorData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            name: row[1].type === 'null' ? '' : row[1].value,
+            image: row[2].type === 'null' ? '[]' : row[2].value,
+            notes: row[3].type === 'null' ? '' : row[3].value
+          }));
+          setAvailableVendors(vendorData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    }
+  };
+
+  // Fetch available brands for selection
+  const fetchAvailableBrands = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, name, image, notes FROM brands ORDER BY name LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const brandData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            name: row[1].type === 'null' ? '' : row[1].value,
+            image: row[2].type === 'null' ? '[]' : row[2].value,
+            notes: row[3].type === 'null' ? '' : row[3].value
+          }));
+          setAvailableBrands(brandData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching brands:', error);
+    }
+  };
+
+  // Fetch available tags for selection
+  const fetchAvailableTags = async () => {
+    try {
+      const profile = profileData?.profile?.[0];
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              type: "execute",
+              stmt: {
+                sql: "SELECT id, name, image, notes FROM tags ORDER BY name LIMIT 100"
+              }
+            }
+          ]
+        })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        if (data.results?.[0]?.response?.result?.rows) {
+          const tagData = data.results[0].response.result.rows.map((row: any[]) => ({
+            id: parseInt(row[0].value),
+            name: row[1].type === 'null' ? '' : row[1].value,
+            image: row[2].type === 'null' ? '[]' : row[2].value,
+            notes: row[3].type === 'null' ? '' : row[3].value
+          }));
+          setAvailableTags(tagData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+    }
+  };
+
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
@@ -558,7 +812,7 @@ export default function ProductsScreen() {
             stmt: {
               sql: `SELECT id, title, medias, excerpt, notes, type, category, collection, unit,
                     price, saleprice, vendor, brand, options, modifiers, metafields,
-                    saleinfo, stores, pos, website, seo, tags, cost, qrcode, createdat,
+                    saleinfo, stores, pos, website, seo, tags, cost, qrcode, stock, createdat,
                     updatedat, publishat, publish, promoinfo, featured, relproducts, sellproducts
                     FROM products WHERE id = ${productId}`
             }
@@ -621,14 +875,15 @@ export default function ProductsScreen() {
               tags: row[21].type === 'null' ? '' : row[21].value,
               cost: row[22].type === 'null' ? 0 : parseFloat(row[22].value),
               qrcode: row[23].type === 'null' ? '' : row[23].value,
-              createdat: row[24].type === 'null' ? '' : row[24].value,
-              updatedat: row[25].type === 'null' ? '' : row[25].value,
-              publishat: row[26].type === 'null' ? '' : row[26].value,
-              publish: row[27].type === 'null' ? 'draft' : row[27].value,
-              promoinfo: row[28].type === 'null' ? '' : row[28].value,
-              featured: row[29].type === 'null' ? 0 : parseInt(row[29].value),
-              relproducts: row[30].type === 'null' ? '[]' : row[30].value,
-              sellproducts: row[31].type === 'null' ? '[]' : row[31].value,
+              stock: row[24].type === 'null' ? 0 : parseInt(row[24].value),
+              createdat: row[25].type === 'null' ? '' : row[25].value,
+              updatedat: row[26].type === 'null' ? '' : row[26].value,
+              publishat: row[27].type === 'null' ? '' : row[27].value,
+              publish: row[28].type === 'null' ? 'draft' : row[28].value,
+              promoinfo: row[29].type === 'null' ? '' : row[29].value,
+              featured: row[30].type === 'null' ? 0 : parseInt(row[30].value),
+              relproducts: row[31].type === 'null' ? '[]' : row[31].value,
+              sellproducts: row[32].type === 'null' ? '[]' : row[32].value,
             };
 
             return productData;
@@ -698,7 +953,7 @@ export default function ProductsScreen() {
                 title, medias, excerpt, notes, type, category, collection, unit,
                 price, saleprice, vendor, brand, options, modifiers, metafields,
                 saleinfo, stores, pos, website, seo,
-                tags, cost, qrcode, createdat, updatedat, publishat, publish,
+                tags, cost, qrcode, stock, createdat, updatedat, publishat, publish,
                 promoinfo, featured, relproducts, sellproducts
               ) VALUES (
                 '${(newProduct.title || '').replace(/'/g, "''")}',
@@ -724,6 +979,7 @@ export default function ProductsScreen() {
                 '${(newProduct.tags || '').replace(/'/g, "''")}',
                 ${newProduct.cost || 0},
                 '${(newProduct.qrcode || '').replace(/'/g, "''")}',
+                ${newProduct.stock || 0},
                 '${now}',
                 '${now}',
                 '${now}',
@@ -840,6 +1096,7 @@ export default function ProductsScreen() {
                 tags = '${(selectedProductForEdit.tags || '').replace(/'/g, "''")}',
                 cost = ${selectedProductForEdit.cost || 0},
                 qrcode = '${(selectedProductForEdit.qrcode || '').replace(/'/g, "''")}',
+                stock = ${selectedProductForEdit.stock || 0},
                 updatedat = '${now}',
                 publish = '${(selectedProductForEdit.publish || 'draft').replace(/'/g, "''")}',
                 promoinfo = '${(selectedProductForEdit.promoinfo || '').replace(/'/g, "''")}',
@@ -1297,6 +1554,113 @@ export default function ProductsScreen() {
     );
   };
 
+  // Collections drawer functions
+  const openCollectionsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+
+    // Fetch collections first if not already loaded
+    if (availableCollections.length === 0) {
+      await fetchAvailableCollections();
+    }
+
+    setCollectionsDrawerVisible(true);
+  };
+
+  const selectCollection = (collectionId: number) => {
+    const selectedCollection = availableCollections.find(col => col.id === collectionId);
+    const collectionName = selectedCollection ? selectedCollection.name : '';
+
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, collection: collectionName});
+    } else {
+      setNewProduct({...newProduct, collection: collectionName});
+    }
+
+    setCollectionsDrawerVisible(false);
+  };
+
+  // Vendors drawer functions
+  const openVendorsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+
+    // Fetch vendors first if not already loaded
+    if (availableVendors.length === 0) {
+      await fetchAvailableVendors();
+    }
+
+    setVendorsDrawerVisible(true);
+  };
+
+  const selectVendor = (vendorId: number) => {
+    const selectedVendor = availableVendors.find(vendor => vendor.id === vendorId);
+    const vendorName = selectedVendor ? selectedVendor.name : '';
+
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, vendor: vendorName});
+    } else {
+      setNewProduct({...newProduct, vendor: vendorName});
+    }
+
+    setVendorsDrawerVisible(false);
+  };
+
+  // Brands drawer functions
+  const openBrandsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+
+    // Fetch brands first if not already loaded
+    if (availableBrands.length === 0) {
+      await fetchAvailableBrands();
+    }
+
+    setBrandsDrawerVisible(true);
+  };
+
+  const selectBrand = (brandId: number) => {
+    const selectedBrand = availableBrands.find(brand => brand.id === brandId);
+    const brandName = selectedBrand ? selectedBrand.name : '';
+
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, brand: brandName});
+    } else {
+      setNewProduct({...newProduct, brand: brandName});
+    }
+
+    setBrandsDrawerVisible(false);
+  };
+
+  // Tags drawer functions
+  const openTagsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
+    setIsEditMode(editMode);
+    const currentIds = parseSelectedIds(currentProduct.tags || '[]');
+    setSelectedTagIds(currentIds);
+
+    // Fetch tags first if not already loaded
+    if (availableTags.length === 0) {
+      await fetchAvailableTags();
+    }
+
+    setTagsDrawerVisible(true);
+  };
+
+  const handleTagsSelection = () => {
+    const selectedIdsJson = JSON.stringify(selectedTagIds);
+    if (isEditMode && selectedProductForEdit) {
+      setSelectedProductForEdit({...selectedProductForEdit, tags: selectedIdsJson});
+    } else {
+      setNewProduct({...newProduct, tags: selectedIdsJson});
+    }
+    setTagsDrawerVisible(false);
+  };
+
+  const toggleTagSelection = (tagId: number) => {
+    setSelectedTagIds(prev =>
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
   // Helper function to get selected option names
   const getSelectedOptionNames = (optionIds: number[]): string => {
     if (optionIds.length === 0) return '';
@@ -1336,6 +1700,20 @@ export default function ProductsScreen() {
       return selectedModifiers.map(modifier => modifier.title).join(', ');
     } else {
       return `${selectedModifiers.slice(0, 2).map(modifier => modifier.title).join(', ')} +${selectedModifiers.length - 2} more`;
+    }
+  };
+
+  // Helper function to get selected tag names
+  const getSelectedTagNames = (tagIds: number[]): string => {
+    if (tagIds.length === 0) return '';
+
+    const selectedTags = availableTags.filter(tag => tagIds.includes(tag.id));
+    if (selectedTags.length === 0) return `${tagIds.length} tags selected`;
+
+    if (selectedTags.length <= 3) {
+      return selectedTags.map(tag => tag.name).join(', ');
+    } else {
+      return `${selectedTags.slice(0, 2).map(tag => tag.name).join(', ')} +${selectedTags.length - 2} more`;
     }
   };
 
@@ -1581,6 +1959,218 @@ export default function ProductsScreen() {
     setNewCategoryParent(null);
   };
 
+  // Create new collection function
+  const createNewCollection = async () => {
+    if (!newCollectionName.trim()) {
+      Alert.alert('Error', 'Collection name is required');
+      return;
+    }
+
+    try {
+      setIsCreatingCollection(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO collections (name, image, notes, parent) VALUES ('${newCollectionName.replace(/'/g, "''")}', '${(newCollectionImage || '[]').replace(/'/g, "''")}', '${newCollectionNotes.replace(/'/g, "''")}', ${newCollectionParent === null ? 'NULL' : Number(newCollectionParent)})`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        resetNewCollectionForm();
+        setCreateCollectionModalVisible(false);
+        await fetchAvailableCollections();
+      } else {
+        throw new Error('Failed to create collection');
+      }
+    } catch (error) {
+      console.error('Error creating collection:', error);
+      Alert.alert('Error', 'Failed to create collection. Please try again.');
+    } finally {
+      setIsCreatingCollection(false);
+    }
+  };
+
+  // Create new vendor function
+  const createNewVendor = async () => {
+    if (!newVendorName.trim()) {
+      Alert.alert('Error', 'Vendor name is required');
+      return;
+    }
+
+    try {
+      setIsCreatingVendor(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO vendors (name, image, notes) VALUES ('${newVendorName.replace(/'/g, "''")}', '${(newVendorImage || '[]').replace(/'/g, "''")}', '${newVendorNotes.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        resetNewVendorForm();
+        setCreateVendorModalVisible(false);
+        await fetchAvailableVendors();
+      } else {
+        throw new Error('Failed to create vendor');
+      }
+    } catch (error) {
+      console.error('Error creating vendor:', error);
+      Alert.alert('Error', 'Failed to create vendor. Please try again.');
+    } finally {
+      setIsCreatingVendor(false);
+    }
+  };
+
+  // Create new brand function
+  const createNewBrand = async () => {
+    if (!newBrandName.trim()) {
+      Alert.alert('Error', 'Brand name is required');
+      return;
+    }
+
+    try {
+      setIsCreatingBrand(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO brands (name, image, notes) VALUES ('${newBrandName.replace(/'/g, "''")}', '${(newBrandImage || '[]').replace(/'/g, "''")}', '${newBrandNotes.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        resetNewBrandForm();
+        setCreateBrandModalVisible(false);
+        await fetchAvailableBrands();
+      } else {
+        throw new Error('Failed to create brand');
+      }
+    } catch (error) {
+      console.error('Error creating brand:', error);
+      Alert.alert('Error', 'Failed to create brand. Please try again.');
+    } finally {
+      setIsCreatingBrand(false);
+    }
+  };
+
+  // Create new tag function
+  const createNewTag = async () => {
+    if (!newTagName.trim()) {
+      Alert.alert('Error', 'Tag name is required');
+      return;
+    }
+
+    try {
+      setIsCreatingTag(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: `INSERT INTO tags (name, image, notes) VALUES ('${newTagName.replace(/'/g, "''")}', '${(newTagImage || '[]').replace(/'/g, "''")}', '${newTagNotes.replace(/'/g, "''")}')`
+            }
+          }
+        ]
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        resetNewTagForm();
+        setCreateTagModalVisible(false);
+        await fetchAvailableTags();
+      } else {
+        throw new Error('Failed to create tag');
+      }
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      Alert.alert('Error', 'Failed to create tag. Please try again.');
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
   // Fetch products on component mount
   useEffect(() => {
     fetchProducts();
@@ -1588,6 +2178,10 @@ export default function ProductsScreen() {
     fetchAvailableMetafields();
     fetchAvailableModifiers();
     fetchAvailableCategories();
+    fetchAvailableCollections();
+    fetchAvailableVendors();
+    fetchAvailableBrands();
+    fetchAvailableTags();
   }, []);
 
   // Handle edit button press
@@ -1843,6 +2437,8 @@ export default function ProductsScreen() {
                   </View>
 
                   <View style={[styles.tile, styles.statusTileRight]}>
+                    <Text style={styles.statusTileLabel}>Stock</Text>
+                    <Text style={styles.statusTileValue}>{newProduct.stock || 0} {newProduct.unit || 'units'}</Text>
                   </View>
                 </View>
               </View>
@@ -1915,30 +2511,64 @@ export default function ProductsScreen() {
                   <Text style={styles.orgTileValue}>{newProduct.category || 'Select category'}</Text>
                 </TouchableOpacity>
 
-                <View style={[styles.tile, styles.orgTileSingle]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openCollectionsDrawer(newProduct, false)}
+                >
                   <Text style={styles.orgTileLabel}>Collection</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.collection || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.orgTileValue}>{newProduct.collection || 'Select collection'}</Text>
+                </TouchableOpacity>
 
-                <View style={[styles.tile, styles.orgTileSingle]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openVendorsDrawer(newProduct, false)}
+                >
                   <Text style={styles.orgTileLabel}>Vendor</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.vendor || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.orgTileValue}>{newProduct.vendor || 'Select vendor'}</Text>
+                </TouchableOpacity>
 
-                <View style={[styles.tile, styles.orgTileSingle]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openBrandsDrawer(newProduct, false)}
+                >
                   <Text style={styles.orgTileLabel}>Brand</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.brand || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.orgTileValue}>{newProduct.brand || 'Select brand'}</Text>
+                </TouchableOpacity>
 
-                <View style={[styles.tile, styles.orgTileSingle]}>
-                  <Text style={styles.orgTileLabel}>Unit</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.unit || 'Not set'}</Text>
-                </View>
-
-                <View style={[styles.tile, styles.orgTileSingle]}>
+                <TouchableOpacity
+                  style={[styles.tile, styles.orgTileSingle]}
+                  onPress={() => openTagsDrawer(newProduct, false)}
+                >
                   <Text style={styles.orgTileLabel}>Tags</Text>
-                  <Text style={styles.orgTileValue}>{newProduct.tags || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.orgTileValue}>
+                    {(() => {
+                      const selectedIds = parseSelectedIds(newProduct.tags || '[]');
+                      if (selectedIds.length === 0) {
+                        return 'Select tags';
+                      } else {
+                        return `${selectedIds.length} tag${selectedIds.length !== 1 ? 's' : ''} selected`;
+                      }
+                    })()}
+                  </Text>
+                </TouchableOpacity>
+
+                {(() => {
+                  const selectedIds = parseSelectedIds(newProduct.tags || '[]');
+                  if (selectedIds.length > 0) {
+                    const selectedTags = availableTags.filter(tag => selectedIds.includes(tag.id));
+                    return selectedTags.map((tag) => (
+                      <TouchableOpacity
+                        key={tag.id}
+                        style={[styles.tile, styles.orgTileSingle]}
+                        onPress={() => openTagsDrawer(newProduct, false)}
+                      >
+                        <Text style={styles.orgTileLabel}>{tag.name}</Text>
+                        <Text style={styles.orgTileValue}>{tag.notes || 'No description'}</Text>
+                      </TouchableOpacity>
+                    ));
+                  }
+                  return null;
+                })()}
 
                 <View style={[styles.tile, styles.orgTileSingle]}>
                   <Text style={styles.orgTileLabel}>Stores</Text>
@@ -2215,6 +2845,8 @@ export default function ProductsScreen() {
                     </View>
 
                     <View style={[styles.tile, styles.statusTileRight]}>
+                      <Text style={styles.statusTileLabel}>Stock</Text>
+                      <Text style={styles.statusTileValue}>{selectedProductForEdit.stock || 0} {selectedProductForEdit.unit || 'units'}</Text>
                     </View>
                   </View>
                 </View>
@@ -2287,30 +2919,64 @@ export default function ProductsScreen() {
                     <Text style={styles.orgTileValue}>{selectedProductForEdit.category || 'Select category'}</Text>
                   </TouchableOpacity>
 
-                  <View style={[styles.tile, styles.orgTileSingle]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openCollectionsDrawer(selectedProductForEdit, true)}
+                  >
                     <Text style={styles.orgTileLabel}>Collection</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.collection || 'Not set'}</Text>
-                  </View>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.collection || 'Select collection'}</Text>
+                  </TouchableOpacity>
 
-                  <View style={[styles.tile, styles.orgTileSingle]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openVendorsDrawer(selectedProductForEdit, true)}
+                  >
                     <Text style={styles.orgTileLabel}>Vendor</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.vendor || 'Not set'}</Text>
-                  </View>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.vendor || 'Select vendor'}</Text>
+                  </TouchableOpacity>
 
-                  <View style={[styles.tile, styles.orgTileSingle]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openBrandsDrawer(selectedProductForEdit, true)}
+                  >
                     <Text style={styles.orgTileLabel}>Brand</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.brand || 'Not set'}</Text>
-                  </View>
+                    <Text style={styles.orgTileValue}>{selectedProductForEdit.brand || 'Select brand'}</Text>
+                  </TouchableOpacity>
 
-                  <View style={[styles.tile, styles.orgTileSingle]}>
-                    <Text style={styles.orgTileLabel}>Unit</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.unit || 'Not set'}</Text>
-                  </View>
-
-                  <View style={[styles.tile, styles.orgTileSingle]}>
+                  <TouchableOpacity
+                    style={[styles.tile, styles.orgTileSingle]}
+                    onPress={() => openTagsDrawer(selectedProductForEdit, true)}
+                  >
                     <Text style={styles.orgTileLabel}>Tags</Text>
-                    <Text style={styles.orgTileValue}>{selectedProductForEdit.tags || 'Not set'}</Text>
-                  </View>
+                    <Text style={styles.orgTileValue}>
+                      {(() => {
+                        const selectedIds = parseSelectedIds(selectedProductForEdit.tags || '[]');
+                        if (selectedIds.length === 0) {
+                          return 'Select tags';
+                        } else {
+                          return `${selectedIds.length} tag${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        }
+                      })()}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {(() => {
+                    const selectedIds = parseSelectedIds(selectedProductForEdit.tags || '[]');
+                    if (selectedIds.length > 0) {
+                      const selectedTags = availableTags.filter(tag => selectedIds.includes(tag.id));
+                      return selectedTags.map((tag) => (
+                        <TouchableOpacity
+                          key={tag.id}
+                          style={[styles.tile, styles.orgTileSingle]}
+                          onPress={() => openTagsDrawer(selectedProductForEdit, true)}
+                        >
+                          <Text style={styles.orgTileLabel}>{tag.name}</Text>
+                          <Text style={styles.orgTileValue}>{tag.notes || 'No description'}</Text>
+                        </TouchableOpacity>
+                      ));
+                    }
+                    return null;
+                  })()}
 
                   <View style={[styles.tile, styles.orgTileSingle]}>
                     <Text style={styles.orgTileLabel}>Stores</Text>
@@ -2737,12 +3403,7 @@ export default function ProductsScreen() {
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setMetafieldsDrawerVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
             <Text style={styles.modalTitle}>Select Metafields</Text>
             <View style={styles.headerActions}>
               <TouchableOpacity
@@ -2755,7 +3416,7 @@ export default function ProductsScreen() {
                 style={styles.saveButton}
                 onPress={handleMetafieldsSelection}
               >
-                <Text style={styles.saveButtonText}>Done</Text>
+                <Ionicons name="checkmark" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
@@ -2930,6 +3591,104 @@ export default function ProductsScreen() {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Collections Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={collectionsDrawerVisible}
+        onRequestClose={() => setCollectionsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Collection</Text>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => setCreateCollectionModalVisible(true)}
+            >
+              <Ionicons name="add" size={20} color="#0066CC" />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={availableCollections.filter(col => col.parent === null)}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => selectCollection(item.id)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item.name}</Text>
+                  {item.notes && (
+                    <Text style={styles.categoryNotes}>{item.notes}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No collections available</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Vendors Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={vendorsDrawerVisible}
+        onRequestClose={() => setVendorsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Vendor</Text>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => setCreateVendorModalVisible(true)}
+            >
+              <Ionicons name="add" size={20} color="#0066CC" />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={availableVendors}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => selectVendor(item.id)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item.name}</Text>
+                  {item.notes && (
+                    <Text style={styles.categoryNotes}>{item.notes}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No vendors available</Text>
+              </View>
+            )}
           />
         </SafeAreaView>
       </Modal>
@@ -3353,6 +4112,437 @@ export default function ProductsScreen() {
             ListEmptyComponent={() => (
               <View style={{ padding: 16, alignItems: 'center' }}>
                 <Text style={{ color: '#666' }}>No categories available as parents</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Brands Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={brandsDrawerVisible}
+        onRequestClose={() => setBrandsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Brand</Text>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => setCreateBrandModalVisible(true)}
+            >
+              <Ionicons name="add" size={20} color="#0066CC" />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={availableBrands}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => selectBrand(item.id)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item.name}</Text>
+                  {item.notes && (
+                    <Text style={styles.categoryNotes}>{item.notes}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No brands available</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Tags Multi-Select Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={tagsDrawerVisible}
+        onRequestClose={() => setTagsDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Tags</Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={() => setCreateTagModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#0066CC" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleTagsSelection}
+              >
+                <Ionicons name="checkmark" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.selectionInfo}>
+            <Text style={styles.selectionText}>
+              {selectedTagIds.length} tag{selectedTagIds.length !== 1 ? 's' : ''} selected
+            </Text>
+          </View>
+
+          <FlatList
+            data={availableTags}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.optionItem,
+                  selectedTagIds.includes(item.id) && styles.selectedOptionItem
+                ]}
+                onPress={() => toggleTagSelection(item.id)}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{item.name}</Text>
+                  {item.notes && (
+                    <Text style={styles.optionValue}>{item.notes}</Text>
+                  )}
+                </View>
+                <View style={styles.checkbox}>
+                  {selectedTagIds.includes(item.id) && (
+                    <Ionicons name="checkmark" size={16} color="#0066CC" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={() => (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No tags available</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Collection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createCollectionModalVisible}
+        onRequestClose={() => setCreateCollectionModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Create New Collection</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewCollection}
+              disabled={isCreatingCollection}
+            >
+              {isCreatingCollection ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
+              <TextInput
+                style={styles.titleInput}
+                value={newCollectionName}
+                onChangeText={setNewCollectionName}
+                placeholder="Collection Name"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.categoryTilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newCollectionImage || '[]'}
+                  onImageChange={(imageUrl) => setNewCollectionImage(imageUrl)}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.parentTile}
+                onPress={() => setParentCollectionModalVisible(true)}
+              >
+                {selectedParentCollection ? (
+                  <View style={styles.selectedParentContainer}>
+                    <Text style={styles.selectedParentText}>
+                      {selectedParentCollection.name}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.clearParentButton}
+                      onPress={() => {
+                        setSelectedParentCollection(null);
+                        setNewCollectionParent(null);
+                      }}
+                    >
+                      <Text style={styles.clearButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.emptyParentContainer}>
+                    <Ionicons name="folder-outline" size={32} color="#999" />
+                    <Text style={styles.parentPlaceholder}>Parent Collection</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.notesInput}
+                value={newCollectionNotes}
+                onChangeText={setNewCollectionNotes}
+                placeholder="Add notes about this collection..."
+                placeholderTextColor="#999"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Vendor Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createVendorModalVisible}
+        onRequestClose={() => setCreateVendorModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Create New Vendor</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewVendor}
+              disabled={isCreatingVendor}
+            >
+              {isCreatingVendor ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
+              <TextInput
+                style={styles.titleInput}
+                value={newVendorName}
+                onChangeText={setNewVendorName}
+                placeholder="Vendor Name"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.categoryTilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newVendorImage || '[]'}
+                  onImageChange={(imageUrl) => setNewVendorImage(imageUrl)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.notesInput}
+                value={newVendorNotes}
+                onChangeText={setNewVendorNotes}
+                placeholder="Add notes about this vendor..."
+                placeholderTextColor="#999"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Brand Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createBrandModalVisible}
+        onRequestClose={() => setCreateBrandModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Create New Brand</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewBrand}
+              disabled={isCreatingBrand}
+            >
+              {isCreatingBrand ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
+              <TextInput
+                style={styles.titleInput}
+                value={newBrandName}
+                onChangeText={setNewBrandName}
+                placeholder="Brand Name"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.categoryTilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newBrandImage || '[]'}
+                  onImageChange={(imageUrl) => setNewBrandImage(imageUrl)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.notesInput}
+                value={newBrandNotes}
+                onChangeText={setNewBrandNotes}
+                placeholder="Add notes about this brand..."
+                placeholderTextColor="#999"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Create New Tag Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={createTagModalVisible}
+        onRequestClose={() => setCreateTagModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Create New Tag</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={createNewTag}
+              disabled={isCreatingTag}
+            >
+              {isCreatingTag ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={[styles.formGroup, styles.titleInputContainer]}>
+              <TextInput
+                style={styles.titleInput}
+                value={newTagName}
+                onChangeText={setNewTagName}
+                placeholder="Tag Name"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.categoryTilesContainer}>
+              <View style={styles.imageTile}>
+                <SingleImageUploader
+                  imageUrl={newTagImage || '[]'}
+                  onImageChange={(imageUrl) => setNewTagImage(imageUrl)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.notesInput}
+                value={newTagNotes}
+                onChangeText={setNewTagNotes}
+                placeholder="Add notes about this tag..."
+                placeholderTextColor="#999"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Parent Collection Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={parentCollectionModalVisible}
+        onRequestClose={() => setParentCollectionModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.parentModalContainer}>
+          <View style={styles.parentModalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.parentModalTitle}>Parent Collection</Text>
+          </View>
+
+          <FlatList
+            data={availableCollections.filter(col => col.parent === null)}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.parentCategoryItem}
+                onPress={() => {
+                  setSelectedParentCollection(item);
+                  setNewCollectionParent(item.id);
+                  setParentCollectionModalVisible(false);
+                }}
+              >
+                <Text style={styles.parentCategoryText}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            ItemSeparatorComponent={() => <View style={styles.parentCategoryDivider} />}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ color: '#666' }}>No collections available as parents</Text>
               </View>
             )}
           />
