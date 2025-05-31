@@ -211,6 +211,19 @@ export default function ProductsScreen() {
     relproducts: '[]', // Empty JSON array
     sellproducts: '[]', // Empty JSON array
   });
+
+  // Inventory generation states
+  const [generateInventoryModalVisible, setGenerateInventoryModalVisible] = useState(false);
+  const [inventoryGenerationPreview, setInventoryGenerationPreview] = useState<any[]>([]);
+  const [isGeneratingInventory, setIsGeneratingInventory] = useState(false);
+  const [inventoryGenerationSettings, setInventoryGenerationSettings] = useState({
+    skuPattern: '{product}-{option1}-{option2}-{option3}',
+    defaultCost: 0,
+    defaultPrice: 0,
+    defaultStock: 10,
+    defaultSalePrice: 0
+  });
+
   const { profileData } = useOnboarding();
 
   // Helper function to reset new option form
@@ -1741,6 +1754,225 @@ export default function ProductsScreen() {
       return selectedTags.map(tag => tag.name).join(', ');
     } else {
       return `${selectedTags.slice(0, 2).map(tag => tag.name).join(', ')} +${selectedTags.length - 2} more`;
+    }
+  };
+
+  // Generate option combinations for inventory
+  const generateOptionCombinations = (selectedOptionIds: number[]): any[] => {
+    if (selectedOptionIds.length === 0) return [];
+
+    // Get the selected options with their details
+    const selectedOptions = availableOptions.filter(option => selectedOptionIds.includes(option.id));
+
+    // Group options by their parent (to handle hierarchical options)
+    const optionGroups: { [key: string]: any[] } = {};
+
+    selectedOptions.forEach(option => {
+      if (option.parentid === null) {
+        // This is a root option
+        const groupKey = option.title || `group_${option.id}`;
+        if (!optionGroups[groupKey]) {
+          optionGroups[groupKey] = [];
+        }
+        optionGroups[groupKey].push(option);
+
+        // Add children of this option
+        const children = availableOptions.filter(child => child.parentid === option.id && selectedOptionIds.includes(child.id));
+        optionGroups[groupKey].push(...children);
+      }
+    });
+
+    // If no groups found, treat all as individual options
+    if (Object.keys(optionGroups).length === 0) {
+      selectedOptions.forEach(option => {
+        const groupKey = option.title || `option_${option.id}`;
+        optionGroups[groupKey] = [option];
+      });
+    }
+
+    // Generate combinations
+    const groupKeys = Object.keys(optionGroups);
+    const combinations: any[] = [];
+
+    if (groupKeys.length === 1) {
+      // Single group - each option is a variant
+      const group = optionGroups[groupKeys[0]];
+      group.forEach(option => {
+        combinations.push({
+          option1: option.value || option.title,
+          option2: '',
+          option3: '',
+          options: [option]
+        });
+      });
+    } else if (groupKeys.length === 2) {
+      // Two groups - cartesian product
+      const group1 = optionGroups[groupKeys[0]];
+      const group2 = optionGroups[groupKeys[1]];
+
+      group1.forEach(opt1 => {
+        group2.forEach(opt2 => {
+          combinations.push({
+            option1: opt1.value || opt1.title,
+            option2: opt2.value || opt2.title,
+            option3: '',
+            options: [opt1, opt2]
+          });
+        });
+      });
+    } else if (groupKeys.length >= 3) {
+      // Three or more groups - use first three
+      const group1 = optionGroups[groupKeys[0]];
+      const group2 = optionGroups[groupKeys[1]];
+      const group3 = optionGroups[groupKeys[2]];
+
+      group1.forEach(opt1 => {
+        group2.forEach(opt2 => {
+          group3.forEach(opt3 => {
+            combinations.push({
+              option1: opt1.value || opt1.title,
+              option2: opt2.value || opt2.title,
+              option3: opt3.value || opt3.title,
+              options: [opt1, opt2, opt3]
+            });
+          });
+        });
+      });
+    }
+
+    return combinations;
+  };
+
+  // Generate SKU based on pattern
+  const generateSKU = (productTitle: string, combination: any, pattern: string): string => {
+    let sku = pattern;
+    sku = sku.replace('{product}', (productTitle || 'PROD').toUpperCase().replace(/\s+/g, '').substring(0, 8));
+    sku = sku.replace('{option1}', (combination.option1 || '').toUpperCase().replace(/\s+/g, '').substring(0, 6));
+    sku = sku.replace('{option2}', (combination.option2 || '').toUpperCase().replace(/\s+/g, '').substring(0, 6));
+    sku = sku.replace('{option3}', (combination.option3 || '').toUpperCase().replace(/\s+/g, '').substring(0, 6));
+
+    // Remove empty parts and clean up
+    sku = sku.replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    return sku || 'AUTO-SKU';
+  };
+
+  // Open inventory generation modal
+  const openInventoryGenerationModal = () => {
+    if (!selectedProductForEdit) return;
+
+    const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
+    if (selectedIds.length === 0) {
+      Alert.alert('No Options', 'Please select options for this product before generating inventory variants.');
+      return;
+    }
+
+    const combinations = generateOptionCombinations(selectedIds);
+    if (combinations.length === 0) {
+      Alert.alert('No Combinations', 'No valid option combinations found.');
+      return;
+    }
+
+    if (combinations.length > 50) {
+      Alert.alert(
+        'Too Many Combinations',
+        `This will generate ${combinations.length} inventory items. Consider reducing the number of selected options.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => {
+            setInventoryGenerationPreview(combinations);
+            setGenerateInventoryModalVisible(true);
+          }}
+        ]
+      );
+    } else {
+      setInventoryGenerationPreview(combinations);
+      setGenerateInventoryModalVisible(true);
+    }
+  };
+
+  // Generate inventory items
+  const generateInventoryItems = async () => {
+    if (!selectedProductForEdit || inventoryGenerationPreview.length === 0) return;
+
+    try {
+      setIsGeneratingInventory(true);
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Prepare batch insert requests
+      const requests = inventoryGenerationPreview.map(combination => {
+        const sku = generateSKU(selectedProductForEdit.title || '', combination, inventoryGenerationSettings.skuPattern);
+
+        return {
+          type: "execute",
+          stmt: {
+            sql: `INSERT INTO inventory (
+              productId, sku, barcode, image, option1, option2, option3,
+              reorderlevel, path, available, committed, unavailable, onhand,
+              metafields, cost, price, margin, saleprice
+            ) VALUES (
+              ${selectedProductForEdit.id},
+              '${sku.replace(/'/g, "''")}',
+              '',
+              '[]',
+              '${(combination.option1 || '').replace(/'/g, "''")}',
+              '${(combination.option2 || '').replace(/'/g, "''")}',
+              '${(combination.option3 || '').replace(/'/g, "''")}',
+              0,
+              '',
+              ${inventoryGenerationSettings.defaultStock},
+              0,
+              0,
+              ${inventoryGenerationSettings.defaultStock},
+              '[]',
+              ${inventoryGenerationSettings.defaultCost},
+              ${inventoryGenerationSettings.defaultPrice},
+              0,
+              ${inventoryGenerationSettings.defaultSalePrice}
+            )`
+          }
+        };
+      });
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ requests })
+      });
+
+      const responseText = await response.text();
+      if (response.ok) {
+        const data = JSON.parse(responseText);
+        console.log('Inventory generation response:', data);
+
+        // Close modal and refresh inventory
+        setGenerateInventoryModalVisible(false);
+        setInventoryGenerationPreview([]);
+
+        // Refresh inventory for the current product
+        if (selectedProductForEdit.id) {
+          fetchInventoryForProduct(selectedProductForEdit.id);
+        }
+
+        Alert.alert('Success', `Generated ${inventoryGenerationPreview.length} inventory variants successfully!`);
+      } else {
+        throw new Error(`HTTP ${response.status}: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('Error generating inventory:', error);
+      Alert.alert('Error', 'Failed to generate inventory items. Please try again.');
+    } finally {
+      setIsGeneratingInventory(false);
     }
   };
 
@@ -3353,6 +3585,15 @@ export default function ProductsScreen() {
                   </View>
                 ) : (
                   <View style={styles.simpleInventoryList}>
+                    {/* Generate Variants Button */}
+                    <TouchableOpacity
+                      style={styles.generateVariantsButton}
+                      onPress={openInventoryGenerationModal}
+                    >
+                      <Ionicons name="layers-outline" size={20} color="#0066CC" />
+                      <Text style={styles.generateVariantsText}>Generate Variants from Options</Text>
+                    </TouchableOpacity>
+
                     {(() => {
                       console.log('Current inventory state:', inventory);
                       console.log('Selected product for edit:', selectedProductForEdit.id);
@@ -4780,6 +5021,116 @@ export default function ProductsScreen() {
           />
         </SafeAreaView>
       </Modal>
+
+      {/* Inventory Generation Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={generateInventoryModalVisible}
+        onRequestClose={() => setGenerateInventoryModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setGenerateInventoryModalVisible(false)}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Generate Inventory Variants</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={generateInventoryItems}
+              disabled={isGeneratingInventory}
+            >
+              {isGeneratingInventory ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Generate</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.formContainer}>
+            {/* Settings Section */}
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>SKU Pattern</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryGenerationSettings.skuPattern}
+                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, skuPattern: text})}
+                placeholder="e.g., {product}-{option1}-{option2}"
+              />
+              <Text style={styles.helperText}>Use {'{product}'}, {'{option1}'}, {'{option2}'}, {'{option3}'} as placeholders</Text>
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Default Cost ($)</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryGenerationSettings.defaultCost.toString()}
+                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultCost: parseFloat(text) || 0})}
+                placeholder="0.00"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Default Price ($)</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryGenerationSettings.defaultPrice.toString()}
+                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultPrice: parseFloat(text) || 0})}
+                placeholder="0.00"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Default Stock Quantity</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryGenerationSettings.defaultStock.toString()}
+                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultStock: parseInt(text) || 0})}
+                placeholder="10"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.inputLabel}>Default Sale Price ($)</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryGenerationSettings.defaultSalePrice.toString()}
+                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultSalePrice: parseFloat(text) || 0})}
+                placeholder="0.00"
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* Preview Section */}
+            <View style={styles.previewSection}>
+              <Text style={styles.previewTitle}>Preview ({inventoryGenerationPreview.length} variants will be generated)</Text>
+              {inventoryGenerationPreview.slice(0, 5).map((combination, index) => {
+                const previewSku = generateSKU(selectedProductForEdit?.title || '', combination, inventoryGenerationSettings.skuPattern);
+                return (
+                  <View key={index} style={styles.previewItem}>
+                    <Text style={styles.previewSku}>{previewSku}</Text>
+                    <Text style={styles.previewOptions}>
+                      {[combination.option1, combination.option2, combination.option3].filter(Boolean).join(' • ')}
+                    </Text>
+                  </View>
+                );
+              })}
+              {inventoryGenerationPreview.length > 5 && (
+                <Text style={styles.previewMore}>... and {inventoryGenerationPreview.length - 5} more variants</Text>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -5738,5 +6089,71 @@ const styles = StyleSheet.create({
   unitText: {
     fontSize: 16,
     color: '#333',
+  },
+  // Generate variants button styles
+  generateVariantsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#0066CC',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    marginHorizontal: 16,
+  },
+  generateVariantsText: {
+    fontSize: 16,
+    color: '#0066CC',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  // Inventory generation modal styles
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  previewSection: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  previewItem: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  previewSku: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  previewOptions: {
+    fontSize: 12,
+    color: '#666',
+  },
+  previewMore: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
