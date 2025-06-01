@@ -3006,7 +3006,7 @@ export default function ProductsScreen() {
             <View style={{ margin: -16, padding: 0 }}>
               <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                 <TouchableOpacity
-                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                  style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile, { borderTopWidth: 0 }]}
                   onPress={() => openOptionsDrawer(newProduct, false)}
                 >
                   <Text style={styles.orgTileLabel}>Options</Text>
@@ -3016,7 +3016,7 @@ export default function ProductsScreen() {
                       if (selectedIds.length === 0) {
                         return 'Select options';
                       } else {
-                        return `${selectedIds.length} option${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        return selectedIds.length.toString();
                       }
                     })()}
                   </Text>
@@ -3027,21 +3027,20 @@ export default function ProductsScreen() {
                   if (selectedIds.length > 0) {
                     const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
                     return selectedOptions.map((option) => (
-                      <TouchableOpacity
+                      <View
                         key={option.id}
                         style={[styles.tile, styles.orgTileSingle]}
-                        onPress={() => openOptionsDrawer(newProduct, false)}
                       >
                         <Text style={styles.orgTileLabel}>{option.title}</Text>
                         <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
-                      </TouchableOpacity>
+                      </View>
                     ));
                   }
                   return null;
                 })()}
 
                 <TouchableOpacity
-                  style={[styles.tile, styles.orgTileSingle]}
+                  style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile]}
                   onPress={() => openModifiersDrawer(newProduct, false)}
                 >
                   <Text style={styles.orgTileLabel}>Modifiers</Text>
@@ -3051,7 +3050,7 @@ export default function ProductsScreen() {
                       if (selectedIds.length === 0) {
                         return 'Select modifiers';
                       } else {
-                        return `${selectedIds.length} modifier${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        return selectedIds.length.toString();
                       }
                     })()}
                   </Text>
@@ -3062,14 +3061,13 @@ export default function ProductsScreen() {
                   if (selectedIds.length > 0) {
                     const selectedModifiers = availableModifiers.filter(modifier => selectedIds.includes(modifier.id));
                     return selectedModifiers.map((modifier) => (
-                      <TouchableOpacity
+                      <View
                         key={modifier.id}
                         style={[styles.tile, styles.orgTileSingle]}
-                        onPress={() => openModifiersDrawer(newProduct, false)}
                       >
                         <Text style={styles.orgTileLabel}>{modifier.title}</Text>
                         <Text style={styles.orgTileValue}>{modifier.value ? `$${modifier.value.toFixed(2)}` : 'Not set'}</Text>
-                      </TouchableOpacity>
+                      </View>
                     ));
                   }
                   return null;
@@ -3503,7 +3501,7 @@ export default function ProductsScreen() {
               <View style={{ margin: -16, padding: 0 }}>
                 <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                   <TouchableOpacity
-                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                    style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile, { borderTopWidth: 0 }]}
                     onPress={() => openOptionsDrawer(selectedProductForEdit, true)}
                   >
                     <Text style={styles.orgTileLabel}>Options</Text>
@@ -3513,7 +3511,7 @@ export default function ProductsScreen() {
                         if (selectedIds.length === 0) {
                           return 'Select options';
                         } else {
-                          return `${selectedIds.length} option${selectedIds.length !== 1 ? 's' : ''} selected`;
+                          return selectedIds.length.toString();
                         }
                       })()}
                     </Text>
@@ -3524,21 +3522,20 @@ export default function ProductsScreen() {
                     if (selectedIds.length > 0) {
                       const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
                       return selectedOptions.map((option) => (
-                        <TouchableOpacity
+                        <View
                           key={option.id}
                           style={[styles.tile, styles.orgTileSingle]}
-                          onPress={() => openOptionsDrawer(selectedProductForEdit, true)}
                         >
                           <Text style={styles.orgTileLabel}>{option.title}</Text>
                           <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
-                        </TouchableOpacity>
+                        </View>
                       ));
                     }
                     return null;
                   })()}
 
                   <TouchableOpacity
-                    style={[styles.tile, styles.orgTileSingle]}
+                    style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile]}
                     onPress={() => openModifiersDrawer(selectedProductForEdit, true)}
                   >
                     <Text style={styles.orgTileLabel}>Modifiers</Text>
@@ -3548,7 +3545,7 @@ export default function ProductsScreen() {
                         if (selectedIds.length === 0) {
                           return 'Select modifiers';
                         } else {
-                          return `${selectedIds.length} modifier${selectedIds.length !== 1 ? 's' : ''} selected`;
+                          return selectedIds.length.toString();
                         }
                       })()}
                     </Text>
@@ -3559,14 +3556,13 @@ export default function ProductsScreen() {
                     if (selectedIds.length > 0) {
                       const selectedModifiers = availableModifiers.filter(modifier => selectedIds.includes(modifier.id));
                       return selectedModifiers.map((modifier) => (
-                        <TouchableOpacity
+                        <View
                           key={modifier.id}
                           style={[styles.tile, styles.orgTileSingle]}
-                          onPress={() => openModifiersDrawer(selectedProductForEdit, true)}
                         >
                           <Text style={styles.orgTileLabel}>{modifier.title}</Text>
                           <Text style={styles.orgTileValue}>{modifier.value ? `$${modifier.value.toFixed(2)}` : 'Not set'}</Text>
-                        </TouchableOpacity>
+                        </View>
                       ));
                     }
                     return null;
@@ -3716,40 +3712,48 @@ export default function ProductsScreen() {
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
+          <View style={styles.optionsModalHeader}>
             <TouchableOpacity
-              onPress={() => setOptionsDrawerVisible(false)}
-              style={styles.backButton}
+              style={styles.createButton}
+              onPress={() => setCreateOptionModalVisible(true)}
             >
-              <Ionicons name="arrow-back" size={24} color="#000" />
+              <Ionicons name="add" size={20} color="#0066CC" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Options</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.createButton}
-                onPress={() => setCreateOptionModalVisible(true)}
-              >
-                <Ionicons name="add" size={20} color="#0066CC" />
-              </TouchableOpacity>
+            <Text style={styles.optionsModalTitle}>Select Options</Text>
+            <View style={styles.optionsHeaderActions}>
+              <Text style={styles.optionsSelectionCount}>
+                {selectedOptionIds.length}
+              </Text>
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleOptionsSelection}
               >
-                <Text style={styles.saveButtonText}>Done</Text>
+                <Ionicons name="checkmark" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.selectionInfo}>
-            <Text style={styles.selectionText}>
-              {selectedOptionIds.length} option{selectedOptionIds.length !== 1 ? 's' : ''} selected
-            </Text>
-          </View>
-
           <FlatList
-            data={availableOptions.filter(option => option.parentid === null)}
+            data={availableOptions
+              .filter(option => option.parentid === null)
+              .sort((a, b) => {
+                const aSelected = selectedOptionIds.includes(a.id);
+                const bSelected = selectedOptionIds.includes(b.id);
+                if (aSelected && !bSelected) return -1;
+                if (!aSelected && bSelected) return 1;
+                return 0;
+              })
+            }
             renderItem={({ item }) => {
-              const children = availableOptions.filter(child => child.parentid === item.id);
+              const children = availableOptions
+                .filter(child => child.parentid === item.id)
+                .sort((a, b) => {
+                  const aSelected = selectedOptionIds.includes(a.id);
+                  const bSelected = selectedOptionIds.includes(b.id);
+                  if (aSelected && !bSelected) return -1;
+                  if (!aSelected && bSelected) return 1;
+                  return 0;
+                });
               return (
                 <View style={styles.optionGroup}>
                   <TouchableOpacity
@@ -3763,15 +3767,18 @@ export default function ProductsScreen() {
                       <Text style={styles.optionTitle}>{item.title}</Text>
                       <Text style={styles.optionValue}>{item.value}</Text>
                     </View>
-                    <View style={styles.checkbox}>
-                      {selectedOptionIds.includes(item.id) && (
-                        <Ionicons name="checkmark" size={16} color="#0066CC" />
-                      )}
-                    </View>
                   </TouchableOpacity>
 
                   {children.map(child => {
-                    const grandChildren = availableOptions.filter(gc => gc.parentid === child.id);
+                    const grandChildren = availableOptions
+                      .filter(gc => gc.parentid === child.id)
+                      .sort((a, b) => {
+                        const aSelected = selectedOptionIds.includes(a.id);
+                        const bSelected = selectedOptionIds.includes(b.id);
+                        if (aSelected && !bSelected) return -1;
+                        if (!aSelected && bSelected) return 1;
+                        return 0;
+                      });
                     return (
                       <View key={child.id}>
                         <TouchableOpacity
@@ -3784,11 +3791,6 @@ export default function ProductsScreen() {
                           <View style={styles.optionContent}>
                             <Text style={styles.childOptionTitle}>{child.title}</Text>
                             <Text style={styles.childOptionValue}>{child.value}</Text>
-                          </View>
-                          <View style={styles.checkbox}>
-                            {selectedOptionIds.includes(child.id) && (
-                              <Ionicons name="checkmark" size={16} color="#0066CC" />
-                            )}
                           </View>
                         </TouchableOpacity>
 
@@ -3804,11 +3806,6 @@ export default function ProductsScreen() {
                             <View style={styles.optionContent}>
                               <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
                               <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
-                            </View>
-                            <View style={styles.checkbox}>
-                              {selectedOptionIds.includes(grandChild.id) && (
-                                <Ionicons name="checkmark" size={16} color="#0066CC" />
-                              )}
                             </View>
                           </TouchableOpacity>
                         ))}
@@ -3966,38 +3963,35 @@ export default function ProductsScreen() {
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
+          <View style={styles.optionsModalHeader}>
             <TouchableOpacity
-              onPress={() => setModifiersDrawerVisible(false)}
-              style={styles.backButton}
+              style={styles.createButton}
+              onPress={() => setCreateModifierModalVisible(true)}
             >
-              <Ionicons name="arrow-back" size={24} color="#000" />
+              <Ionicons name="add" size={20} color="#0066CC" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Modifiers</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.createButton}
-                onPress={() => setCreateModifierModalVisible(true)}
-              >
-                <Ionicons name="add" size={20} color="#0066CC" />
-              </TouchableOpacity>
+            <Text style={styles.optionsModalTitle}>Select Modifiers</Text>
+            <View style={styles.optionsHeaderActions}>
+              <Text style={styles.optionsSelectionCount}>
+                {selectedModifierIds.length}
+              </Text>
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleModifiersSelection}
               >
-                <Text style={styles.saveButtonText}>Done</Text>
+                <Ionicons name="checkmark" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.selectionInfo}>
-            <Text style={styles.selectionText}>
-              {selectedModifierIds.length} modifier{selectedModifierIds.length !== 1 ? 's' : ''} selected
-            </Text>
-          </View>
-
           <FlatList
-            data={availableModifiers}
+            data={availableModifiers.sort((a, b) => {
+              const aSelected = selectedModifierIds.includes(a.id);
+              const bSelected = selectedModifierIds.includes(b.id);
+              if (aSelected && !bSelected) return -1;
+              if (!aSelected && bSelected) return 1;
+              return 0;
+            })}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[
@@ -4013,11 +4007,6 @@ export default function ProductsScreen() {
                     {item.value && ` | Value: $${item.value.toFixed(2)}`}
                     {item.identifier && ` | ID: ${item.identifier}`}
                   </Text>
-                </View>
-                <View style={styles.checkbox}>
-                  {selectedModifierIds.includes(item.id) && (
-                    <Ionicons name="checkmark" size={16} color="#0066CC" />
-                  )}
                 </View>
               </TouchableOpacity>
             )}
@@ -5691,6 +5680,37 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#f0f8ff',
   },
+  // Options modal specific header styles
+  optionsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    paddingRight: 0,
+    paddingVertical: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fff',
+    height: 48,
+  },
+  optionsModalTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+    textAlign: 'left',
+    marginLeft: 16,
+    marginRight: 16,
+  },
+  optionsHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionsSelectionCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 12,
+  },
   createFormContainer: {
     padding: 16,
     flex: 1,
@@ -5895,6 +5915,10 @@ const styles = StyleSheet.create({
     minHeight: 60,
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
+  },
+  // Light blue background for main Options and Modifiers tiles
+  optionsModifiersTile: {
+    backgroundColor: '#f0f8ff',
   },
   orgTileLabel: {
     fontSize: 14,
