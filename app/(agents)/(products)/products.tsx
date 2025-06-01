@@ -1,6 +1,6 @@
 import { useOnboarding } from '@/app/context/onboarding';
 import { useProduct } from '@/app/context/product';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -94,6 +94,9 @@ export default function ProductsScreen() {
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [editInventoryModalVisible, setEditInventoryModalVisible] = useState(false);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'metafields' | 'pricing' | 'stock' | null>(null);
 
   // Multi-select drawer states
   const [optionsDrawerVisible, setOptionsDrawerVisible] = useState(false);
@@ -1294,6 +1297,132 @@ export default function ProductsScreen() {
     }
   };
 
+  const updateInventoryItem = async () => {
+    try {
+      if (!selectedInventoryItem) {
+        Alert.alert('Error', 'No inventory item selected');
+        return;
+      }
+
+
+
+      setIsLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Create the request body with direct SQL values for UPDATE
+      const sqlQuery = `UPDATE inventory SET
+        image = '${(selectedInventoryItem.image || '').replace(/'/g, "''")}',
+        barcode = '${(selectedInventoryItem.barcode || '').replace(/'/g, "''")}',
+        reorderlevel = ${selectedInventoryItem.reorderlevel || 0},
+        path = '${(selectedInventoryItem.path || '').replace(/'/g, "''")}',
+        available = ${selectedInventoryItem.available || 0},
+        committed = ${selectedInventoryItem.committed || 0},
+        unavailable = ${selectedInventoryItem.unavailable || 0},
+        onhand = ${selectedInventoryItem.onhand || 0},
+        metafields = '${(selectedInventoryItem.metafields || '').replace(/'/g, "''")}',
+        cost = ${selectedInventoryItem.cost || 0},
+        price = ${selectedInventoryItem.price || 0},
+        margin = ${selectedInventoryItem.margin || 0},
+        saleprice = ${selectedInventoryItem.saleprice || 0}
+        WHERE id = ${selectedInventoryItem.id}`;
+
+      console.log('Generated UPDATE SQL Query:', sqlQuery);
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: sqlQuery
+            }
+          }
+        ]
+      };
+
+      // Log the request for debugging
+      console.log('API URL:', apiUrl);
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Update inventory item
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Get the response text
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed response data:', JSON.stringify(data, null, 2));
+
+          // Check if the operation was successful
+          if (data.results && data.results[0] && data.results[0].response) {
+            console.log('Inventory item updated successfully');
+
+            // Close modal and reset selection
+            setEditInventoryModalVisible(false);
+            setSelectedInventoryItem(null);
+
+            // Refresh inventory list for the current product
+            if (selectedProductForEdit?.id) {
+              fetchInventoryForProduct(selectedProductForEdit.id);
+            }
+          } else {
+            console.error('Unexpected response structure:', data);
+            Alert.alert(
+              'Error',
+              'Unexpected response from server. Please try again.',
+              [{ text: 'OK' }]
+            );
+          }
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          console.log('Raw response text:', responseText);
+          Alert.alert(
+            'Error',
+            'Error parsing server response. Please try again.',
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        console.error('Failed to update inventory item:', responseText);
+        Alert.alert(
+          'Error',
+          `Failed to update inventory item. Status: ${response.status}. Please try again.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating inventory item:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while updating the inventory item. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -1364,7 +1493,14 @@ export default function ProductsScreen() {
 
   const handleMetafieldsSelection = () => {
     const selectedIdsJson = JSON.stringify(selectedMetafieldIds);
-    if (isEditMode && selectedProductForEdit) {
+
+    // Check if we're editing an inventory item
+    if (selectedInventoryItem) {
+      setSelectedInventoryItem({
+        ...selectedInventoryItem,
+        metafields: selectedIdsJson
+      });
+    } else if (isEditMode && selectedProductForEdit) {
       setSelectedProductForEdit({...selectedProductForEdit, metafields: selectedIdsJson});
     } else {
       setNewProduct({...newProduct, metafields: selectedIdsJson});
@@ -2499,16 +2635,56 @@ export default function ProductsScreen() {
     </View>
   );
 
+  // Handle edit inventory item
+  const handleEditInventoryItem = (item: InventoryItem) => {
+    setSelectedInventoryItem(item);
+
+    // Initialize metafields selection for inventory item
+    try {
+      const metafieldIds = JSON.parse(item.metafields || '[]');
+      setSelectedMetafieldIds(Array.isArray(metafieldIds) ? metafieldIds : []);
+    } catch (error) {
+      setSelectedMetafieldIds([]);
+    }
+
+    // Reset tab sections
+    setActiveInventoryTab(null);
+
+    setEditInventoryModalVisible(true);
+  };
+
+  // Handle inventory item image change
+  const handleInventoryImageChange = (imageUrl: string) => {
+    if (selectedInventoryItem) {
+      setSelectedInventoryItem({
+        ...selectedInventoryItem,
+        image: imageUrl
+      });
+    }
+  };
+
+  // Handle inventory metafields selection
+  const handleInventoryMetafieldsSelection = () => {
+    if (selectedInventoryItem) {
+      const metafieldsJson = JSON.stringify(selectedMetafieldIds);
+      setSelectedInventoryItem({
+        ...selectedInventoryItem,
+        metafields: metafieldsJson
+      });
+    }
+    setMetafieldsDrawerVisible(false);
+  };
+
   const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <View style={styles.inventoryItem}>
-      <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
-      <Text style={styles.inventorySubtitle}>Available: {item.available} | On Hand: {item.onhand} | Path: {item.path}</Text>
-      <Text style={styles.inventoryPrice}>Cost: ${item.cost?.toFixed(2)} | Price: ${item.price?.toFixed(2)}</Text>
-      {item.barcode && <Text style={styles.inventoryOption}>Barcode: {item.barcode}</Text>}
-      {item.option1 && <Text style={styles.inventoryOption}>Option 1: {item.option1}</Text>}
-      {item.option2 && <Text style={styles.inventoryOption}>Option 2: {item.option2}</Text>}
-      {item.option3 && <Text style={styles.inventoryOption}>Option 3: {item.option3}</Text>}
-    </View>
+    <TouchableOpacity
+      style={styles.inventoryItem}
+      onPress={() => handleEditInventoryItem(item)}
+    >
+      <View style={styles.inventoryRow}>
+        <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
+        <Text style={styles.inventoryAvailable}>{item.available}</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   const renderInventoryEmptyList = () => (
@@ -3615,6 +3791,276 @@ export default function ProductsScreen() {
                 )}
               </View>
             </VerticalTabView>
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      {/* Edit Inventory Item Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={editInventoryModalVisible && selectedInventoryItem !== null}
+        onRequestClose={() => setEditInventoryModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle} numberOfLines={1} ellipsizeMode="tail">
+              {selectedInventoryItem?.sku || 'Edit Inventory Item'}
+            </Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={updateInventoryItem}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {selectedInventoryItem && (
+            <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+              {/* Image and Path Row */}
+              <View style={styles.categoryTilesContainer}>
+                <View style={styles.imageTile}>
+                  <SingleImageUploader
+                    imageUrl={selectedInventoryItem.image || '[]'}
+                    onImageChange={handleInventoryImageChange}
+                  />
+                </View>
+
+                <View style={[styles.imageTile, { justifyContent: 'space-between', alignItems: 'flex-start', padding: 16 }]}>
+                  <View style={{ width: '100%' }}>
+                    <Text style={styles.priceTileLabel}>Barcode</Text>
+                    <TextInput
+                      style={[styles.tileInput, { fontSize: 14, fontWeight: '500', color: '#333', marginTop: 4, width: '100%' }]}
+                      value={selectedInventoryItem.barcode}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, barcode: text})}
+                      placeholder="Enter barcode"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+
+                  <View style={{ width: '100%' }}>
+                    <Text style={styles.priceTileLabel}>Path</Text>
+                    <TextInput
+                      style={[styles.tileInput, { fontSize: 14, fontWeight: '500', color: '#333', marginTop: 4, width: '100%' }]}
+                      value={selectedInventoryItem.path}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, path: text})}
+                      placeholder="Enter path"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Second Row - 3 Tiles */}
+              <View style={styles.tilesContainer}>
+                <View style={styles.tilesRow}>
+                  <View style={[styles.tile, styles.tileLeft, activeInventoryTab === 'metafields' && { backgroundColor: '#f0f8ff' }]}>
+                    <TouchableOpacity
+                      style={{ width: '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'flex-start', padding: 16 }}
+                      onPress={() => {
+                        if (activeInventoryTab === 'metafields') {
+                          setMetafieldsDrawerVisible(true);
+                        } else {
+                          setActiveInventoryTab('metafields');
+                        }
+                      }}
+                    >
+                      <Text style={styles.priceTileValue}>M</Text>
+                      <Text style={[styles.priceTileLabel, { fontSize: 10 }]}>Metafields</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.tile, styles.tileMiddle, activeInventoryTab === 'pricing' && { backgroundColor: '#f0f8ff' }]}>
+                    <TouchableOpacity
+                      style={{ width: '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'flex-start', padding: 16 }}
+                      onPress={() => setActiveInventoryTab(activeInventoryTab === 'pricing' ? null : 'pricing')}
+                    >
+                      <Text style={styles.priceTileValue}>${selectedInventoryItem.price?.toFixed(2) || '0.00'}</Text>
+                      <Text style={styles.priceTileLabel}>Price</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.tile, styles.tileRight, activeInventoryTab === 'stock' && { backgroundColor: '#f0f8ff' }]}>
+                    <TouchableOpacity
+                      style={{ width: '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'flex-start', padding: 16 }}
+                      onPress={() => setActiveInventoryTab(activeInventoryTab === 'stock' ? null : 'stock')}
+                    >
+                      <Text style={styles.stockTileValue}>{selectedInventoryItem.onhand || 0}</Text>
+                      <Text style={styles.priceTileLabel}>On Hand</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* Metafields Section - Tab Content */}
+              {activeInventoryTab === 'metafields' && (
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  {/* Selected Metafields Display */}
+                  {selectedMetafieldIds.length > 0 ? (
+                    <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0, paddingHorizontal: 16, paddingVertical: 12 }]}>
+                      <Text style={[styles.orgTileLabel, { marginBottom: 8 }]}>Selected Metafields</Text>
+                      {selectedMetafieldIds.map((metafieldId) => {
+                        const metafield = availableMetafields.find(m => m.id === metafieldId);
+                        return metafield ? (
+                          <View key={metafieldId} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                            <Text style={{ fontSize: 14, color: '#333' }}>{metafield.title}</Text>
+                            <TouchableOpacity
+                              onPress={() => {
+                                const updatedIds = selectedMetafieldIds.filter(id => id !== metafieldId);
+                                setSelectedMetafieldIds(updatedIds);
+                                if (selectedInventoryItem) {
+                                  setSelectedInventoryItem({
+                                    ...selectedInventoryItem,
+                                    metafields: JSON.stringify(updatedIds)
+                                  });
+                                }
+                              }}
+                            >
+                              <MaterialIcons name="close" size={20} color="#999" />
+                            </TouchableOpacity>
+                          </View>
+                        ) : null;
+                      })}
+                    </View>
+                  ) : (
+                    <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center' }]}>
+                      <Text style={{ fontSize: 14, color: '#999' }}>No metafields selected</Text>
+                      <Text style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Tap the Metafields tile to add</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+
+
+              {/* Pricing Section - Tab Content */}
+              {activeInventoryTab === 'pricing' && (
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
+                    <Text style={styles.orgTileLabel}>Reorder Level</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.reorderlevel?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, reorderlevel: parseInt(text) || 0})}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Cost</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.cost?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, cost: parseFloat(text) || 0})}
+                      placeholder="0.00"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Price</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.price?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, price: parseFloat(text) || 0})}
+                      placeholder="0.00"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Sale Price</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.saleprice?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, saleprice: parseFloat(text) || 0})}
+                      placeholder="0.00"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Margin</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.margin?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, margin: parseFloat(text) || 0})}
+                      placeholder="0.00"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Stock Section - Tab Content */}
+              {activeInventoryTab === 'stock' && (
+                <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                  <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
+                    <Text style={styles.orgTileLabel}>Available</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.available?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, available: parseInt(text) || 0})}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Committed</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.committed?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, committed: parseInt(text) || 0})}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>Unavailable</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.unavailable?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, unavailable: parseInt(text) || 0})}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={[styles.tile, styles.orgTileSingle]}>
+                    <Text style={styles.orgTileLabel}>On Hand</Text>
+                    <TextInput
+                      style={styles.tileInput}
+                      value={selectedInventoryItem.onhand?.toString()}
+                      onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, onhand: parseInt(text) || 0})}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+              )}
+
+
+            </ScrollView>
           )}
         </SafeAreaView>
       </Modal>
@@ -5431,11 +5877,21 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#fff',
   },
+  inventoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   inventoryTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  inventoryAvailable: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
   },
   inventorySubtitle: {
     fontSize: 12,
@@ -5932,6 +6388,15 @@ const styles = StyleSheet.create({
     color: '#333',
     alignSelf: 'center',
     textTransform: 'capitalize',
+  },
+  tileInput: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'right',
+    minWidth: 80,
+    padding: 0,
+    margin: 0,
   },
   // Excerpt input styles
   excerptInput: {

@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -45,8 +45,10 @@ export default function InventoryScreen() {
   const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
   const [newInventoryItem, setNewInventoryItem] = useState<Partial<InventoryItem>>({
     productId: 1,
     sku: '',
@@ -326,6 +328,128 @@ export default function InventoryScreen() {
     }
   };
 
+  const updateInventoryItem = async () => {
+    try {
+      if (!selectedInventoryItem) {
+        Alert.alert('Error', 'No inventory item selected');
+        return;
+      }
+
+
+
+      setIsLoading(true);
+
+      // Get the profile data
+      const profile = profileData?.profile?.[0];
+
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
+        throw new Error('Missing database credentials');
+      }
+
+      const { tursoDbName, tursoApiToken } = profile;
+
+      // Construct API URL
+      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // Create the request body with direct SQL values for UPDATE
+      const sqlQuery = `UPDATE inventory SET
+        image = '${(selectedInventoryItem.image || '').replace(/'/g, "''")}',
+        reorderlevel = ${selectedInventoryItem.reorderlevel || 0},
+        reorderqty = ${selectedInventoryItem.reorderqty || 0},
+        warehouse = '${(selectedInventoryItem.warehouse || '').replace(/'/g, "''")}',
+        expiry = '${(selectedInventoryItem.expiry || '').replace(/'/g, "''")}',
+        batchno = '${(selectedInventoryItem.batchno || '').replace(/'/g, "''")}',
+        quantity = ${selectedInventoryItem.quantity || 1},
+        cost = ${selectedInventoryItem.cost || 0},
+        price = ${selectedInventoryItem.price || 0},
+        margin = ${selectedInventoryItem.margin || 0},
+        saleprice = ${selectedInventoryItem.saleprice || 0}
+        WHERE id = ${selectedInventoryItem.id}`;
+
+      console.log('Generated UPDATE SQL Query:', sqlQuery);
+
+      const requestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: sqlQuery
+            }
+          }
+        ]
+      };
+
+      // Log the request for debugging
+      console.log('API URL:', apiUrl);
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Update inventory item
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Get the response text
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed response data:', JSON.stringify(data, null, 2));
+
+          // Check if the operation was successful
+          if (data.results && data.results[0] && data.results[0].response) {
+            console.log('Inventory item updated successfully');
+
+            // Close modal and reset selection
+            setEditModalVisible(false);
+            setSelectedInventoryItem(null);
+
+            // Refresh inventory list
+            fetchInventory();
+          } else {
+            console.error('Unexpected response structure:', data);
+            Alert.alert(
+              'Error',
+              'Unexpected response from server. Please try again.',
+              [{ text: 'OK' }]
+            );
+          }
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          console.log('Raw response text:', responseText);
+          Alert.alert(
+            'Error',
+            'Error parsing server response. Please try again.',
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        console.error('Failed to update inventory item:', responseText);
+        Alert.alert(
+          'Error',
+          `Failed to update inventory item. Status: ${response.status}. Please try again.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating inventory item:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while updating the inventory item. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle search input
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -362,12 +486,22 @@ export default function InventoryScreen() {
     fetchInventory();
   }, []);
 
+  // Handle edit inventory item
+  const handleEditInventoryItem = (item: InventoryItem) => {
+    setSelectedInventoryItem(item);
+    setEditModalVisible(true);
+  };
+
   const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <View style={styles.inventoryItem}>
-      <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
-      <Text style={styles.inventorySubtitle}>Qty: {item.quantity} | Warehouse: {item.warehouse}</Text>
-      <Text style={styles.inventoryPrice}>Cost: ${item.cost?.toFixed(2)} | Price: ${item.price?.toFixed(2)}</Text>
-    </View>
+    <TouchableOpacity
+      style={styles.inventoryItem}
+      onPress={() => handleEditInventoryItem(item)}
+    >
+      <View style={styles.inventoryRow}>
+        <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
+        <Text style={styles.inventoryQuantity}>{item.quantity}</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   const renderEmptyList = () => (
@@ -693,6 +827,166 @@ export default function InventoryScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Edit Inventory Item Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={editModalVisible && selectedInventoryItem !== null}
+        onRequestClose={() => setEditModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle} numberOfLines={1} ellipsizeMode="tail">
+              {selectedInventoryItem?.sku || 'Edit Inventory Item'}
+            </Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={updateInventoryItem}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>S</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {selectedInventoryItem && (
+            <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+              {/* Basic Information Tiles */}
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
+                  <Text style={styles.orgTileLabel}>Warehouse</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.warehouse}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, warehouse: text})}
+                    placeholder="Enter warehouse"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Batch Number</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.batchno}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, batchno: text})}
+                    placeholder="Enter batch"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Expiry Date</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.expiry}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, expiry: text})}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+
+              {/* Stock Management Tiles */}
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
+                  <Text style={styles.orgTileLabel}>Quantity</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.quantity?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, quantity: parseInt(text) || 1})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Reorder Level</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.reorderlevel?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, reorderlevel: parseInt(text) || 0})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Reorder Quantity</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.reorderqty?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, reorderqty: parseInt(text) || 0})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Pricing Tiles */}
+              <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
+                <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
+                  <Text style={styles.orgTileLabel}>Cost</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.cost?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, cost: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Price</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.price?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, price: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Sale Price</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.saleprice?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, saleprice: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Margin</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.margin?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, margin: parseFloat(text) || 0})}
+                    placeholder="0.00"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+
       {/* Filter Modal */}
       <Modal
         animationType="fade"
@@ -790,6 +1084,11 @@ const styles = StyleSheet.create({
   inventoryItem: {
     padding: 16,
   },
+  inventoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   separator: {
     height: 1,
     backgroundColor: '#f0f0f0',
@@ -798,7 +1097,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  inventoryQuantity: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
   inventorySubtitle: {
     fontSize: 14,
@@ -808,6 +1112,52 @@ const styles = StyleSheet.create({
   inventoryPrice: {
     fontSize: 14,
     color: '#0066CC',
+  },
+  // Modal header styles
+  headerSpacer: {
+    width: 48,
+    height: 48,
+  },
+  // Tab content styles
+  tabContent: {
+    padding: 16,
+  },
+  // Organization tiles styles
+  orgTilesContainer: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    marginHorizontal: -16,
+    marginTop: 0,
+  },
+  tile: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 16,
+  },
+  orgTileSingle: {
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    minHeight: 60,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  orgTileLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    alignSelf: 'center',
+  },
+  tileInput: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'right',
+    minWidth: 80,
+    padding: 0,
+    margin: 0,
   },
   emptyContainer: {
     flex: 1,

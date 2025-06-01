@@ -12,6 +12,7 @@ import { ProductSubItem } from '../app/context/product';
 
 interface ProductContentProps {
   selectedProduct: ProductSubItem;
+  onItemPress?: (item: DataItem) => void;
 }
 
 // Generic type for different data items
@@ -20,7 +21,7 @@ type DataItem = {
   [key: string]: any;
 };
 
-export default function ProductContent({ selectedProduct }: ProductContentProps) {
+export default function ProductContent({ selectedProduct, onItemPress }: ProductContentProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<DataItem[]>([]);
   const { profileData } = useOnboarding();
@@ -146,11 +147,15 @@ export default function ProductContent({ selectedProduct }: ProductContentProps)
         );
       case 'inventory':
         return (
-          <View style={styles.itemContainer}>
-            <Text style={styles.itemTitle}>{item.sku || 'No SKU'}</Text>
-            <Text style={styles.itemDetail}>{item.productTitle || `Product ID: ${item.productId}`}</Text>
-            <Text style={styles.itemSubDetail}>Qty: {item.quantity || 0}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.itemContainer}
+            onPress={() => onItemPress?.(item)}
+          >
+            <View style={styles.inventoryRow}>
+              <Text style={styles.itemTitle}>{item.sku || 'No SKU'}</Text>
+              <Text style={styles.inventoryQuantity}>{item.quantity || 0}</Text>
+            </View>
+          </TouchableOpacity>
         );
       case 'categories':
       case 'collections':
@@ -269,10 +274,21 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  inventoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inventoryQuantity: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
   itemTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
+    flex: 1,
   },
   itemDetail: {
     fontSize: 16,
