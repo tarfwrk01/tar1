@@ -132,6 +132,21 @@ export default function ProductsScreen() {
     'dozen', 'case', 'bundle', 'roll'
   ];
 
+  // Predefined option title types
+  const optionTitleTypes = [
+    'Custom',
+    'Color',
+    'Size',
+    'Material',
+    'Style',
+    'Finish',
+    'Pattern',
+    'Weight',
+    'Length',
+    'Width',
+    'Height'
+  ];
+
   // Create new item states
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
@@ -144,6 +159,15 @@ export default function ProductsScreen() {
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
   const [newOptionIdentifier, setNewOptionIdentifier] = useState('');
+  const [optionTitleDrawerVisible, setOptionTitleDrawerVisible] = useState(false);
+  const [selectedOptionTitleType, setSelectedOptionTitleType] = useState('');
+  const [customOptionTitle, setCustomOptionTitle] = useState('');
+  const [selectedIdentifierType, setSelectedIdentifierType] = useState<'color' | 'image' | 'text' | null>(null);
+  const [identifierColorValue, setIdentifierColorValue] = useState('#000000');
+  const [identifierImageValue, setIdentifierImageValue] = useState('[]');
+  const [identifierTextValue, setIdentifierTextValue] = useState('');
+  const [colorPickerDrawerVisible, setColorPickerDrawerVisible] = useState(false);
+  const [imageClearDrawerVisible, setImageClearDrawerVisible] = useState(false);
   const [newMetafieldTitle, setNewMetafieldTitle] = useState('');
   const [newMetafieldValue, setNewMetafieldValue] = useState('');
   const [newMetafieldGroup, setNewMetafieldGroup] = useState('');
@@ -234,6 +258,61 @@ export default function ProductsScreen() {
     setNewOptionTitle('');
     setNewOptionValue('');
     setNewOptionIdentifier('');
+    setSelectedOptionTitleType('');
+    setCustomOptionTitle('');
+    setSelectedIdentifierType(null);
+    setIdentifierColorValue('#000000');
+    setIdentifierImageValue('');
+    setIdentifierTextValue('');
+    setColorPickerDrawerVisible(false);
+  };
+
+  // Handle option title type selection
+  const handleOptionTitleTypeSelection = (titleType: string) => {
+    setSelectedOptionTitleType(titleType);
+    if (titleType === 'Custom') {
+      // Don't set newOptionTitle yet, wait for user to enter custom title
+      setNewOptionTitle('');
+    } else {
+      setNewOptionTitle(titleType);
+      setCustomOptionTitle('');
+    }
+    setOptionTitleDrawerVisible(false);
+  };
+
+  // Get display value for option title
+  const getOptionTitleDisplayValue = () => {
+    if (selectedOptionTitleType === 'Custom') {
+      return customOptionTitle || 'Enter custom title';
+    } else if (selectedOptionTitleType) {
+      return selectedOptionTitleType;
+    } else {
+      return 'Select option type';
+    }
+  };
+
+  // Check if custom title tile should be shown
+  const shouldShowCustomTitleTile = () => {
+    return selectedOptionTitleType === 'Custom';
+  };
+
+  // Handle identifier type selection
+  const handleIdentifierTypeSelection = (type: 'color' | 'image' | 'text') => {
+    if (type === 'color') {
+      setSelectedIdentifierType(type);
+      setColorPickerDrawerVisible(true);
+    } else {
+      setSelectedIdentifierType(type);
+    }
+    // Reset other identifier values when switching types
+    if (type !== 'color') setIdentifierColorValue('#000000');
+    if (type !== 'image') setIdentifierImageValue('[]');
+    if (type !== 'text') setIdentifierTextValue('');
+  };
+
+  // Handle identifier image change
+  const handleIdentifierImageChange = (imageUrl: string) => {
+    setIdentifierImageValue(imageUrl);
   };
 
   // Helper function to reset new metafield form
@@ -2119,6 +2198,16 @@ export default function ProductsScreen() {
       return;
     }
 
+    // Get the identifier value based on selected type and format as JSON object
+    let identifierValue = '';
+    if (selectedIdentifierType === 'color') {
+      identifierValue = JSON.stringify({ color: identifierColorValue });
+    } else if (selectedIdentifierType === 'image') {
+      identifierValue = JSON.stringify({ image: identifierImageValue });
+    } else if (selectedIdentifierType === 'text') {
+      identifierValue = JSON.stringify({ text: identifierTextValue });
+    }
+
     try {
       setIsCreatingOption(true);
       const profile = profileData?.profile?.[0];
@@ -2135,7 +2224,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO options (parentid, title, value, identifier) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}', '${newOptionIdentifier.replace(/'/g, "''")}')`
+              sql: `INSERT INTO options (parentid, title, value, identifier) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}', '${identifierValue.replace(/'/g, "''")}')`
             }
           }
         ]
@@ -4161,7 +4250,18 @@ export default function ProductsScreen() {
           <View style={styles.optionsModalHeader}>
             <TouchableOpacity
               style={styles.createButton}
-              onPress={() => setCreateOptionModalVisible(true)}
+              onPress={() => {
+                setCreateOptionModalVisible(true);
+                // Reset all option form values for new option
+                setNewOptionTitle('');
+                setNewOptionValue('');
+                setSelectedOptionTitleType('');
+                setCustomOptionTitle('');
+                setSelectedIdentifierType(null);
+                setIdentifierColorValue('#000000');
+                setIdentifierImageValue('');
+                setIdentifierTextValue('');
+              }}
             >
               <Ionicons name="add" size={20} color="#0066CC" />
             </TouchableOpacity>
@@ -4641,48 +4741,142 @@ export default function ProductsScreen() {
               {isCreatingOption ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>S</Text>
+                <Ionicons name="checkmark" size={20} color="#fff" />
               )}
             </TouchableOpacity>
           </View>
 
-          <View style={styles.createFormContainer}>
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Title *</Text>
-              <TextInput
-                style={styles.input}
-                value={newOptionTitle}
-                onChangeText={setNewOptionTitle}
-                placeholder="Option title"
-                placeholderTextColor="#999"
-              />
+          <ScrollView style={styles.tabContentNoPadding} showsVerticalScrollIndicator={false}>
+            {/* Option Title */}
+            <View style={styles.createOptionSection}>
+              <TouchableOpacity
+                style={styles.createOptionTile}
+                onPress={() => setOptionTitleDrawerVisible(true)}
+              >
+                <Text style={styles.createOptionLabel}>title</Text>
+                <Text style={styles.createOptionValue}>
+                  {getOptionTitleDisplayValue()}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Identifier</Text>
-              <TextInput
-                style={styles.input}
-                value={newOptionIdentifier}
-                onChangeText={setNewOptionIdentifier}
-                placeholder="Option identifier"
-                placeholderTextColor="#999"
-              />
+            {/* Option Value */}
+            <View style={styles.createOptionSection}>
+              <View style={styles.createOptionTileNoBorder}>
+                <Text style={styles.createOptionLabel}>Value</Text>
+                <TextInput
+                  style={styles.createOptionInput}
+                  value={newOptionValue}
+                  onChangeText={setNewOptionValue}
+                  placeholder="Enter value"
+                  placeholderTextColor="#999"
+                />
+              </View>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Value</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={newOptionValue}
-                onChangeText={setNewOptionValue}
-                placeholder="Option value"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-              />
+            {/* Identifier Tiles */}
+            <View style={styles.identifierTilesContainer}>
+              <View style={styles.identifierTilesRow}>
+                {/* Color Tile */}
+                <TouchableOpacity
+                  style={[
+                    styles.identifierTile,
+                    selectedIdentifierType === 'color' && styles.selectedIdentifierTile,
+                    selectedIdentifierType === 'color' && { backgroundColor: identifierColorValue }
+                  ]}
+                  onPress={() => handleIdentifierTypeSelection('color')}
+                >
+                  <Text style={[
+                    styles.identifierTileLabel,
+                    selectedIdentifierType === 'color' && { color: '#ffffff' }
+                  ]}>Color</Text>
+                </TouchableOpacity>
+
+                {/* Image Tile */}
+                <View
+                  style={[
+                    styles.identifierTile,
+                    selectedIdentifierType === 'image' && styles.selectedIdentifierTile
+                  ]}
+                >
+                  <SingleImageUploader
+                    imageUrl={identifierImageValue}
+                    onImageChange={(imageUrl) => {
+                      handleIdentifierTypeSelection('image');
+                      handleIdentifierImageChange(imageUrl);
+                    }}
+                    style={styles.fullTileImageUploader}
+                    showFullImage={true}
+                    hideText={true}
+                    onImageTap={() => setImageClearDrawerVisible(true)}
+                  />
+                </View>
+
+                {/* Text Tile */}
+                <View
+                  style={[
+                    styles.identifierTile,
+                    styles.identifierTileRight,
+                    selectedIdentifierType === 'text' && styles.selectedIdentifierTile
+                  ]}
+                >
+                  <TextInput
+                    style={styles.textTileInput}
+                    value={identifierTextValue}
+                    onChangeText={(text) => {
+                      handleIdentifierTypeSelection('text');
+                      setIdentifierTextValue(text.toUpperCase());
+                    }}
+                    placeholder="TEXT"
+                    placeholderTextColor="#999"
+                    textAlign="center"
+                    autoCapitalize="characters"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Image Clear Bottom Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={imageClearDrawerVisible}
+        onRequestClose={() => setImageClearDrawerVisible(false)}
+      >
+        <View style={styles.bottomDrawerOverlay}>
+          <TouchableOpacity
+            style={styles.bottomDrawerBackdrop}
+            onPress={() => setImageClearDrawerVisible(false)}
+          />
+          <View style={styles.bottomDrawerContainer}>
+            <View style={styles.bottomDrawerHeader}>
+              <Text style={styles.bottomDrawerTitle}>Image Options</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.bottomDrawerOption}
+              onPress={() => {
+                setIdentifierImageValue('');
+                setImageClearDrawerVisible(false);
+              }}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              <Text style={[styles.bottomDrawerOptionText, { color: '#FF3B30' }]}>Clear Image</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomDrawerOption}
+              onPress={() => setImageClearDrawerVisible(false)}
+            >
+              <Ionicons name="close-outline" size={24} color="#666" />
+              <Text style={styles.bottomDrawerOptionText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Create New Metafield Modal */}
@@ -5566,6 +5760,122 @@ export default function ProductsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Option Title Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={optionTitleDrawerVisible}
+        onRequestClose={() => setOptionTitleDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Option Type</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={optionTitleTypes}
+            renderItem={({ item }) => {
+              if (item === 'Custom') {
+                return (
+                  <View style={[styles.categoryItem, { backgroundColor: '#E3F2FD' }]}>
+                    <TextInput
+                      style={styles.customTitleInput}
+                      value={customOptionTitle}
+                      onChangeText={setCustomOptionTitle}
+                      placeholder="Enter custom option title"
+                      placeholderTextColor="#999"
+                      autoFocus={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.customCheckButton}
+                      onPress={() => handleOptionTitleTypeSelection('Custom')}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#0066CC" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  style={styles.categoryItem}
+                  onPress={() => handleOptionTitleTypeSelection(item)}
+                >
+                  <View style={styles.categoryContent}>
+                    <Text style={styles.categoryTitle}>{item}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Color Picker Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={colorPickerDrawerVisible}
+        onRequestClose={() => setColorPickerDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Color</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => setColorPickerDrawerVisible(false)}
+            >
+              <Ionicons name="checkmark" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.colorPickerContainer}>
+              <View style={styles.colorPreviewLarge}>
+                <View style={[styles.colorPreviewCircle, { backgroundColor: identifierColorValue }]} />
+                <Text style={styles.colorValueText}>{identifierColorValue}</Text>
+              </View>
+
+              <View style={styles.colorInputSection}>
+                <Text style={styles.inputLabel}>Hex Color</Text>
+                <TextInput
+                  style={styles.colorHexInput}
+                  value={identifierColorValue}
+                  onChangeText={setIdentifierColorValue}
+                  placeholder="#000000"
+                  placeholderTextColor="#999"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.colorPresetsSection}>
+                <Text style={styles.inputLabel}>Color Presets</Text>
+                <View style={styles.colorPresetsGrid}>
+                  {['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#FFC0CB', '#A52A2A', '#808080', '#000000'].map((color) => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[styles.colorPresetItem, { backgroundColor: color }]}
+                      onPress={() => setIdentifierColorValue(color)}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -5790,6 +6100,9 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     padding: 16,
+  },
+  tabContentNoPadding: {
+    padding: 0,
   },
   formField: {
     marginBottom: 16,
@@ -6398,6 +6711,207 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
   },
+  checkButton: {
+    marginLeft: 8,
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customTitleInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    marginRight: 8,
+  },
+  customCheckButton: {
+    padding: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Color preview in identifier tile
+  colorPreview: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  // Identifier value input styles
+  colorSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  colorDisplay: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginRight: 8,
+  },
+  colorText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  imageSelector: {
+    alignItems: 'flex-end',
+  },
+  identifierImagePreview: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    backgroundColor: '#f0f0f0',
+  },
+  imageUploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+  },
+  imageUploadText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
+  },
+  // Create New Option Modal Styles
+  createOptionSection: {
+    marginBottom: 0,
+  },
+  createOptionTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    minHeight: 60,
+  },
+  createOptionTileNoBorder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 0,
+    minHeight: 60,
+  },
+  createOptionLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  createOptionValue: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 16,
+  },
+  createOptionInput: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 16,
+    padding: 0,
+  },
+  createIdentifierRow: {
+    flexDirection: 'row',
+    gap: 0,
+  },
+  createIdentifierTile: {
+    flex: 1,
+    aspectRatio: 1,
+    backgroundColor: '#fff',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  createIdentifierLeft: {
+    borderRightWidth: 0,
+  },
+  createIdentifierMiddle: {
+    borderRightWidth: 0,
+  },
+  createIdentifierRight: {
+    // No additional border styles needed
+  },
+  createIdentifierSelected: {
+    backgroundColor: '#E3F2FD',
+  },
+  createIdentifierButton: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  createIdentifierLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'center',
+  },
+  createColorPreview: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  createIdentifierValueText: {
+    fontSize: 10,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  createImageContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  createTextContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  createTextInput: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 4,
+    minHeight: 30,
+    flex: 1,
+    width: '100%',
+  },
   // Excerpt input styles
   excerptInput: {
     fontSize: 16,
@@ -6421,11 +6935,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e9ecef',
     marginHorizontal: -16,
-  },
-  // Create form styles
-  createFormContainer: {
-    padding: 16,
-    paddingBottom: 100,
+    marginVertical: 0,
   },
   createNewButton: {
     flexDirection: 'row',
@@ -6524,7 +7034,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
   },
-  notesInput: {
+  formNotesInput: {
     borderWidth: 1,
     borderColor: '#eaeaea',
     borderRadius: 8,
@@ -6644,5 +7154,160 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 8,
+  },
+  // Identifier tiles styles
+  identifierTilesContainer: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#ffffff',
+    marginBottom: 0,
+    marginTop: 0,
+    marginHorizontal: -16,
+  },
+  identifierTilesRow: {
+    flexDirection: 'row',
+  },
+  identifierTile: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  identifierTileRight: {
+    borderRightWidth: 0,
+  },
+  selectedIdentifierTile: {
+    backgroundColor: '#e3f2fd',
+  },
+  identifierTileLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+
+  imageInputContainer: {
+    width: 50,
+    height: 50,
+  },
+  fullTileImageUploader: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 0,
+  },
+  textInput: {
+    fontSize: 12,
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 4,
+    padding: 6,
+    width: 80,
+    textAlign: 'center',
+  },
+  textTileInput: {
+    width: '100%',
+    height: '100%',
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  // Color picker styles
+  colorPickerContainer: {
+    padding: 16,
+  },
+  colorPreviewLarge: {
+    alignItems: 'center',
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+  },
+  colorPreviewCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  colorValueText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  colorInputSection: {
+    marginBottom: 24,
+  },
+  colorHexInput: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#ffffff',
+    textAlign: 'center',
+  },
+  colorPresetsSection: {
+    marginBottom: 24,
+  },
+  colorPresetsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  colorPresetItem: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  // Bottom drawer styles
+  bottomDrawerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomDrawerBackdrop: {
+    flex: 1,
+  },
+  bottomDrawerContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // Safe area padding
+  },
+  bottomDrawerHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  bottomDrawerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+  },
+  bottomDrawerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  bottomDrawerOptionText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
   },
 });

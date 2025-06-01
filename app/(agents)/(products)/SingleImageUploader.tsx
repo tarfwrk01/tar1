@@ -2,23 +2,27 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { uploadProductImage } from '../../../services/R2StorageService';
 
 interface SingleImageUploaderProps {
   imageUrl: string;
   onImageChange: (imageUrl: string) => void;
+  style?: any;
+  showFullImage?: boolean;
+  hideText?: boolean;
+  onImageTap?: () => void;
 }
 
-export default function SingleImageUploader({ imageUrl, onImageChange }: SingleImageUploaderProps) {
+export default function SingleImageUploader({ imageUrl, onImageChange, style, showFullImage = false, hideText = false, onImageTap }: SingleImageUploaderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
@@ -126,15 +130,21 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0066CC" />
-          <Text style={styles.loadingText}>Uploading image...</Text>
+          {!hideText && <Text style={styles.loadingText}>Uploading image...</Text>}
         </View>
       ) : currentImageUrl ? (
         <View style={styles.imageContainer}>
-          <TouchableOpacity onPress={() => setShowOptions(true)}>
+          <TouchableOpacity onPress={() => {
+            if (onImageTap) {
+              onImageTap();
+            } else {
+              setShowOptions(true);
+            }
+          }}>
             <Image
               source={{ uri: currentImageUrl }}
               style={styles.image}
@@ -176,12 +186,12 @@ export default function SingleImageUploader({ imageUrl, onImageChange }: SingleI
           </Modal>
         </View>
       ) : (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.emptyContainer}
           onPress={pickImage}
         >
           <Ionicons name="image-outline" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>Tap to add</Text>
+          {!hideText && <Text style={styles.emptyText}>Tap to add</Text>}
         </TouchableOpacity>
       )}
     </View>
