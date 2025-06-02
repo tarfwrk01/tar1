@@ -162,6 +162,49 @@ export default function ProductsScreen() {
     'Premium'
   ];
 
+  // Predefined metafield title types
+  const metafieldTitleTypes = [
+    'Custom',
+    'Model',
+    'Weight',
+    'Dimensions',
+    'Material',
+    'Origin',
+    'Warranty',
+    'Certification'
+  ];
+
+  // Predefined metafield groups
+  const metafieldGroups = [
+    'Products',
+    'Inventory',
+    'Sales',
+    'Marketing',
+    'Shipping',
+    'Customer',
+    'Analytics',
+    'System'
+  ];
+
+  // Predefined metafield value types (like Shopify)
+  const metafieldValueTypes = [
+    'Single line text',
+    'Multi-line text',
+    'Number (integer)',
+    'Number (decimal)',
+    'Date',
+    'Date and time',
+    'URL',
+    'JSON',
+    'Boolean',
+    'Color',
+    'Weight',
+    'Volume',
+    'Dimension',
+    'Rating',
+    'Currency'
+  ];
+
   // Create new item states
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
@@ -185,15 +228,29 @@ export default function ProductsScreen() {
   const [imageClearDrawerVisible, setImageClearDrawerVisible] = useState(false);
   const [newMetafieldTitle, setNewMetafieldTitle] = useState('');
   const [newMetafieldValue, setNewMetafieldValue] = useState('');
-  const [newMetafieldGroup, setNewMetafieldGroup] = useState('');
-  const [newMetafieldType, setNewMetafieldType] = useState('');
+  const [newMetafieldGroup, setNewMetafieldGroup] = useState('Products');
+  const [newMetafieldType, setNewMetafieldType] = useState('Single line text');
   const [newMetafieldFilter, setNewMetafieldFilter] = useState(0);
+  const [newMetafieldIdentifier, setNewMetafieldIdentifier] = useState('');
   const [newModifierTitle, setNewModifierTitle] = useState('');
   const [newModifierNotes, setNewModifierNotes] = useState('');
   const [newModifierType, setNewModifierType] = useState('percentage');
   const [newModifierValue, setNewModifierValue] = useState(0);
   const [newModifierValueSign, setNewModifierValueSign] = useState('+'); // + or -
   const [newModifierIdentifier, setNewModifierIdentifier] = useState('');
+
+  // Metafield creation states (similar to modifiers)
+  const [metafieldTitleDrawerVisible, setMetafieldTitleDrawerVisible] = useState(false);
+  const [selectedMetafieldTitleType, setSelectedMetafieldTitleType] = useState('');
+  const [customMetafieldTitle, setCustomMetafieldTitle] = useState('');
+  const [metafieldGroupDrawerVisible, setMetafieldGroupDrawerVisible] = useState(false);
+  const [metafieldValueTypeDrawerVisible, setMetafieldValueTypeDrawerVisible] = useState(false);
+  // Value configuration states based on selected type
+  const [metafieldDefaultValue, setMetafieldDefaultValue] = useState('');
+  const [metafieldMinValue, setMetafieldMinValue] = useState('');
+  const [metafieldMaxValue, setMetafieldMaxValue] = useState('');
+  const [metafieldUnit, setMetafieldUnit] = useState('');
+  const [metafieldValidationPattern, setMetafieldValidationPattern] = useState('');
 
   // Modifier creation states (similar to options)
   const [modifierTitleDrawerVisible, setModifierTitleDrawerVisible] = useState(false);
@@ -394,9 +451,83 @@ export default function ProductsScreen() {
   const resetNewMetafieldForm = () => {
     setNewMetafieldTitle('');
     setNewMetafieldValue('');
-    setNewMetafieldGroup('');
-    setNewMetafieldType('');
+    setNewMetafieldGroup('Products');
+    setNewMetafieldType('Single line text');
     setNewMetafieldFilter(0);
+    setNewMetafieldIdentifier('');
+    setSelectedMetafieldTitleType('');
+    setCustomMetafieldTitle('');
+    setMetafieldGroupDrawerVisible(false);
+    setMetafieldValueTypeDrawerVisible(false);
+    // Reset value configuration states
+    setMetafieldDefaultValue('');
+    setMetafieldMinValue('');
+    setMetafieldMaxValue('');
+    setMetafieldUnit('');
+    setMetafieldValidationPattern('');
+  };
+
+  // Metafield helper functions
+  const handleMetafieldTitleTypeSelection = (titleType: string) => {
+    setSelectedMetafieldTitleType(titleType);
+    if (titleType === 'Custom') {
+      // Don't set newMetafieldTitle yet, wait for user to enter custom title
+      setNewMetafieldTitle('');
+    } else {
+      setNewMetafieldTitle(titleType);
+      setCustomMetafieldTitle('');
+    }
+    setMetafieldTitleDrawerVisible(false);
+  };
+
+  const handleMetafieldGroupSelection = (group: string) => {
+    setNewMetafieldGroup(group);
+    setMetafieldGroupDrawerVisible(false);
+  };
+
+  const handleMetafieldValueTypeSelection = (valueType: string) => {
+    setNewMetafieldType(valueType);
+    setMetafieldValueTypeDrawerVisible(false);
+  };
+
+  const getMetafieldTitleDisplayValue = () => {
+    if (selectedMetafieldTitleType === 'Custom') {
+      return customMetafieldTitle || 'Enter custom title';
+    }
+    return selectedMetafieldTitleType || 'Select metafield type';
+  };
+
+  // Get configuration fields based on selected value type
+  const getValueTypeConfigFields = () => {
+    switch (newMetafieldType) {
+      case 'Number (integer)':
+      case 'Number (decimal)':
+        return ['defaultValue', 'minValue', 'maxValue'];
+      case 'Single line text':
+      case 'Multi-line text':
+        return ['defaultValue', 'validationPattern'];
+      case 'Weight':
+      case 'Volume':
+      case 'Dimension':
+        return ['defaultValue', 'unit', 'minValue', 'maxValue'];
+      case 'Currency':
+        return ['defaultValue', 'minValue', 'maxValue'];
+      case 'Rating':
+        return ['defaultValue', 'minValue', 'maxValue'];
+      case 'URL':
+        return ['defaultValue', 'validationPattern'];
+      case 'Date':
+      case 'Date and time':
+        return ['defaultValue'];
+      case 'Boolean':
+        return ['defaultValue'];
+      case 'Color':
+        return ['defaultValue'];
+      case 'JSON':
+        return ['defaultValue'];
+      default:
+        return ['defaultValue'];
+    }
   };
 
   // Helper function to reset new modifier form
@@ -2412,7 +2543,9 @@ export default function ProductsScreen() {
 
   // Create new metafield function
   const createNewMetafield = async () => {
-    if (!newMetafieldTitle.trim()) {
+    // Validate required fields
+    const finalTitle = selectedMetafieldTitleType === 'Custom' ? customMetafieldTitle : newMetafieldTitle;
+    if (!finalTitle.trim()) {
       Alert.alert('Error', 'Metafield title is required');
       return;
     }
@@ -2428,12 +2561,22 @@ export default function ProductsScreen() {
       const { tursoDbName, tursoApiToken } = profile;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
+      // Build value configuration object based on selected type
+      const valueConfig = {
+        defaultValue: metafieldDefaultValue,
+        minValue: metafieldMinValue,
+        maxValue: metafieldMaxValue,
+        unit: metafieldUnit,
+        validationPattern: metafieldValidationPattern
+      };
+      const valueConfigString = JSON.stringify(valueConfig);
+
       const requestBody = {
         requests: [
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO metafields (parentid, title, value, "group", type, filter) VALUES (NULL, '${newMetafieldTitle.replace(/'/g, "''")}', '${newMetafieldValue.replace(/'/g, "''")}', '${newMetafieldGroup.replace(/'/g, "''")}', '${newMetafieldType.replace(/'/g, "''")}', ${newMetafieldFilter})`
+              sql: `INSERT INTO metafields (parentid, title, value, "group", type, filter) VALUES (NULL, '${finalTitle.replace(/'/g, "''")}', '${valueConfigString.replace(/'/g, "''")}', '${newMetafieldGroup.replace(/'/g, "''")}', '${newMetafieldType.replace(/'/g, "''")}', ${newMetafieldFilter})`
             }
           }
         ]
@@ -4559,16 +4702,34 @@ export default function ProductsScreen() {
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <SafeAreaView style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
-            <View style={styles.headerSpacer} />
-            <Text style={styles.modalTitle}>Select Metafields</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.createButton}
-                onPress={() => setCreateMetafieldModalVisible(true)}
-              >
-                <Ionicons name="add" size={20} color="#0066CC" />
-              </TouchableOpacity>
+          <View style={styles.optionsModalHeader}>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => {
+                setCreateMetafieldModalVisible(true);
+                // Reset all metafield form values for new metafield
+                setNewMetafieldTitle('');
+                setNewMetafieldValue('');
+                setNewMetafieldGroup('Products');
+                setNewMetafieldType('Single line text');
+                setNewMetafieldFilter(0);
+                setSelectedMetafieldTitleType('');
+                setCustomMetafieldTitle('');
+                // Reset value configuration states
+                setMetafieldDefaultValue('');
+                setMetafieldMinValue('');
+                setMetafieldMaxValue('');
+                setMetafieldUnit('');
+                setMetafieldValidationPattern('');
+              }}
+            >
+              <Ionicons name="add" size={20} color="#0066CC" />
+            </TouchableOpacity>
+            <Text style={styles.optionsModalTitle}>Select Metafields</Text>
+            <View style={styles.optionsHeaderActions}>
+              <Text style={styles.optionsSelectionCount}>
+                {selectedMetafieldIds.length}
+              </Text>
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleMetafieldsSelection}
@@ -4578,99 +4739,27 @@ export default function ProductsScreen() {
             </View>
           </View>
 
-          <View style={styles.selectionInfo}>
-            <Text style={styles.selectionText}>
-              {selectedMetafieldIds.length} metafield{selectedMetafieldIds.length !== 1 ? 's' : ''} selected
-            </Text>
-          </View>
-
           <FlatList
-            data={availableMetafields.filter(metafield => metafield.parentid === null)}
-            renderItem={({ item }) => {
-              const children = availableMetafields.filter(child => child.parentid === item.id);
-              return (
-                <View style={styles.optionGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      selectedMetafieldIds.includes(item.id) && styles.selectedOptionItem
-                    ]}
-                    onPress={() => toggleMetafieldSelection(item.id)}
-                  >
-                    <View style={styles.optionContent}>
-                      <Text style={styles.optionTitle}>{item.title}</Text>
-                      <Text style={styles.optionValue}>
-                        {item.value}
-                        {item.group && ` | Group: ${item.group}`}
-                        {item.type && ` | Type: ${item.type}`}
-                        {item.filter === 1 && ` | Filterable`}
-                      </Text>
-                    </View>
-                    <View style={styles.checkbox}>
-                      {selectedMetafieldIds.includes(item.id) && (
-                        <Ionicons name="checkmark" size={16} color="#0066CC" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-
-                  {children.map(child => {
-                    const grandChildren = availableMetafields.filter(gc => gc.parentid === child.id);
-                    return (
-                      <View key={child.id}>
-                        <TouchableOpacity
-                          style={[
-                            styles.childOptionItem,
-                            selectedMetafieldIds.includes(child.id) && styles.selectedOptionItem
-                          ]}
-                          onPress={() => toggleMetafieldSelection(child.id)}
-                        >
-                          <View style={styles.optionContent}>
-                            <Text style={styles.childOptionTitle}>{child.title}</Text>
-                            <Text style={styles.childOptionValue}>
-                              {child.value}
-                              {child.group && ` | Group: ${child.group}`}
-                              {child.type && ` | Type: ${child.type}`}
-                              {child.filter === 1 && ` | Filterable`}
-                            </Text>
-                          </View>
-                          <View style={styles.checkbox}>
-                            {selectedMetafieldIds.includes(child.id) && (
-                              <Ionicons name="checkmark" size={16} color="#0066CC" />
-                            )}
-                          </View>
-                        </TouchableOpacity>
-
-                        {grandChildren.map(grandChild => (
-                          <TouchableOpacity
-                            key={grandChild.id}
-                            style={[
-                              styles.grandChildOptionItem,
-                              selectedMetafieldIds.includes(grandChild.id) && styles.selectedOptionItem
-                            ]}
-                            onPress={() => toggleMetafieldSelection(grandChild.id)}
-                          >
-                            <View style={styles.optionContent}>
-                              <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
-                              <Text style={styles.grandChildOptionValue}>
-                                {grandChild.value}
-                                {grandChild.group && ` | Group: ${grandChild.group}`}
-                                {grandChild.type && ` | Type: ${grandChild.type}`}
-                                {grandChild.filter === 1 && ` | Filterable`}
-                              </Text>
-                            </View>
-                            <View style={styles.checkbox}>
-                              {selectedMetafieldIds.includes(grandChild.id) && (
-                                <Ionicons name="checkmark" size={16} color="#0066CC" />
-                              )}
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
+            data={availableMetafields.sort((a, b) => {
+              const aSelected = selectedMetafieldIds.includes(a.id);
+              const bSelected = selectedMetafieldIds.includes(b.id);
+              if (aSelected && !bSelected) return -1;
+              if (!aSelected && bSelected) return 1;
+              return a.title.localeCompare(b.title);
+            })}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.optionItem,
+                  selectedMetafieldIds.includes(item.id) && styles.selectedOptionItem
+                ]}
+                onPress={() => toggleMetafieldSelection(item.id)}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{item.title}</Text>
                 </View>
-              );
-            }}
+              </TouchableOpacity>
+            )}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -5100,70 +5189,164 @@ export default function ProductsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.createFormContainer}>
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Title *</Text>
-              <TextInput
-                style={styles.input}
-                value={newMetafieldTitle}
-                onChangeText={setNewMetafieldTitle}
-                placeholder="Metafield title"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Group</Text>
-              <TextInput
-                style={styles.input}
-                value={newMetafieldGroup}
-                onChangeText={setNewMetafieldGroup}
-                placeholder="Metafield group"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Type</Text>
-              <TextInput
-                style={styles.input}
-                value={newMetafieldType}
-                onChangeText={setNewMetafieldType}
-                placeholder="Metafield type (e.g., text, number, boolean)"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Filter</Text>
+          <ScrollView style={styles.tabContentNoPadding} showsVerticalScrollIndicator={false}>
+            {/* Metafield Title */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
               <TouchableOpacity
-                style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                onPress={() => setNewMetafieldFilter(newMetafieldFilter === 1 ? 0 : 1)}
+                style={styles.createOptionTile}
+                onPress={() => setMetafieldTitleDrawerVisible(true)}
               >
-                <Text style={{ color: newMetafieldFilter === 1 ? '#333' : '#999' }}>
-                  {newMetafieldFilter === 1 ? 'Filterable' : 'Not filterable'}
+                <Text style={styles.createOptionLabel}>title</Text>
+                <Text style={styles.createOptionValue}>
+                  {getMetafieldTitleDisplayValue()}
                 </Text>
-                <View style={[styles.checkbox, newMetafieldFilter === 1 && { backgroundColor: '#0066CC', borderColor: '#0066CC' }]}>
-                  {newMetafieldFilter === 1 && (
-                    <Ionicons name="checkmark" size={16} color="#fff" />
-                  )}
-                </View>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Value</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={newMetafieldValue}
-                onChangeText={setNewMetafieldValue}
-                placeholder="Metafield value"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-              />
+
+
+            {/* Group */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <TouchableOpacity
+                style={styles.createOptionTile}
+                onPress={() => setMetafieldGroupDrawerVisible(true)}
+              >
+                <Text style={styles.createOptionLabel}>Group</Text>
+                <Text style={styles.createOptionValue}>
+                  {newMetafieldGroup}
+                </Text>
+              </TouchableOpacity>
             </View>
-          </View>
+
+            {/* Filter Toggle */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <View style={styles.tilesRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileLeft,
+                    { borderTopWidth: 0 },
+                    newMetafieldFilter === 1 && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewMetafieldFilter(1)}
+                >
+                  <Text style={styles.statusTileLabel}>Filterable</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newMetafieldFilter === 1 ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileRight,
+                    { borderTopWidth: 0 },
+                    newMetafieldFilter === 0 && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewMetafieldFilter(0)}
+                >
+                  <Text style={styles.statusTileLabel}>Not Filterable</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newMetafieldFilter === 0 ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Value Type */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <TouchableOpacity
+                style={styles.createOptionTile}
+                onPress={() => setMetafieldValueTypeDrawerVisible(true)}
+              >
+                <Text style={styles.createOptionLabel}>Value Type</Text>
+                <Text style={styles.createOptionValue}>
+                  {newMetafieldType}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider before Value Configuration section */}
+            <View style={styles.tilesDivider} />
+
+            {/* Value Configuration Fields */}
+            {getValueTypeConfigFields().includes('defaultValue') && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Default Value</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={metafieldDefaultValue}
+                    onChangeText={setMetafieldDefaultValue}
+                    placeholder={`Default ${newMetafieldType.toLowerCase()}`}
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+            )}
+
+            {getValueTypeConfigFields().includes('minValue') && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Minimum Value</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={metafieldMinValue}
+                    onChangeText={setMetafieldMinValue}
+                    placeholder="Minimum value"
+                    placeholderTextColor="#999"
+                    keyboardType={newMetafieldType.includes('Number') ? 'numeric' : 'default'}
+                  />
+                </View>
+              </View>
+            )}
+
+            {getValueTypeConfigFields().includes('maxValue') && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Maximum Value</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={metafieldMaxValue}
+                    onChangeText={setMetafieldMaxValue}
+                    placeholder="Maximum value"
+                    placeholderTextColor="#999"
+                    keyboardType={newMetafieldType.includes('Number') ? 'numeric' : 'default'}
+                  />
+                </View>
+              </View>
+            )}
+
+            {getValueTypeConfigFields().includes('unit') && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Unit</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={metafieldUnit}
+                    onChangeText={setMetafieldUnit}
+                    placeholder="kg, cm, lbs, etc."
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+            )}
+
+            {getValueTypeConfigFields().includes('validationPattern') && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Validation Pattern</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={metafieldValidationPattern}
+                    onChangeText={setMetafieldValidationPattern}
+                    placeholder="Regex pattern (optional)"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+            )}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -6277,6 +6460,149 @@ export default function ProductsScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Metafield Title Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={metafieldTitleDrawerVisible}
+        onRequestClose={() => setMetafieldTitleDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Metafield Type</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={metafieldTitleTypes}
+            renderItem={({ item }) => {
+              if (item === 'Custom') {
+                return (
+                  <View style={[styles.categoryItem, { backgroundColor: '#E3F2FD' }]}>
+                    <TextInput
+                      style={styles.customTitleInput}
+                      value={customMetafieldTitle}
+                      onChangeText={setCustomMetafieldTitle}
+                      placeholder="Enter custom metafield title"
+                      placeholderTextColor="#999"
+                      autoFocus={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.customCheckButton}
+                      onPress={() => handleMetafieldTitleTypeSelection('Custom')}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#0066CC" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  style={styles.categoryItem}
+                  onPress={() => handleMetafieldTitleTypeSelection(item)}
+                >
+                  <View style={styles.categoryContent}>
+                    <Text style={styles.categoryTitle}>{item}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Metafield Group Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={metafieldGroupDrawerVisible}
+        onRequestClose={() => setMetafieldGroupDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Group</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={metafieldGroups}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,
+                  newMetafieldGroup === item && { backgroundColor: '#E3F2FD' }
+                ]}
+                onPress={() => handleMetafieldGroupSelection(item)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item}</Text>
+                  {newMetafieldGroup === item && (
+                    <Ionicons name="checkmark" size={20} color="#0066CC" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Metafield Value Type Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={metafieldValueTypeDrawerVisible}
+        onRequestClose={() => setMetafieldValueTypeDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Value Type</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={metafieldValueTypes}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,
+                  newMetafieldType === item && { backgroundColor: '#E3F2FD' }
+                ]}
+                onPress={() => handleMetafieldValueTypeSelection(item)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item}</Text>
+                  {newMetafieldType === item && (
+                    <Ionicons name="checkmark" size={20} color="#0066CC" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
       {/* Modifier Color Picker Drawer */}
       <Modal
         animationType="slide"
@@ -6372,6 +6698,8 @@ export default function ProductsScreen() {
           </View>
         </View>
       </Modal>
+
+
     </SafeAreaView>
   );
 }
