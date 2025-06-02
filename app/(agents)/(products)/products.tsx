@@ -147,6 +147,21 @@ export default function ProductsScreen() {
     'Height'
   ];
 
+  // Predefined modifier title types
+  const modifierTitleTypes = [
+    'Custom',
+    'Discount',
+    'Tax',
+    'Shipping',
+    'Fee',
+    'Surcharge',
+    'Insurance',
+    'Handling',
+    'Processing',
+    'Service',
+    'Premium'
+  ];
+
   // Create new item states
   const [createOptionModalVisible, setCreateOptionModalVisible] = useState(false);
   const [createMetafieldModalVisible, setCreateMetafieldModalVisible] = useState(false);
@@ -175,9 +190,21 @@ export default function ProductsScreen() {
   const [newMetafieldFilter, setNewMetafieldFilter] = useState(0);
   const [newModifierTitle, setNewModifierTitle] = useState('');
   const [newModifierNotes, setNewModifierNotes] = useState('');
-  const [newModifierType, setNewModifierType] = useState('');
+  const [newModifierType, setNewModifierType] = useState('percentage');
   const [newModifierValue, setNewModifierValue] = useState(0);
+  const [newModifierValueSign, setNewModifierValueSign] = useState('+'); // + or -
   const [newModifierIdentifier, setNewModifierIdentifier] = useState('');
+
+  // Modifier creation states (similar to options)
+  const [modifierTitleDrawerVisible, setModifierTitleDrawerVisible] = useState(false);
+  const [selectedModifierTitleType, setSelectedModifierTitleType] = useState('');
+  const [customModifierTitle, setCustomModifierTitle] = useState('');
+  const [selectedModifierIdentifierType, setSelectedModifierIdentifierType] = useState<'color' | 'image' | 'text' | null>(null);
+  const [modifierIdentifierColorValue, setModifierIdentifierColorValue] = useState('#000000');
+  const [modifierIdentifierImageValue, setModifierIdentifierImageValue] = useState('[]');
+  const [modifierIdentifierTextValue, setModifierIdentifierTextValue] = useState('');
+  const [modifierColorPickerDrawerVisible, setModifierColorPickerDrawerVisible] = useState(false);
+  const [modifierImageClearDrawerVisible, setModifierImageClearDrawerVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryImage, setNewCategoryImage] = useState('[]');
   const [newCategoryNotes, setNewCategoryNotes] = useState('');
@@ -315,6 +342,54 @@ export default function ProductsScreen() {
     setIdentifierImageValue(imageUrl);
   };
 
+  // Handle modifier title type selection
+  const handleModifierTitleTypeSelection = (titleType: string) => {
+    setSelectedModifierTitleType(titleType);
+    if (titleType === 'Custom') {
+      // Don't set newModifierTitle yet, wait for user to enter custom title
+      setNewModifierTitle('');
+    } else {
+      setNewModifierTitle(titleType);
+      setCustomModifierTitle('');
+    }
+    setModifierTitleDrawerVisible(false);
+  };
+
+  // Get display value for modifier title
+  const getModifierTitleDisplayValue = () => {
+    if (selectedModifierTitleType === 'Custom') {
+      return customModifierTitle || 'Enter custom title';
+    } else if (selectedModifierTitleType) {
+      return selectedModifierTitleType;
+    } else {
+      return 'Select modifier type';
+    }
+  };
+
+  // Check if custom modifier title tile should be shown
+  const shouldShowCustomModifierTitleTile = () => {
+    return selectedModifierTitleType === 'Custom';
+  };
+
+  // Handle modifier identifier type selection
+  const handleModifierIdentifierTypeSelection = (type: 'color' | 'image' | 'text') => {
+    if (type === 'color') {
+      setSelectedModifierIdentifierType(type);
+      setModifierColorPickerDrawerVisible(true);
+    } else {
+      setSelectedModifierIdentifierType(type);
+    }
+    // Reset other identifier values when switching types
+    if (type !== 'color') setModifierIdentifierColorValue('#000000');
+    if (type !== 'image') setModifierIdentifierImageValue('[]');
+    if (type !== 'text') setModifierIdentifierTextValue('');
+  };
+
+  // Handle modifier identifier image change
+  const handleModifierIdentifierImageChange = (imageUrl: string) => {
+    setModifierIdentifierImageValue(imageUrl);
+  };
+
   // Helper function to reset new metafield form
   const resetNewMetafieldForm = () => {
     setNewMetafieldTitle('');
@@ -328,9 +403,17 @@ export default function ProductsScreen() {
   const resetNewModifierForm = () => {
     setNewModifierTitle('');
     setNewModifierNotes('');
-    setNewModifierType('');
+    setNewModifierType('percentage'); // Default to percentage
     setNewModifierValue(0);
+    setNewModifierValueSign('+'); // Default to plus
     setNewModifierIdentifier('');
+    setSelectedModifierTitleType('');
+    setCustomModifierTitle('');
+    setSelectedModifierIdentifierType(null);
+    setModifierIdentifierColorValue('#000000');
+    setModifierIdentifierImageValue('[]');
+    setModifierIdentifierTextValue('');
+    setModifierColorPickerDrawerVisible(false);
   };
 
   // Helper function to reset new category form
@@ -1972,6 +2055,76 @@ export default function ProductsScreen() {
     }
   };
 
+  // Helper function to parse identifier and get type/value
+  const parseIdentifier = (identifierString: string): { type: 'color' | 'image' | 'text' | null, value: string } => {
+    if (!identifierString) return { type: null, value: '' };
+
+    try {
+      const identifier = JSON.parse(identifierString);
+
+      if (identifier.color) {
+        return { type: 'color', value: identifier.color };
+      } else if (identifier.image) {
+        // Handle both string and array formats for image
+        let imageValue = identifier.image;
+        if (typeof imageValue === 'string') {
+          try {
+            // Try to parse as JSON array
+            const parsed = JSON.parse(imageValue);
+            imageValue = Array.isArray(parsed) ? parsed[0] : imageValue;
+          } catch {
+            // If parsing fails, use as is
+          }
+        } else if (Array.isArray(imageValue)) {
+          imageValue = imageValue[0];
+        }
+        return { type: 'image', value: imageValue || '' };
+      } else if (identifier.text) {
+        return { type: 'text', value: identifier.text };
+      }
+    } catch (error) {
+      console.log('Error parsing identifier:', error);
+    }
+
+    return { type: null, value: '' };
+  };
+
+  // Helper component to render identifier thumbnail
+  const renderIdentifierThumbnail = (identifier: string) => {
+    const { type, value } = parseIdentifier(identifier);
+
+    if (!type || !value) {
+      return (
+        <View style={styles.identifierThumbnail}>
+          <Text style={styles.textThumbnail}>-</Text>
+        </View>
+      );
+    }
+
+    switch (type) {
+      case 'color':
+        return (
+          <View style={[styles.identifierThumbnail, { backgroundColor: value }]} />
+        );
+      case 'image':
+        return (
+          <Image source={{ uri: value }} style={styles.identifierThumbnail} />
+        );
+      case 'text':
+        return (
+          <View style={styles.identifierThumbnail}>
+            <Text style={styles.textThumbnail}>{value}</Text>
+          </View>
+        );
+      default:
+        return (
+          <View style={styles.identifierThumbnail}>
+            <Text style={styles.textThumbnail}>-</Text>
+          </View>
+        );
+    }
+  };
+
   // Generate option combinations for inventory
   const generateOptionCombinations = (selectedOptionIds: number[]): any[] => {
     if (selectedOptionIds.length === 0) return [];
@@ -2315,7 +2468,9 @@ export default function ProductsScreen() {
 
   // Create new modifier function
   const createNewModifier = async () => {
-    if (!newModifierTitle.trim()) {
+    // Validate required fields
+    const finalTitle = selectedModifierTitleType === 'Custom' ? customModifierTitle : newModifierTitle;
+    if (!finalTitle.trim()) {
       Alert.alert('Error', 'Modifier title is required');
       return;
     }
@@ -2331,12 +2486,25 @@ export default function ProductsScreen() {
       const { tursoDbName, tursoApiToken } = profile;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
+      // Build identifier object based on selected type
+      let identifierObject = '';
+      if (selectedModifierIdentifierType === 'color') {
+        identifierObject = JSON.stringify({ color: modifierIdentifierColorValue });
+      } else if (selectedModifierIdentifierType === 'image') {
+        identifierObject = JSON.stringify({ image: modifierIdentifierImageValue });
+      } else if (selectedModifierIdentifierType === 'text') {
+        identifierObject = JSON.stringify({ text: modifierIdentifierTextValue });
+      }
+
+      // Calculate final value with sign
+      const finalValue = newModifierValueSign === '+' ? newModifierValue : -newModifierValue;
+
       const requestBody = {
         requests: [
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO modifiers (title, notes, type, value, identifier) VALUES ('${newModifierTitle.replace(/'/g, "''")}', '${newModifierNotes.replace(/'/g, "''")}', '${newModifierType.replace(/'/g, "''")}', ${newModifierValue}, '${newModifierIdentifier.replace(/'/g, "''")}')`
+              sql: `INSERT INTO modifiers (title, notes, type, value, identifier) VALUES ('${finalTitle.replace(/'/g, "''")}', '${newModifierNotes.replace(/'/g, "''")}', '${newModifierType.replace(/'/g, "''")}', ${finalValue}, '${identifierObject.replace(/'/g, "''")}')`
             }
           }
         ]
@@ -3294,10 +3462,13 @@ export default function ProductsScreen() {
                     return selectedOptions.map((option) => (
                       <View
                         key={option.id}
-                        style={[styles.tile, styles.orgTileSingle]}
+                        style={[styles.tile, styles.orgTileSingle, styles.optionTileWithThumbnail]}
                       >
-                        <Text style={styles.orgTileLabel}>{option.title}</Text>
-                        <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                        {renderIdentifierThumbnail(option.identifier || '')}
+                        <View style={styles.optionTileContent}>
+                          <Text style={styles.orgTileLabel}>{option.title}</Text>
+                          <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                        </View>
                       </View>
                     ));
                   }
@@ -3789,10 +3960,13 @@ export default function ProductsScreen() {
                       return selectedOptions.map((option) => (
                         <View
                           key={option.id}
-                          style={[styles.tile, styles.orgTileSingle]}
+                          style={[styles.tile, styles.orgTileSingle, styles.optionTileWithThumbnail]}
                         >
-                          <Text style={styles.orgTileLabel}>{option.title}</Text>
-                          <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                          {renderIdentifierThumbnail(option.identifier || '')}
+                          <View style={styles.optionTileContent}>
+                            <Text style={styles.orgTileLabel}>{option.title}</Text>
+                            <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                          </View>
                         </View>
                       ));
                     }
@@ -4305,10 +4479,12 @@ export default function ProductsScreen() {
                   <TouchableOpacity
                     style={[
                       styles.optionItem,
+                      styles.optionItemWithThumbnail,
                       selectedOptionIds.includes(item.id) && styles.selectedOptionItem
                     ]}
                     onPress={() => toggleOptionSelection(item.id)}
                   >
+                    {renderIdentifierThumbnail(item.identifier || '')}
                     <View style={styles.optionContent}>
                       <Text style={styles.optionTitle}>{item.title}</Text>
                       <Text style={styles.optionValue}>{item.value}</Text>
@@ -4330,10 +4506,12 @@ export default function ProductsScreen() {
                         <TouchableOpacity
                           style={[
                             styles.childOptionItem,
+                            styles.optionItemWithThumbnail,
                             selectedOptionIds.includes(child.id) && styles.selectedOptionItem
                           ]}
                           onPress={() => toggleOptionSelection(child.id)}
                         >
+                          {renderIdentifierThumbnail(child.identifier || '')}
                           <View style={styles.optionContent}>
                             <Text style={styles.childOptionTitle}>{child.title}</Text>
                             <Text style={styles.childOptionValue}>{child.value}</Text>
@@ -4345,10 +4523,12 @@ export default function ProductsScreen() {
                             key={grandChild.id}
                             style={[
                               styles.grandChildOptionItem,
+                              styles.optionItemWithThumbnail,
                               selectedOptionIds.includes(grandChild.id) && styles.selectedOptionItem
                             ]}
                             onPress={() => toggleOptionSelection(grandChild.id)}
                           >
+                            {renderIdentifierThumbnail(grandChild.identifier || '')}
                             <View style={styles.optionContent}>
                               <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
                               <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
@@ -4512,7 +4692,21 @@ export default function ProductsScreen() {
           <View style={styles.optionsModalHeader}>
             <TouchableOpacity
               style={styles.createButton}
-              onPress={() => setCreateModifierModalVisible(true)}
+              onPress={() => {
+                setCreateModifierModalVisible(true);
+                // Reset all modifier form values for new modifier
+                setNewModifierTitle('');
+                setNewModifierNotes('');
+                setNewModifierType('percentage');
+                setNewModifierValue(0);
+                setNewModifierValueSign('+');
+                setSelectedModifierTitleType('');
+                setCustomModifierTitle('');
+                setSelectedModifierIdentifierType(null);
+                setModifierIdentifierColorValue('#000000');
+                setModifierIdentifierImageValue('[]');
+                setModifierIdentifierTextValue('');
+              }}
             >
               <Ionicons name="add" size={20} color="#0066CC" />
             </TouchableOpacity>
@@ -4536,22 +4730,23 @@ export default function ProductsScreen() {
               const bSelected = selectedModifierIds.includes(b.id);
               if (aSelected && !bSelected) return -1;
               if (!aSelected && bSelected) return 1;
-              return 0;
+              return a.title.localeCompare(b.title);
             })}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[
                   styles.optionItem,
+                  styles.optionItemWithThumbnail,
                   selectedModifierIds.includes(item.id) && styles.selectedOptionItem
                 ]}
                 onPress={() => toggleModifierSelection(item.id)}
               >
+                {renderIdentifierThumbnail(item.identifier || '')}
                 <View style={styles.optionContent}>
                   <Text style={styles.optionTitle}>{item.title}</Text>
                   <Text style={styles.optionValue}>
-                    {item.type && `Type: ${item.type}`}
-                    {item.value && ` | Value: $${item.value.toFixed(2)}`}
-                    {item.identifier && ` | ID: ${item.identifier}`}
+                    {item.type && `${item.type}`}
+                    {item.value && ` • $${item.value.toFixed(2)}`}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -4998,65 +5193,211 @@ export default function ProductsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.createFormContainer}>
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Title *</Text>
-              <TextInput
-                style={styles.input}
-                value={newModifierTitle}
-                onChangeText={setNewModifierTitle}
-                placeholder="Modifier title"
-                placeholderTextColor="#999"
-              />
+          <ScrollView style={styles.tabContentNoPadding} showsVerticalScrollIndicator={false}>
+            {/* Modifier Title */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <TouchableOpacity
+                style={styles.createOptionTile}
+                onPress={() => setModifierTitleDrawerVisible(true)}
+              >
+                <Text style={styles.createOptionLabel}>title</Text>
+                <Text style={styles.createOptionValue}>
+                  {getModifierTitleDisplayValue()}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Type</Text>
-              <TextInput
-                style={styles.input}
-                value={newModifierType}
-                onChangeText={setNewModifierType}
-                placeholder="Modifier type (e.g., percentage, fixed)"
-                placeholderTextColor="#999"
-              />
+            {/* Custom Title Input (if Custom is selected) */}
+            {shouldShowCustomModifierTitleTile() && (
+              <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+                <View style={styles.createOptionTileNoBorder}>
+                  <Text style={styles.createOptionLabel}>Custom Title</Text>
+                  <TextInput
+                    style={styles.createOptionInput}
+                    value={customModifierTitle}
+                    onChangeText={setCustomModifierTitle}
+                    placeholder="Enter custom title"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Modifier Type */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <View style={styles.tilesRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileLeft,
+                    { borderTopWidth: 0 },
+                    newModifierType === 'percentage' && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewModifierType('percentage')}
+                >
+                  <Text style={styles.statusTileLabel}>Percentage</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newModifierType === 'percentage' ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileRight,
+                    { borderTopWidth: 0 },
+                    newModifierType === 'fixed' && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewModifierType('fixed')}
+                >
+                  <Text style={styles.statusTileLabel}>Fixed</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newModifierType === 'fixed' ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Value</Text>
-              <TextInput
-                style={styles.input}
-                value={newModifierValue.toString()}
-                onChangeText={(text) => setNewModifierValue(parseFloat(text) || 0)}
-                placeholder="0.00"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
+            {/* Divider before Value section */}
+            <View style={styles.tilesDivider} />
+
+            {/* Modifier Value Sign */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <View style={styles.tilesRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileLeft,
+                    { borderTopWidth: 0 },
+                    newModifierValueSign === '+' && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewModifierValueSign('+')}
+                >
+                  <Text style={styles.statusTileLabel}>Plus (+)</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newModifierValueSign === '+' ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    styles.statusTileRight,
+                    { borderTopWidth: 0 },
+                    newModifierValueSign === '-' && { backgroundColor: '#E3F2FD' }
+                  ]}
+                  onPress={() => setNewModifierValueSign('-')}
+                >
+                  <Text style={styles.statusTileLabel}>Minus (-)</Text>
+                  <Text style={styles.statusTileValue}>
+                    {newModifierValueSign === '-' ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Identifier</Text>
-              <TextInput
-                style={styles.input}
-                value={newModifierIdentifier}
-                onChangeText={setNewModifierIdentifier}
-                placeholder="Modifier identifier"
-                placeholderTextColor="#999"
-              />
+            {/* Divider before Value input */}
+            <View style={styles.tilesDivider} />
+
+            {/* Modifier Value */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <View style={styles.createOptionTileNoBorder}>
+                <Text style={styles.createOptionLabel}>Value</Text>
+                <TextInput
+                  style={styles.createOptionInput}
+                  value={newModifierValue.toString()}
+                  onChangeText={(text) => setNewModifierValue(parseFloat(text) || 0)}
+                  placeholder="0.00"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
 
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Notes</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={newModifierNotes}
-                onChangeText={setNewModifierNotes}
-                placeholder="Modifier notes"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-              />
+            {/* Divider after Value section */}
+            <View style={styles.tilesDivider} />
+
+            {/* Identifier Tiles */}
+            <View style={styles.identifierTilesContainer}>
+              <View style={styles.identifierTilesRow}>
+                {/* Color Tile */}
+                <TouchableOpacity
+                  style={[
+                    styles.identifierTile,
+                    selectedModifierIdentifierType === 'color' && styles.selectedIdentifierTile,
+                    selectedModifierIdentifierType === 'color' && { backgroundColor: modifierIdentifierColorValue }
+                  ]}
+                  onPress={() => handleModifierIdentifierTypeSelection('color')}
+                >
+                  <Text style={[
+                    styles.identifierTileLabel,
+                    selectedModifierIdentifierType === 'color' && { color: '#ffffff' }
+                  ]}>Color</Text>
+                </TouchableOpacity>
+
+                {/* Image Tile */}
+                <View
+                  style={[
+                    styles.identifierTile,
+                    selectedModifierIdentifierType === 'image' && styles.selectedIdentifierTile
+                  ]}
+                >
+                  <SingleImageUploader
+                    imageUrl={modifierIdentifierImageValue}
+                    onImageChange={(imageUrl) => {
+                      handleModifierIdentifierTypeSelection('image');
+                      handleModifierIdentifierImageChange(imageUrl);
+                    }}
+                    style={styles.fullTileImageUploader}
+                    showFullImage={true}
+                    hideText={true}
+                    onImageTap={() => setModifierImageClearDrawerVisible(true)}
+                  />
+                </View>
+
+                {/* Text Tile */}
+                <View
+                  style={[
+                    styles.identifierTile,
+                    styles.identifierTileRight,
+                    selectedModifierIdentifierType === 'text' && styles.selectedIdentifierTile
+                  ]}
+                >
+                  <TextInput
+                    style={styles.textTileInput}
+                    value={modifierIdentifierTextValue}
+                    onChangeText={(text) => {
+                      handleModifierIdentifierTypeSelection('text');
+                      setModifierIdentifierTextValue(text.toUpperCase());
+                    }}
+                    placeholder="TEXT"
+                    placeholderTextColor="#999"
+                    textAlign="center"
+                    autoCapitalize="characters"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
             </View>
-          </View>
+
+            {/* Divider before Notes section */}
+            <View style={styles.tilesDivider} />
+
+            {/* Notes */}
+            <View style={[styles.createOptionSection, { borderBottomWidth: 0 }]}>
+              <View style={styles.createOptionTileNoBorder}>
+                <TextInput
+                  style={[styles.createOptionInput, styles.textArea, { textAlign: 'left' }]}
+                  value={newModifierNotes}
+                  onChangeText={setNewModifierNotes}
+                  placeholder="Modifier notes"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+            </View>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -5876,6 +6217,161 @@ export default function ProductsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Modifier Title Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={modifierTitleDrawerVisible}
+        onRequestClose={() => setModifierTitleDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Modifier Type</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={modifierTitleTypes}
+            renderItem={({ item }) => {
+              if (item === 'Custom') {
+                return (
+                  <View style={[styles.categoryItem, { backgroundColor: '#E3F2FD' }]}>
+                    <TextInput
+                      style={styles.customTitleInput}
+                      value={customModifierTitle}
+                      onChangeText={setCustomModifierTitle}
+                      placeholder="Enter custom modifier title"
+                      placeholderTextColor="#999"
+                      autoFocus={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.customCheckButton}
+                      onPress={() => handleModifierTitleTypeSelection('Custom')}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#0066CC" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  style={styles.categoryItem}
+                  onPress={() => handleModifierTitleTypeSelection(item)}
+                >
+                  <View style={styles.categoryContent}>
+                    <Text style={styles.categoryTitle}>{item}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modifier Color Picker Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={modifierColorPickerDrawerVisible}
+        onRequestClose={() => setModifierColorPickerDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Color</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => setModifierColorPickerDrawerVisible(false)}
+            >
+              <Ionicons name="checkmark" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.colorPickerContainer}>
+              <View style={styles.colorPreviewLarge}>
+                <View style={[styles.colorPreviewCircle, { backgroundColor: modifierIdentifierColorValue }]} />
+                <Text style={styles.colorValueText}>{modifierIdentifierColorValue}</Text>
+              </View>
+
+              <View style={styles.colorInputSection}>
+                <Text style={styles.inputLabel}>Hex Color</Text>
+                <TextInput
+                  style={styles.colorHexInput}
+                  value={modifierIdentifierColorValue}
+                  onChangeText={setModifierIdentifierColorValue}
+                  placeholder="#000000"
+                  placeholderTextColor="#999"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.colorPresetsSection}>
+                <Text style={styles.inputLabel}>Color Presets</Text>
+                <View style={styles.colorPresetsGrid}>
+                  {['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#FFC0CB', '#A52A2A', '#808080', '#000000'].map((color) => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[styles.colorPresetItem, { backgroundColor: color }]}
+                      onPress={() => setModifierIdentifierColorValue(color)}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modifier Image Clear Bottom Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modifierImageClearDrawerVisible}
+        onRequestClose={() => setModifierImageClearDrawerVisible(false)}
+      >
+        <View style={styles.bottomDrawerOverlay}>
+          <TouchableOpacity
+            style={styles.bottomDrawerBackdrop}
+            onPress={() => setModifierImageClearDrawerVisible(false)}
+          />
+          <View style={styles.bottomDrawerContainer}>
+            <View style={styles.bottomDrawerHeader}>
+              <Text style={styles.bottomDrawerTitle}>Image Options</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.bottomDrawerOption}
+              onPress={() => {
+                setModifierIdentifierImageValue('[]');
+                setModifierImageClearDrawerVisible(false);
+              }}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              <Text style={[styles.bottomDrawerOptionText, { color: '#FF3B30' }]}>Clear Image</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomDrawerOption}
+              onPress={() => setModifierImageClearDrawerVisible(false)}
+            >
+              <Ionicons name="close-outline" size={24} color="#666" />
+              <Text style={styles.bottomDrawerOptionText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -6283,33 +6779,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 0,
     paddingHorizontal: 16,
     backgroundColor: '#fff',
+    minHeight: 48,
+  },
+  optionItemWithThumbnail: {
+    paddingLeft: 0,
   },
   childOptionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 0,
     paddingHorizontal: 16,
-    paddingLeft: 32,
+    paddingLeft: 0,
     backgroundColor: '#fff',
+    minHeight: 48,
   },
   grandChildOptionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 0,
     paddingHorizontal: 16,
-    paddingLeft: 48,
+    paddingLeft: 0,
     backgroundColor: '#fff',
+    minHeight: 48,
   },
   selectedOptionItem: {
     backgroundColor: '#f0f8ff',
   },
   optionContent: {
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   optionTitle: {
     fontSize: 16,
@@ -7309,5 +7815,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 12,
+  },
+  // Identifier thumbnail styles
+  optionTileWithThumbnail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+  },
+  optionTileContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingLeft: 12,
+  },
+  identifierThumbnail: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0,
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+    flexShrink: 0,
+  },
+  textThumbnail: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
   },
 });
