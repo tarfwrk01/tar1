@@ -25,6 +25,7 @@ import VerticalTabView from './VerticalTabView';
 type Product = {
   id: number;
   title: string;
+  image: string; // Single image URL
   medias: string; // JSON array of URLs (renamed from images)
   excerpt: string;
   notes: string;
@@ -300,6 +301,7 @@ export default function ProductsScreen() {
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     title: '',
+    image: '', // Single image URL
     medias: '[]', // Empty JSON array (renamed from images)
     excerpt: '',
     notes: '',
@@ -679,6 +681,7 @@ export default function ProductsScreen() {
   const resetNewProductForm = () => {
     setNewProduct({
       title: '',
+      image: '',
       medias: '[]',
       excerpt: '',
       notes: '',
@@ -1116,7 +1119,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: "SELECT id, title, price, type FROM products ORDER BY id DESC LIMIT 100"
+              sql: "SELECT id, title, image, price, type FROM products ORDER BY id DESC LIMIT 100"
             }
           }
         ]
@@ -1159,8 +1162,9 @@ export default function ProductsScreen() {
               return {
                 id: parseInt(row[0].value),
                 title: row[1].value,
-                price: row[2].type === 'null' ? 0 : parseFloat(row[2].value),
-                type: row[3].type === 'null' ? '' : row[3].value
+                image: row[2].type === 'null' ? '' : row[2].value,
+                price: row[3].type === 'null' ? 0 : parseFloat(row[3].value),
+                type: row[4].type === 'null' ? '' : row[4].value
               };
             });
 
@@ -1220,7 +1224,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `SELECT id, title, medias, excerpt, notes, type, category, collection, unit,
+              sql: `SELECT id, title, image, medias, excerpt, notes, type, category, collection, unit,
                     price, saleprice, vendor, brand, options, modifiers, metafields,
                     saleinfo, stores, pos, website, seo, tags, cost, qrcode, stock, createdat,
                     updatedat, publishat, publish, promoinfo, featured, relproducts, sellproducts
@@ -1263,37 +1267,38 @@ export default function ProductsScreen() {
             const productData: Product = {
               id: parseInt(row[0].value),
               title: row[1].type === 'null' ? '' : row[1].value,
-              medias: row[2].type === 'null' ? '[]' : row[2].value,
-              excerpt: row[3].type === 'null' ? '' : row[3].value,
-              notes: row[4].type === 'null' ? '' : row[4].value,
-              type: row[5].type === 'null' ? 'physical' : row[5].value,
-              category: row[6].type === 'null' ? '' : row[6].value,
-              collection: row[7].type === 'null' ? '' : row[7].value,
-              unit: row[8].type === 'null' ? '' : row[8].value,
-              price: row[9].type === 'null' ? 0 : parseFloat(row[9].value),
-              saleprice: row[10].type === 'null' ? 0 : parseFloat(row[10].value),
-              vendor: row[11].type === 'null' ? '' : row[11].value,
-              brand: row[12].type === 'null' ? '' : row[12].value,
-              options: row[13].type === 'null' ? '[]' : row[13].value,
-              modifiers: row[14].type === 'null' ? '[]' : row[14].value,
-              metafields: row[15].type === 'null' ? '{}' : row[15].value,
-              saleinfo: row[16].type === 'null' ? '' : row[16].value,
-              stores: row[17].type === 'null' ? '' : row[17].value,
-              pos: row[18].type === 'null' ? 0 : parseInt(row[18].value),
-              website: row[19].type === 'null' ? 0 : parseInt(row[19].value),
-              seo: row[20].type === 'null' ? '{"slug":"", "title":"", "keywords":""}' : row[20].value,
-              tags: row[21].type === 'null' ? '' : row[21].value,
-              cost: row[22].type === 'null' ? 0 : parseFloat(row[22].value),
-              qrcode: row[23].type === 'null' ? '' : row[23].value,
-              stock: row[24].type === 'null' ? 0 : parseInt(row[24].value),
-              createdat: row[25].type === 'null' ? '' : row[25].value,
-              updatedat: row[26].type === 'null' ? '' : row[26].value,
-              publishat: row[27].type === 'null' ? '' : row[27].value,
-              publish: row[28].type === 'null' ? 'draft' : row[28].value,
-              promoinfo: row[29].type === 'null' ? '' : row[29].value,
-              featured: row[30].type === 'null' ? 0 : parseInt(row[30].value),
-              relproducts: row[31].type === 'null' ? '[]' : row[31].value,
-              sellproducts: row[32].type === 'null' ? '[]' : row[32].value,
+              image: row[2].type === 'null' ? '' : row[2].value,
+              medias: row[3].type === 'null' ? '[]' : row[3].value,
+              excerpt: row[4].type === 'null' ? '' : row[4].value,
+              notes: row[5].type === 'null' ? '' : row[5].value,
+              type: row[6].type === 'null' ? 'physical' : row[6].value,
+              category: row[7].type === 'null' ? '' : row[7].value,
+              collection: row[8].type === 'null' ? '' : row[8].value,
+              unit: row[9].type === 'null' ? '' : row[9].value,
+              price: row[10].type === 'null' ? 0 : parseFloat(row[10].value),
+              saleprice: row[11].type === 'null' ? 0 : parseFloat(row[11].value),
+              vendor: row[12].type === 'null' ? '' : row[12].value,
+              brand: row[13].type === 'null' ? '' : row[13].value,
+              options: row[14].type === 'null' ? '[]' : row[14].value,
+              modifiers: row[15].type === 'null' ? '[]' : row[15].value,
+              metafields: row[16].type === 'null' ? '{}' : row[16].value,
+              saleinfo: row[17].type === 'null' ? '' : row[17].value,
+              stores: row[18].type === 'null' ? '' : row[18].value,
+              pos: row[19].type === 'null' ? 0 : parseInt(row[19].value),
+              website: row[20].type === 'null' ? 0 : parseInt(row[20].value),
+              seo: row[21].type === 'null' ? '{"slug":"", "title":"", "keywords":""}' : row[21].value,
+              tags: row[22].type === 'null' ? '' : row[22].value,
+              cost: row[23].type === 'null' ? 0 : parseFloat(row[23].value),
+              qrcode: row[24].type === 'null' ? '' : row[24].value,
+              stock: row[25].type === 'null' ? 0 : parseInt(row[25].value),
+              createdat: row[26].type === 'null' ? '' : row[26].value,
+              updatedat: row[27].type === 'null' ? '' : row[27].value,
+              publishat: row[28].type === 'null' ? '' : row[28].value,
+              publish: row[29].type === 'null' ? 'draft' : row[29].value,
+              promoinfo: row[30].type === 'null' ? '' : row[30].value,
+              featured: row[31].type === 'null' ? 0 : parseInt(row[31].value),
+              relproducts: row[32].type === 'null' ? '[]' : row[32].value,
+              sellproducts: row[33].type === 'null' ? '[]' : row[33].value,
             };
 
             return productData;
@@ -1360,13 +1365,14 @@ export default function ProductsScreen() {
             type: "execute",
             stmt: {
               sql: `INSERT INTO products (
-                title, medias, excerpt, notes, type, category, collection, unit,
+                title, image, medias, excerpt, notes, type, category, collection, unit,
                 price, saleprice, vendor, brand, options, modifiers, metafields,
                 saleinfo, stores, pos, website, seo,
                 tags, cost, qrcode, stock, createdat, updatedat, publishat, publish,
                 promoinfo, featured, relproducts, sellproducts
               ) VALUES (
                 '${(newProduct.title || '').replace(/'/g, "''")}',
+                '${(newProduct.image || '').replace(/'/g, "''")}',
                 '${(newProduct.medias || '[]').replace(/'/g, "''")}',
                 '${(newProduct.excerpt || '').replace(/'/g, "''")}',
                 '${(newProduct.notes || '').replace(/'/g, "''")}',
@@ -1484,6 +1490,7 @@ export default function ProductsScreen() {
             stmt: {
               sql: `UPDATE products SET
                 title = '${(selectedProductForEdit.title || '').replace(/'/g, "''")}',
+                image = '${(selectedProductForEdit.image || '').replace(/'/g, "''")}',
                 medias = '${(selectedProductForEdit.medias || '[]').replace(/'/g, "''")}',
                 excerpt = '${(selectedProductForEdit.excerpt || '').replace(/'/g, "''")}',
                 notes = '${(selectedProductForEdit.notes || '').replace(/'/g, "''")}',
@@ -3142,27 +3149,23 @@ export default function ProductsScreen() {
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity
-      style={[
-        styles.productItem,
-        selectedProductForInventory?.id === item.id && styles.selectedProductItem
-      ]}
-      onPress={() => {
-        setSelectedProductForInventory(item);
-        fetchInventoryForProduct(item.id);
-      }}
-      onLongPress={() => handleEditProduct(item)}
+      style={styles.simpleProductItem}
+      onPress={() => handleEditProduct(item)}
     >
-      <View style={styles.productContent}>
-        <Text style={styles.productTitle}>{item.title || 'Untitled Product'}</Text>
-        <Text style={styles.productSubtitle}>ID: {item.id} | Type: {item.type}</Text>
-        <Text style={styles.productPrice}>Price: ${item.price?.toFixed(2)}</Text>
+      <View style={styles.productImageContainer}>
+        {item.image ? (
+          <Image
+            source={{ uri: item.image }}
+            style={styles.productListImage}
+            onError={(error) => console.log('Product list image load error:', error.nativeEvent.error)}
+          />
+        ) : (
+          <View style={styles.productImagePlaceholder}>
+            <Ionicons name="image-outline" size={24} color="#999" />
+          </View>
+        )}
       </View>
-      <TouchableOpacity
-        style={styles.editButton}
-        onPress={() => handleEditProduct(item)}
-      >
-        <Ionicons name="create-outline" size={20} color="#0066CC" />
-      </TouchableOpacity>
+      <Text style={styles.simpleProductTitle}>{item.title || 'Untitled Product'}</Text>
     </TouchableOpacity>
   );
 
@@ -3392,59 +3395,22 @@ export default function ProductsScreen() {
 
                 <View style={styles.tilesRow}>
                   <View style={[styles.tile, styles.tileLeft]}>
-                    <View style={styles.imageTileContainer}>
-                      {(() => {
-                        try {
-                          console.log('Core tab - newProduct.medias raw value:', newProduct.medias);
-                          console.log('Core tab - newProduct.medias type:', typeof newProduct.medias);
-
-                          // Handle both string and array cases
-                          let mediaArray;
-                          if (typeof newProduct.medias === 'string') {
-                            const mediasValue = newProduct.medias || '[]';
-                            console.log('Core tab - mediasValue after fallback:', mediasValue);
-                            mediaArray = JSON.parse(mediasValue);
-                          } else if (Array.isArray(newProduct.medias)) {
-                            mediaArray = newProduct.medias;
-                          } else {
-                            mediaArray = [];
+                    <View style={styles.fullImageTileContainer}>
+                      <SingleImageUploader
+                        imageUrl={newProduct.image ? JSON.stringify([newProduct.image]) : '[]'}
+                        onImageChange={(imageUrl) => {
+                          try {
+                            const parsedImages = JSON.parse(imageUrl);
+                            const firstImage = Array.isArray(parsedImages) && parsedImages.length > 0 ? parsedImages[0] : '';
+                            setNewProduct({...newProduct, image: firstImage});
+                          } catch (error) {
+                            console.log('Error parsing image URL:', error);
+                            setNewProduct({...newProduct, image: ''});
                           }
-
-                          console.log('Core tab - mediaArray:', mediaArray);
-                          console.log('Core tab - mediaArray type:', typeof mediaArray);
-                          console.log('Core tab - mediaArray length:', Array.isArray(mediaArray) ? mediaArray.length : 'not array');
-
-                          // Filter out empty strings and null values
-                          const validImages = Array.isArray(mediaArray) ?
-                            mediaArray.filter((url: string) => url && typeof url === 'string' && url.trim() !== '') : [];
-                          console.log('Core tab - validImages:', validImages);
-                          console.log('Core tab - validImages length:', validImages.length);
-
-                          const firstImage = validImages.length > 0 ? validImages[0] : null;
-                          console.log('Core tab - firstImage:', firstImage);
-
-                          return firstImage ? (
-                            <Image
-                              key={firstImage}
-                              source={{ uri: firstImage }}
-                              style={styles.productImageTile}
-                              onLoad={() => console.log('Core tab - Image loaded successfully:', firstImage)}
-                              onError={(error) => console.log('Core tab - Image load error:', error.nativeEvent.error)}
-                            />
-                          ) : (
-                            <View style={styles.imagePlaceholder}>
-                              <Ionicons name="image-outline" size={24} color="#999" />
-                            </View>
-                          );
-                        } catch (error) {
-                          console.log('Core tab - error parsing media:', error);
-                          return (
-                            <View style={styles.imagePlaceholder}>
-                              <Ionicons name="image-outline" size={24} color="#999" />
-                            </View>
-                          );
-                        }
-                      })()}
+                        }}
+                        style={styles.fullImageTileContainer}
+                        hideText={true}
+                      />
                     </View>
                   </View>
 
@@ -3884,59 +3850,22 @@ export default function ProductsScreen() {
 
                   <View style={styles.tilesRow}>
                     <View style={[styles.tile, styles.tileLeft]}>
-                      <View style={styles.imageTileContainer}>
-                        {(() => {
-                          try {
-                            console.log('Edit Core tab - selectedProductForEdit.medias raw value:', selectedProductForEdit.medias);
-                            console.log('Edit Core tab - selectedProductForEdit.medias type:', typeof selectedProductForEdit.medias);
-
-                            // Handle both string and array cases
-                            let mediaArray;
-                            if (typeof selectedProductForEdit.medias === 'string') {
-                              const mediasValue = selectedProductForEdit.medias || '[]';
-                              console.log('Edit Core tab - mediasValue after fallback:', mediasValue);
-                              mediaArray = JSON.parse(mediasValue);
-                            } else if (Array.isArray(selectedProductForEdit.medias)) {
-                              mediaArray = selectedProductForEdit.medias;
-                            } else {
-                              mediaArray = [];
+                      <View style={styles.fullImageTileContainer}>
+                        <SingleImageUploader
+                          imageUrl={selectedProductForEdit.image ? JSON.stringify([selectedProductForEdit.image]) : '[]'}
+                          onImageChange={(imageUrl) => {
+                            try {
+                              const parsedImages = JSON.parse(imageUrl);
+                              const firstImage = Array.isArray(parsedImages) && parsedImages.length > 0 ? parsedImages[0] : '';
+                              setSelectedProductForEdit({...selectedProductForEdit, image: firstImage});
+                            } catch (error) {
+                              console.log('Error parsing image URL:', error);
+                              setSelectedProductForEdit({...selectedProductForEdit, image: ''});
                             }
-
-                            console.log('Edit Core tab - mediaArray:', mediaArray);
-                            console.log('Edit Core tab - mediaArray type:', typeof mediaArray);
-                            console.log('Edit Core tab - mediaArray length:', Array.isArray(mediaArray) ? mediaArray.length : 'not array');
-
-                            // Filter out empty strings and null values
-                            const validImages = Array.isArray(mediaArray) ?
-                              mediaArray.filter((url: string) => url && typeof url === 'string' && url.trim() !== '') : [];
-                            console.log('Edit Core tab - validImages:', validImages);
-                            console.log('Edit Core tab - validImages length:', validImages.length);
-
-                            const firstImage = validImages.length > 0 ? validImages[0] : null;
-                            console.log('Edit Core tab - firstImage:', firstImage);
-
-                            return firstImage ? (
-                              <Image
-                                key={firstImage}
-                                source={{ uri: firstImage }}
-                                style={styles.productImageTile}
-                                onLoad={() => console.log('Edit Core tab - Image loaded successfully:', firstImage)}
-                                onError={(error) => console.log('Edit Core tab - Image load error:', error.nativeEvent.error)}
-                              />
-                            ) : (
-                              <View style={styles.imagePlaceholder}>
-                                <Ionicons name="image-outline" size={24} color="#999" />
-                              </View>
-                            );
-                          } catch (error) {
-                            console.log('Edit Core tab - error parsing media:', error);
-                            return (
-                              <View style={styles.imagePlaceholder}>
-                                <Ionicons name="image-outline" size={24} color="#999" />
-                              </View>
-                            );
-                          }
-                        })()}
+                          }}
+                          style={styles.fullImageTileContainer}
+                          hideText={true}
+                        />
                       </View>
                     </View>
 
@@ -8411,5 +8340,47 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
+  },
+  // Simple product list styles
+  simpleProductItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  productImageContainer: {
+    width: 48,
+    height: 48,
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  productListImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  productImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  simpleProductTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  // Full image tile styles
+  fullImageTileContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
   },
 });

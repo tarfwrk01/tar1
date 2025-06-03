@@ -54,6 +54,7 @@ export default function ProductDataScreen() {
                 sql: `CREATE TABLE IF NOT EXISTS products (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   title TEXT,
+                  image TEXT,
                   medias TEXT,
                   excerpt TEXT,
                   notes TEXT,
