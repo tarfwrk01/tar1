@@ -128,29 +128,34 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
       setIsLoading(false);
     } else if (user && !profileLoading && !profileInitialized.current) {
-      // Only consider a user as new if:
-      // 1. Profile data has finished loading
-      // 2. No profile was found
-      // 3. We haven't already tried to initialize the profile
-      console.log('User authenticated but no profile record found after loading completed');
+      // Check if this is a new user or user with incomplete onboarding
+      const isNewUser = !profileData || !profileData.profile || profileData.profile.length === 0;
+      const hasIncompleteOnboarding = profileData?.profile?.[0]?.onboardingCompleted !== true;
 
-      // Check if we've already tried to initialize the profile
-      if (profileInitialized.current) {
-        console.log('Profile initialization already attempted, skipping');
+      if (isNewUser || hasIncompleteOnboarding) {
+        console.log('NEW USER DETECTION: User needs onboarding setup - isNewUser:', isNewUser, 'hasIncompleteOnboarding:', hasIncompleteOnboarding);
+
+        // Check if we've already tried to initialize the profile
+        if (profileInitialized.current) {
+          console.log('Profile initialization already attempted, skipping');
+          setIsLoading(false);
+          return;
+        }
+
+        // Mark that we've attempted to initialize the profile
+        profileInitialized.current = true;
+
+        // For new users or users with incomplete onboarding, set status to false
+        console.log('NEW USER DETECTION: Setting onboardingCompleted to false and initializing profile data');
+        setIsOnboardingCompleted(false);
+
+        // Initialize the profile data in the database
+        initializeOnboardingData();
+      } else {
+        // User has completed onboarding, just set loading to false
+        console.log('User has completed onboarding, setting loading to false');
         setIsLoading(false);
-        return;
       }
-
-      // Mark that we've attempted to initialize the profile
-      profileInitialized.current = true;
-
-      // For truly new users, explicitly set onboardingCompleted to false
-      console.log('New user detected, setting onboardingCompleted to false');
-      setIsOnboardingCompleted(false);
-
-      // Initialize the profile data in the database without setting onboardingCompleted
-      console.log('Initializing profile data for new user');
-      initializeOnboardingData();
     } else if (user && !profileLoading && profileInitialized.current) {
       // If we've already tried to initialize but still no profile data, just set loading to false
       console.log('Profile initialization already attempted, setting loading to false');
@@ -264,15 +269,27 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       }
     } else {
       // If onboarding is not completed in the database, go to onboarding screen
-      // But only if the user actually needs onboarding (not just undefined status)
+      // This includes:
+      // 1. Users with onboardingCompleted === false
+      // 2. New users with no profile yet
+      // 3. Users with undefined onboardingCompleted status
       const needsOnboarding =
-        profileData &&
-        profileData.profile &&
-        profileData.profile.length > 0 &&
-        profileData.profile[0].onboardingCompleted === false;
+        !hasCompletedOnboarding && // Not explicitly completed
+        (
+          // Case 1: No profile data yet (new user)
+          !profileData ||
+          !profileData.profile ||
+          profileData.profile.length === 0 ||
+          // Case 2: Profile exists but onboarding not completed
+          profileData.profile[0].onboardingCompleted === false ||
+          // Case 3: Profile exists but onboardingCompleted is undefined/null
+          profileData.profile[0].onboardingCompleted == null
+        );
+
+      console.log('NAVIGATION CHECK: needsOnboarding:', needsOnboarding, 'hasCompletedOnboarding:', hasCompletedOnboarding, 'currentSegment:', segments[0]);
 
       if (needsOnboarding && segments[0] !== '(onboarding)') {
-        console.log('Database shows onboarding is not completed, redirecting to database screen');
+        console.log('User needs onboarding, redirecting to database screen');
         navigationInProgress.current = true;
         lastNavigationTime.current = now;
 
@@ -283,9 +300,6 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         setTimeout(() => {
           navigationInProgress.current = false;
         }, 1000);
-      } else if (!needsOnboarding && !hasCompletedOnboarding) {
-        // If we don't have clear onboarding status, don't navigate anywhere
-        console.log('Unclear onboarding status, staying on current screen');
       }
     }
   }, [user, isLoading, segments, profileData, profileLoading]);
@@ -346,13 +360,17 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           userId: user.id,
         };
 
-        // Handle onboardingCompleted status - only preserve true values, never set to false
+        // Handle onboardingCompleted status
         if (existingOnboardingCompleted === true) {
           // If it was explicitly true before, keep it true
           console.log('EXISTING USER: Preserving true onboardingCompleted value');
           transactionData.onboardingCompleted = true;
+        } else if (isNewProfile) {
+          // For new users, explicitly set onboardingCompleted to false
+          console.log('NEW USER: Setting onboardingCompleted to false for new profile');
+          transactionData.onboardingCompleted = false;
         }
-        // Otherwise, don't set onboardingCompleted at all
+        // For existing profiles with incomplete onboarding, don't change the status
 
         // Set createdAt for new profiles
         if (isNewProfile) {
@@ -371,6 +389,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         // Update local state based on what we just saved
         if (transactionData.onboardingCompleted === true) {
           setIsOnboardingCompleted(true);
+        } else if (transactionData.onboardingCompleted === false) {
+          setIsOnboardingCompleted(false);
         }
         // Otherwise leave onboardingCompleted as undefined
 

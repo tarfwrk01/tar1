@@ -252,6 +252,13 @@ export default function ProductsScreen() {
   const [metafieldUnit, setMetafieldUnit] = useState('');
   const [metafieldValidationPattern, setMetafieldValidationPattern] = useState('');
 
+  // Metafield value drawer states
+  const [metafieldValueDrawerVisible, setMetafieldValueDrawerVisible] = useState(false);
+  const [selectedMetafieldForEdit, setSelectedMetafieldForEdit] = useState<any | null>(null);
+  const [currentMetafieldValue, setCurrentMetafieldValue] = useState('');
+  const [currentProduct, setCurrentProduct] = useState<any | null>(null);
+  const [isEditingProduct, setIsEditingProduct] = useState(false);
+
   // Modifier creation states (similar to options)
   const [modifierTitleDrawerVisible, setModifierTitleDrawerVisible] = useState(false);
   const [selectedModifierTitleType, setSelectedModifierTitleType] = useState('');
@@ -530,6 +537,88 @@ export default function ProductsScreen() {
     }
   };
 
+  // Helper function to get stored metafield values from product
+  const getStoredMetafieldValues = (product: any) => {
+    try {
+      if (!product.metafields) return {};
+
+      // If it's a JSON string, parse it
+      if (typeof product.metafields === 'string') {
+        const parsed = JSON.parse(product.metafields);
+
+        // If it's an array of IDs (old format), return empty object
+        if (Array.isArray(parsed)) return {};
+
+        // If it's an object with title:value pairs, return it
+        return parsed;
+      }
+
+      return product.metafields;
+    } catch (error) {
+      return {};
+    }
+  };
+
+  // Helper function to get clean metafield display value from stored product values
+  const getMetafieldDisplayValue = (metafield: any, product: any) => {
+    // Get the stored values from the product's metafields column
+    const storedValues = getStoredMetafieldValues(product);
+    const storedValue = storedValues[metafield.title];
+
+    // If we have a stored value, return it
+    if (storedValue !== undefined && storedValue !== '') {
+      return String(storedValue);
+    }
+
+    // Otherwise, try to get the default value from metafield configuration
+    if (!metafield.value) return 'Not set';
+
+    try {
+      // Try to parse the value as JSON configuration
+      const config = JSON.parse(metafield.value);
+
+      // Return the defaultValue if it exists, otherwise return 'Not set'
+      if (config.defaultValue !== undefined && config.defaultValue !== '') {
+        return String(config.defaultValue);
+      }
+
+      return 'Not set';
+    } catch (error) {
+      // If it's not JSON, return 'Not set'
+      return 'Not set';
+    }
+  };
+
+  // Helper function to get metafield edit value (for the drawer)
+  const getMetafieldEditValue = (metafield: any) => {
+    if (!metafield.value) return '';
+
+    try {
+      // Try to parse the value as JSON configuration
+      const config = JSON.parse(metafield.value);
+
+      // Return the defaultValue if it exists, otherwise return the raw value
+      if (config.defaultValue !== undefined) {
+        return config.defaultValue;
+      }
+
+      // If no DefaultValue, return the raw value
+      return metafield.value;
+    } catch (error) {
+      // If it's not JSON, return the raw value
+      return metafield.value;
+    }
+  };
+
+  // Open metafield value drawer for editing
+  const openMetafieldValueDrawer = (metafield: any, product: any, editMode: boolean) => {
+    setSelectedMetafieldForEdit(metafield);
+    setCurrentMetafieldValue(getMetafieldEditValue(metafield));
+    setCurrentProduct(product);
+    setIsEditingProduct(editMode);
+    setMetafieldValueDrawerVisible(true);
+  };
+
   // Helper function to reset new modifier form
   const resetNewModifierForm = () => {
     setNewModifierTitle('');
@@ -603,7 +692,7 @@ export default function ProductsScreen() {
       brand: '',
       options: '[]',
       modifiers: '[]',
-      metafields: '[]',
+      metafields: '{}',
       saleinfo: '',
       stores: '',
       pos: 1,
@@ -1187,7 +1276,7 @@ export default function ProductsScreen() {
               brand: row[12].type === 'null' ? '' : row[12].value,
               options: row[13].type === 'null' ? '[]' : row[13].value,
               modifiers: row[14].type === 'null' ? '[]' : row[14].value,
-              metafields: row[15].type === 'null' ? '[]' : row[15].value,
+              metafields: row[15].type === 'null' ? '{}' : row[15].value,
               saleinfo: row[16].type === 'null' ? '' : row[16].value,
               stores: row[17].type === 'null' ? '' : row[17].value,
               pos: row[18].type === 'null' ? 0 : parseInt(row[18].value),
@@ -1291,7 +1380,7 @@ export default function ProductsScreen() {
                 '${(newProduct.brand || '').replace(/'/g, "''")}',
                 '${(newProduct.options || '[]').replace(/'/g, "''")}',
                 '${(newProduct.modifiers || '[]').replace(/'/g, "''")}',
-                '${(newProduct.metafields || '[]').replace(/'/g, "''")}',
+                '${(newProduct.metafields || '{}').replace(/'/g, "''")}',
                 '${(newProduct.saleinfo || '').replace(/'/g, "''")}',
                 '${(newProduct.stores || '').replace(/'/g, "''")}',
                 ${newProduct.pos || 0},
@@ -1408,7 +1497,7 @@ export default function ProductsScreen() {
                 brand = '${(selectedProductForEdit.brand || '').replace(/'/g, "''")}',
                 options = '${(selectedProductForEdit.options || '[]').replace(/'/g, "''")}',
                 modifiers = '${(selectedProductForEdit.modifiers || '[]').replace(/'/g, "''")}',
-                metafields = '${(selectedProductForEdit.metafields || '[]').replace(/'/g, "''")}',
+                metafields = '${(selectedProductForEdit.metafields || '{}').replace(/'/g, "''")}',
                 saleinfo = '${(selectedProductForEdit.saleinfo || '').replace(/'/g, "''")}',
                 stores = '${(selectedProductForEdit.stores || '').replace(/'/g, "''")}',
                 pos = ${selectedProductForEdit.pos || 0},
@@ -1761,15 +1850,48 @@ export default function ProductsScreen() {
     setOptionsDrawerVisible(true);
   };
 
+  // Helper function to get selected metafield IDs from key-value pairs
+  const getSelectedMetafieldIdsFromKeyValue = (metafieldsJson: string): number[] => {
+    try {
+      const parsed = JSON.parse(metafieldsJson || '{}');
+
+      // If it's an array (old format), return it
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      // If it's an object with key-value pairs, find matching metafield IDs
+      if (typeof parsed === 'object' && parsed !== null) {
+        const keys = Object.keys(parsed);
+        const matchingIds: number[] = [];
+
+        keys.forEach(key => {
+          const metafield = availableMetafields.find(m => m.title === key);
+          if (metafield) {
+            matchingIds.push(metafield.id);
+          }
+        });
+
+        return matchingIds;
+      }
+
+      return [];
+    } catch (error) {
+      return [];
+    }
+  };
+
   const openMetafieldsDrawer = async (currentProduct: Partial<Product>, editMode: boolean = false) => {
     setIsEditMode(editMode);
-    const currentIds = parseSelectedIds(currentProduct.metafields || '[]');
-    setSelectedMetafieldIds(currentIds);
 
     // Fetch metafields first if not already loaded
     if (availableMetafields.length === 0) {
       await fetchAvailableMetafields();
     }
+
+    // Get selected IDs from key-value pairs
+    const currentIds = getSelectedMetafieldIdsFromKeyValue(currentProduct.metafields || '{}');
+    setSelectedMetafieldIds(currentIds);
 
     setMetafieldsDrawerVisible(true);
   };
@@ -1785,18 +1907,36 @@ export default function ProductsScreen() {
   };
 
   const handleMetafieldsSelection = () => {
-    const selectedIdsJson = JSON.stringify(selectedMetafieldIds);
+    // Create key-value pairs from selected metafields
+    const metafieldKeyValuePairs: { [key: string]: string } = {};
+
+    selectedMetafieldIds.forEach(id => {
+      const metafield = availableMetafields.find(m => m.id === id);
+      if (metafield) {
+        // Initialize with empty string or default value
+        let defaultValue = '';
+        try {
+          const config = JSON.parse(metafield.value || '{}');
+          defaultValue = config.defaultValue || '';
+        } catch (error) {
+          defaultValue = '';
+        }
+        metafieldKeyValuePairs[metafield.title] = defaultValue;
+      }
+    });
+
+    const metafieldsJson = JSON.stringify(metafieldKeyValuePairs);
 
     // Check if we're editing an inventory item
     if (selectedInventoryItem) {
       setSelectedInventoryItem({
         ...selectedInventoryItem,
-        metafields: selectedIdsJson
+        metafields: metafieldsJson
       });
     } else if (isEditMode && selectedProductForEdit) {
-      setSelectedProductForEdit({...selectedProductForEdit, metafields: selectedIdsJson});
+      setSelectedProductForEdit({...selectedProductForEdit, metafields: metafieldsJson});
     } else {
-      setNewProduct({...newProduct, metafields: selectedIdsJson});
+      setNewProduct({...newProduct, metafields: metafieldsJson});
     }
     setMetafieldsDrawerVisible(false);
   };
@@ -3366,34 +3506,34 @@ export default function ProductsScreen() {
             <View style={{ margin: -16, padding: 0 }}>
               <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                 <TouchableOpacity
-                  style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                  style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile, { borderTopWidth: 0 }]}
                   onPress={() => openMetafieldsDrawer(newProduct, false)}
                 >
                   <Text style={styles.orgTileLabel}>Metafields</Text>
                   <Text style={styles.orgTileValue}>
                     {(() => {
-                      const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
+                      const selectedIds = getSelectedMetafieldIdsFromKeyValue(newProduct.metafields || '{}');
                       if (selectedIds.length === 0) {
                         return 'Select metafields';
                       } else {
-                        return `${selectedIds.length} metafield${selectedIds.length !== 1 ? 's' : ''} selected`;
+                        return selectedIds.length.toString();
                       }
                     })()}
                   </Text>
                 </TouchableOpacity>
 
                 {(() => {
-                  const selectedIds = parseSelectedIds(newProduct.metafields || '[]');
+                  const selectedIds = getSelectedMetafieldIdsFromKeyValue(newProduct.metafields || '{}');
                   if (selectedIds.length > 0) {
                     const selectedMetafields = availableMetafields.filter(metafield => selectedIds.includes(metafield.id));
                     return selectedMetafields.map((metafield) => (
                       <TouchableOpacity
                         key={metafield.id}
                         style={[styles.tile, styles.orgTileSingle]}
-                        onPress={() => openMetafieldsDrawer(newProduct, false)}
+                        onPress={() => openMetafieldValueDrawer(metafield, newProduct, false)}
                       >
                         <Text style={styles.orgTileLabel}>{metafield.title}</Text>
-                        <Text style={styles.orgTileValue}>{metafield.value || 'Not set'}</Text>
+                        <Text style={styles.orgTileValue}>{getMetafieldDisplayValue(metafield, newProduct)}</Text>
                       </TouchableOpacity>
                     ));
                   }
@@ -3858,34 +3998,34 @@ export default function ProductsScreen() {
               <View style={{ margin: -16, padding: 0 }}>
                 <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                   <TouchableOpacity
-                    style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}
+                    style={[styles.tile, styles.orgTileSingle, styles.optionsModifiersTile, { borderTopWidth: 0 }]}
                     onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
                   >
                     <Text style={styles.orgTileLabel}>Metafields</Text>
                     <Text style={styles.orgTileValue}>
                       {(() => {
-                        const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
+                        const selectedIds = getSelectedMetafieldIdsFromKeyValue(selectedProductForEdit.metafields || '{}');
                         if (selectedIds.length === 0) {
                           return 'Select metafields';
                         } else {
-                          return `${selectedIds.length} metafield${selectedIds.length !== 1 ? 's' : ''} selected`;
+                          return selectedIds.length.toString();
                         }
                       })()}
                     </Text>
                   </TouchableOpacity>
 
                   {(() => {
-                    const selectedIds = parseSelectedIds(selectedProductForEdit.metafields || '[]');
+                    const selectedIds = getSelectedMetafieldIdsFromKeyValue(selectedProductForEdit.metafields || '{}');
                     if (selectedIds.length > 0) {
                       const selectedMetafields = availableMetafields.filter(metafield => selectedIds.includes(metafield.id));
                       return selectedMetafields.map((metafield) => (
                         <TouchableOpacity
                           key={metafield.id}
                           style={[styles.tile, styles.orgTileSingle]}
-                          onPress={() => openMetafieldsDrawer(selectedProductForEdit, true)}
+                          onPress={() => openMetafieldValueDrawer(metafield, selectedProductForEdit, true)}
                         >
                           <Text style={styles.orgTileLabel}>{metafield.title}</Text>
-                          <Text style={styles.orgTileValue}>{metafield.value || 'Not set'}</Text>
+                          <Text style={styles.orgTileValue}>{getMetafieldDisplayValue(metafield, selectedProductForEdit)}</Text>
                         </TouchableOpacity>
                       ));
                     }
@@ -6699,6 +6839,103 @@ export default function ProductsScreen() {
         </View>
       </Modal>
 
+      {/* Metafield Value Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={metafieldValueDrawerVisible}
+        onRequestClose={() => setMetafieldValueDrawerVisible(false)}
+      >
+        <View style={styles.bottomDrawerOverlay}>
+          <TouchableOpacity
+            style={styles.bottomDrawerBackdrop}
+            onPress={() => setMetafieldValueDrawerVisible(false)}
+          />
+          <View style={styles.bottomDrawerContainer}>
+            <View style={styles.bottomDrawerHeader}>
+              <Text style={styles.bottomDrawerTitle}>
+                {selectedMetafieldForEdit?.title || 'Edit Metafield Value'}
+              </Text>
+            </View>
+
+            {selectedMetafieldForEdit && (
+              <View style={{ padding: 20 }}>
+                {selectedMetafieldForEdit.type === 'Boolean' ? (
+                  <View>
+                    <TouchableOpacity
+                      style={styles.bottomDrawerOption}
+                      onPress={() => {
+                        setCurrentMetafieldValue('true');
+                        setMetafieldValueDrawerVisible(false);
+                      }}
+                    >
+                      <Text style={styles.bottomDrawerOptionText}>True</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.bottomDrawerOption}
+                      onPress={() => {
+                        setCurrentMetafieldValue('false');
+                        setMetafieldValueDrawerVisible(false);
+                      }}
+                    >
+                      <Text style={styles.bottomDrawerOptionText}>False</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : selectedMetafieldForEdit.type === 'Color' ? (
+                  <View>
+                    <Text style={styles.inputLabel}>Color Value</Text>
+                    <TextInput
+                      style={styles.colorHexInput}
+                      value={currentMetafieldValue}
+                      onChangeText={setCurrentMetafieldValue}
+                      placeholder="#000000"
+                      placeholderTextColor="#999"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                ) : selectedMetafieldForEdit.type === 'Multi-line text' ? (
+                  <View>
+                    <Text style={styles.inputLabel}>Value</Text>
+                    <TextInput
+                      style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                      value={currentMetafieldValue}
+                      onChangeText={setCurrentMetafieldValue}
+                      placeholder="Enter value..."
+                      placeholderTextColor="#999"
+                      multiline
+                    />
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.inputLabel}>Value</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={currentMetafieldValue}
+                      onChangeText={setCurrentMetafieldValue}
+                      placeholder="Enter value..."
+                      placeholderTextColor="#999"
+                      keyboardType={
+                        selectedMetafieldForEdit.type === 'Number (integer)' ||
+                        selectedMetafieldForEdit.type === 'Number (decimal)' ? 'numeric' : 'default'
+                      }
+                    />
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.bottomDrawerOption, { backgroundColor: '#0066CC', marginTop: 20, borderRadius: 8 }]}
+                  onPress={() => {
+                    // Update the metafield value in the database here
+                    setMetafieldValueDrawerVisible(false);
+                  }}
+                >
+                  <Text style={[styles.bottomDrawerOptionText, { color: '#fff', textAlign: 'center' }]}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
