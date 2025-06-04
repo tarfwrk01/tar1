@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
+import { useAuth } from '../../context/auth';
+import { getCredentialsWithCache } from '../../utils/tursoDb';
 import ImageUploader from './ImageUploader';
 import SingleImageUploader from './SingleImageUploader';
 import VerticalTabView from './VerticalTabView';
@@ -342,6 +344,7 @@ export default function ProductsScreen() {
   });
 
   const { profileData } = useOnboarding();
+  const { user } = useAuth();
 
   // Helper function to reset new option form
   const resetNewOptionForm = () => {
@@ -713,12 +716,12 @@ export default function ProductsScreen() {
   // Fetch available options for multi-select
   const fetchAvailableOptions = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
+      // Use cached credentials for better performance
+      if (!user?.id) {
+        throw new Error('User not authenticated');
       }
 
-      const { tursoDbName, tursoApiToken } = profile;
+      const { tursoDbName, tursoApiToken } = await getCredentialsWithCache(user.id, profileData);
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {

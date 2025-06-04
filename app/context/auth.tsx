@@ -2,6 +2,7 @@ import { instant } from '@/lib/instantdb';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
+import { clearCredentialCache } from '../utils/credentialCache';
 
 // Define user type
 type User = {
@@ -277,6 +278,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Sign out
   const signOut = async () => {
     try {
+      // Clear cached credentials before signing out
+      await clearCredentialCache();
+      console.log('[Auth] Credential cache cleared on logout');
+
       await instant.auth.signOut();
       // The auth hook will handle the redirect
     } catch (error) {

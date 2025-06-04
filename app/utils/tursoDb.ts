@@ -1,39 +1,81 @@
-import { instant } from '../../lib/instantdb';
+import {
+    cacheCredentials,
+    getCachedCredentials,
+    TursoCredentials
+} from './credentialCache';
 
 /**
- * Gets the profile data with Turso database credentials
- * @param userId - The user ID to get profile data for
+ * Gets cached credentials for a user
+ * @param userId - The user ID to get cached credentials for
+ * @returns Promise<{tursoDbName: string, tursoApiToken: string} | null>
+ */
+export const getCachedTursoCredentials = async (userId: string): Promise<{tursoDbName: string, tursoApiToken: string} | null> => {
+  if (!userId) {
+    return null;
+  }
+
+  const cachedCredentials = await getCachedCredentials(userId);
+  if (cachedCredentials) {
+    console.log('[TursoDb] Using cached credentials');
+    return {
+      tursoDbName: cachedCredentials.tursoDbName,
+      tursoApiToken: cachedCredentials.tursoApiToken
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Caches credentials from profile data
+ * @param userId - The user ID
+ * @param profileData - The profile data from onboarding context
  * @returns Promise<{tursoDbName: string, tursoApiToken: string}>
  */
-export const getProfileData = async (userId: string): Promise<{tursoDbName: string, tursoApiToken: string}> => {
+export const cacheAndGetCredentials = async (userId: string, profileData: any): Promise<{tursoDbName: string, tursoApiToken: string}> => {
   if (!userId) {
     throw new Error('User ID is required');
   }
 
-  // Query the profile data
-  const { data: profileData } = await instant.query({
-    profile: {
-      $: {
-        where: { userId },
-        fields: ['tursoDbName', 'tursoApiToken']
-      }
-    }
-  });
-
-  // Get the first profile
-  const profile = profileData?.profile?.[0];
-
-  if (!profile) {
-    throw new Error('Profile not found');
+  if (!profileData?.profile?.[0]) {
+    throw new Error('Profile data is required');
   }
 
+  const profile = profileData.profile[0];
   const { tursoDbName, tursoApiToken } = profile;
 
   if (!tursoDbName || !tursoApiToken) {
-    throw new Error('Missing database credentials');
+    throw new Error('Missing database credentials in profile data');
   }
 
+  // Cache the credentials
+  const credentialsToCache: TursoCredentials = {
+    tursoDbName,
+    tursoApiToken,
+    userId
+  };
+
+  await cacheCredentials(credentialsToCache);
+  console.log('[TursoDb] Credentials cached successfully');
+
   return { tursoDbName, tursoApiToken };
+};
+
+/**
+ * Gets credentials with cache-first approach
+ * @param userId - The user ID
+ * @param profileData - The profile data from onboarding context (fallback)
+ * @returns Promise<{tursoDbName: string, tursoApiToken: string}>
+ */
+export const getCredentialsWithCache = async (userId: string, profileData: any): Promise<{tursoDbName: string, tursoApiToken: string}> => {
+  // Try cache first
+  const cached = await getCachedTursoCredentials(userId);
+  if (cached) {
+    return cached;
+  }
+
+  // Fallback to profile data and cache it
+  return await cacheAndGetCredentials(userId, profileData);
 };
 
 /**
@@ -41,12 +83,14 @@ export const getProfileData = async (userId: string): Promise<{tursoDbName: stri
  * @param {string} tableName - Name of the table to create
  * @param {string} createTableSQL - SQL statement to create the table
  * @param {Object} tableConfig - Configuration to store in tableconfig
+ * @param {string} userId - The user ID to get credentials for
+ * @param {any} profileData - The profile data from onboarding context
  * @returns {Promise<boolean>} - Success status
  */
-export const createTursoTable = async (tableName: string, createTableSQL: string, tableConfig: any): Promise<boolean> => {
+export const createTursoTable = async (tableName: string, createTableSQL: string, tableConfig: any, userId: string, profileData?: any): Promise<boolean> => {
   try {
-    // Get database credentials
-    const { tursoDbName, tursoApiToken } = await getProfileData();
+    // Get database credentials (using cache when available)
+    const { tursoDbName, tursoApiToken } = await getCredentialsWithCache(userId, profileData);
 
     // Construct API URL
     const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;

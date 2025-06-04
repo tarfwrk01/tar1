@@ -2,6 +2,7 @@ import { instant } from '@/lib/instantdb';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
+import { cacheCredentials, TursoCredentials } from '../utils/credentialCache';
 import { useAuth } from './auth';
 
 // Define onboarding context type
@@ -630,6 +631,16 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       }
 
       console.log('Turso database info updated successfully and onboarding completed');
+
+      // Cache the credentials for better performance
+      const credentialsToCache: TursoCredentials = {
+        tursoDbName: dbName,
+        tursoApiToken: apiToken,
+        userId: user.id
+      };
+
+      await cacheCredentials(credentialsToCache);
+      console.log('[Onboarding] Credentials cached successfully');
 
       // Update local state with name if we have it
       if (existingName || defaultName) {
