@@ -18,46 +18,11 @@ type Person = {
 };
 
 export default function PeopleScreen() {
-  const people: Person[] = [
-    {
-      id: '1',
-      name: 'Alex Johnson',
-      role: 'Product Manager',
-      avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-      online: true,
-    },
-    {
-      id: '2',
-      name: 'Sarah Williams',
-      role: 'UX Designer',
-      avatar: 'https://randomuser.me/api/portraits/women/44.jpg',
-      online: true,
-    },
-    {
-      id: '3',
-      name: 'Michael Brown',
-      role: 'Frontend Developer',
-      avatar: 'https://randomuser.me/api/portraits/men/46.jpg',
-      online: false,
-    },
-    {
-      id: '4',
-      name: 'Emily Davis',
-      role: 'Backend Developer',
-      avatar: 'https://randomuser.me/api/portraits/women/67.jpg',
-      online: true,
-    },
-    {
-      id: '5',
-      name: 'David Wilson',
-      role: 'QA Engineer',
-      avatar: 'https://randomuser.me/api/portraits/men/78.jpg',
-      online: false,
-    },
-  ];
+  const people: Person[] = [];
 
   return (
-    <View style={styles.content}>
+    <View style={styles.container}>
+      <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Team Members</Text>
           <TouchableOpacity style={styles.searchButton}>
@@ -98,6 +63,7 @@ export default function PeopleScreen() {
           ))}
         </ScrollView>
       </View>
+    </View>
   );
 }
 

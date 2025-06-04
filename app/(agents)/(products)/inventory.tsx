@@ -18,7 +18,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
 import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
-import SingleImageUploader from './SingleImageUploader';
 
 type InventoryItem = {
   id: number;
@@ -47,29 +46,10 @@ export default function InventoryScreen() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
-  const [newInventoryItem, setNewInventoryItem] = useState<Partial<InventoryItem>>({
-    productId: 1,
-    sku: '',
-    image: '[]', // Empty JSON array
-    option1: '',
-    option2: '',
-    option3: '',
-    reorderlevel: 0,
-    reorderqty: 0,
-    warehouse: '',
-    expiry: '',
-    batchno: '',
-    quantity: 1,
-    cost: 0,
-    price: 0,
-    margin: 0,
-    saleprice: 0,
-  });
   const { getCredentials } = useTursoCredentialsLazy();
 
   const fetchInventory = async () => {
@@ -80,37 +60,8 @@ export default function InventoryScreen() {
       const credentials = await getCredentials();
       const { tursoDbName, tursoApiToken } = credentials;
 
-      console.log('=== INVENTORY FETCH DEBUG ===');
-      console.log('Database name:', tursoDbName);
-      console.log('Has API token:', !!tursoApiToken);
-
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
-
-      // First, let's check if the inventory table exists and has data
-      const testRequestBody = {
-        requests: [
-          {
-            type: "execute",
-            stmt: {
-              sql: "SELECT COUNT(*) as count FROM inventory"
-            }
-          }
-        ]
-      };
-
-      console.log('Testing inventory table...');
-      const testResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${tursoApiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(testRequestBody)
-      });
-
-      const testResponseText = await testResponse.text();
-      console.log('Test response:', testResponseText);
 
       // Create request body with direct SQL
       const requestBody = {
@@ -154,8 +105,6 @@ export default function InventoryScreen() {
 
             // Extract the rows from the nested structure
             const rows = data.results[0].response.result.rows;
-            console.log('Raw rows:', JSON.stringify(rows, null, 2));
-
             // Transform the rows into a more usable format
             const inventoryData = rows.map((row: any[]) => {
               return {
@@ -181,18 +130,11 @@ export default function InventoryScreen() {
               };
             });
 
-            console.log('Transformed inventory data:', JSON.stringify(inventoryData, null, 2));
             console.log('Number of inventory items found:', inventoryData.length);
             setInventory(inventoryData);
             setFilteredInventory(inventoryData);
           } else {
             console.log('No inventory data found in response');
-            console.log('Response structure check:');
-            console.log('- data.results exists:', !!data.results);
-            console.log('- data.results[0] exists:', !!(data.results && data.results[0]));
-            console.log('- response exists:', !!(data.results && data.results[0] && data.results[0].response));
-            console.log('- result exists:', !!(data.results && data.results[0] && data.results[0].response && data.results[0].response.result));
-            console.log('- rows exists:', !!(data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows));
             setInventory([]);
             setFilteredInventory([]);
           }
@@ -221,153 +163,7 @@ export default function InventoryScreen() {
     }
   };
 
-  const addInventoryItem = async () => {
-    try {
-      if (!newInventoryItem.sku || !newInventoryItem.sku.trim()) {
-        Alert.alert('Error', 'SKU is required');
-        return;
-      }
 
-      if (!newInventoryItem.productId || newInventoryItem.productId <= 0) {
-        Alert.alert('Error', 'Valid Product ID is required');
-        return;
-      }
-
-      setIsLoading(true);
-
-      // Get credentials from cache or database
-      const credentials = await getCredentials();
-      const { tursoDbName, tursoApiToken } = credentials;
-
-      // Construct API URL
-      const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
-
-      // Create the request body with direct SQL values instead of parameters
-      const sqlQuery = `INSERT INTO inventory (
-        productId, sku, image, option1, option2, option3,
-        reorderlevel, reorderqty, warehouse, expiry, batchno,
-        quantity, cost, price, margin, saleprice
-      ) VALUES (
-        ${newInventoryItem.productId || 1},
-        '${(newInventoryItem.sku || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.image || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.option1 || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.option2 || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.option3 || '').replace(/'/g, "''")}',
-        ${newInventoryItem.reorderlevel || 0},
-        ${newInventoryItem.reorderqty || 0},
-        '${(newInventoryItem.warehouse || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.expiry || '').replace(/'/g, "''")}',
-        '${(newInventoryItem.batchno || '').replace(/'/g, "''")}',
-        ${newInventoryItem.quantity || 1},
-        ${newInventoryItem.cost || 0},
-        ${newInventoryItem.price || 0},
-        ${newInventoryItem.margin || 0},
-        ${newInventoryItem.saleprice || 0}
-      )`;
-
-      console.log('Generated SQL Query:', sqlQuery);
-
-      const requestBody = {
-        requests: [
-          {
-            type: "execute",
-            stmt: {
-              sql: sqlQuery
-            }
-          }
-        ]
-      };
-
-      // Log the request for debugging
-      console.log('API URL:', apiUrl);
-      console.log('Request body:', JSON.stringify(requestBody, null, 2));
-
-      // Create inventory item
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${tursoApiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      // Get the response text
-      const responseText = await response.text();
-      console.log('Response status:', response.status);
-      console.log('Response text:', responseText);
-
-      if (response.ok) {
-        try {
-          const data = JSON.parse(responseText);
-          console.log('Parsed response data:', JSON.stringify(data, null, 2));
-
-          // Check if the operation was successful
-          if (data.results && data.results[0] && data.results[0].response) {
-            console.log('Inventory item created successfully');
-
-            // Reset form and close modal
-            setNewInventoryItem({
-              productId: 1,
-              sku: '',
-              image: '[]',
-              option1: '',
-              option2: '',
-              option3: '',
-              reorderlevel: 0,
-              reorderqty: 0,
-              warehouse: '',
-              expiry: '',
-              batchno: '',
-              quantity: 1,
-              cost: 0,
-              price: 0,
-              margin: 0,
-              saleprice: 0,
-            });
-            setModalVisible(false);
-
-            // Refresh inventory list
-            fetchInventory();
-
-            Alert.alert('Success', 'Inventory item added successfully');
-          } else {
-            console.error('Unexpected response structure:', data);
-            Alert.alert(
-              'Error',
-              'Unexpected response from server. Please try again.',
-              [{ text: 'OK' }]
-            );
-          }
-        } catch (parseError) {
-          console.error('Error parsing response:', parseError);
-          console.log('Raw response text:', responseText);
-          Alert.alert(
-            'Error',
-            'Error parsing server response. Please try again.',
-            [{ text: 'OK' }]
-          );
-        }
-      } else {
-        console.error('Failed to add inventory item:', responseText);
-        Alert.alert(
-          'Error',
-          `Failed to add inventory item. Status: ${response.status}. Please try again.`,
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
-      console.error('Error adding inventory item:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred while adding the inventory item. Please try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const updateInventoryItem = async () => {
     try {
@@ -389,13 +185,18 @@ export default function InventoryScreen() {
 
       // Create the request body with direct SQL values for UPDATE
       const sqlQuery = `UPDATE inventory SET
+        barcode = '${(selectedInventoryItem.barcode || '').replace(/'/g, "''")}',
         image = '${(selectedInventoryItem.image || '').replace(/'/g, "''")}',
+        option1 = '${(selectedInventoryItem.option1 || '').replace(/'/g, "''")}',
+        option2 = '${(selectedInventoryItem.option2 || '').replace(/'/g, "''")}',
+        option3 = '${(selectedInventoryItem.option3 || '').replace(/'/g, "''")}',
         reorderlevel = ${selectedInventoryItem.reorderlevel || 0},
-        reorderqty = ${selectedInventoryItem.reorderqty || 0},
-        warehouse = '${(selectedInventoryItem.warehouse || '').replace(/'/g, "''")}',
-        expiry = '${(selectedInventoryItem.expiry || '').replace(/'/g, "''")}',
-        batchno = '${(selectedInventoryItem.batchno || '').replace(/'/g, "''")}',
-        quantity = ${selectedInventoryItem.quantity || 1},
+        path = '${(selectedInventoryItem.path || '').replace(/'/g, "''")}',
+        available = ${selectedInventoryItem.available || 1},
+        committed = ${selectedInventoryItem.committed || 0},
+        unavailable = ${selectedInventoryItem.unavailable || 0},
+        onhand = ${selectedInventoryItem.onhand || 1},
+        metafields = '${(selectedInventoryItem.metafields || '{}').replace(/'/g, "''")}',
         cost = ${selectedInventoryItem.cost || 0},
         price = ${selectedInventoryItem.price || 0},
         margin = ${selectedInventoryItem.margin || 0},
@@ -490,10 +291,10 @@ export default function InventoryScreen() {
   const handleSearch = (text: string) => {
     setSearchQuery(text);
 
-    // Start with all inventory or filtered by warehouse if a filter is active
+    // Start with all inventory or filtered by path if a filter is active
     let baseInventory = inventory;
     if (activeFilter) {
-      baseInventory = inventory.filter(item => item.warehouse === activeFilter);
+      baseInventory = inventory.filter(item => item.path === activeFilter);
     }
 
     // Then apply search filter
@@ -502,20 +303,14 @@ export default function InventoryScreen() {
     } else {
       const filtered = baseInventory.filter(item =>
         item.sku?.toLowerCase().includes(text.toLowerCase()) ||
-        item.warehouse?.toLowerCase().includes(text.toLowerCase()) ||
-        item.batchno?.toLowerCase().includes(text.toLowerCase())
+        item.barcode?.toLowerCase().includes(text.toLowerCase()) ||
+        item.path?.toLowerCase().includes(text.toLowerCase())
       );
       setFilteredInventory(filtered);
     }
   };
 
-  // Handle image change
-  const handleImageChange = (imageUrl: string) => {
-    setNewInventoryItem({
-      ...newInventoryItem,
-      image: imageUrl
-    });
-  };
+
 
   // Fetch inventory on component mount
   useEffect(() => {
@@ -603,12 +398,6 @@ export default function InventoryScreen() {
       <TopBar title="Inventory" />
 
       <View style={styles.actionBar}>
-        <TouchableOpacity
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="add-outline" size={24} color="#000" />
-        </TouchableOpacity>
-
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={18} color="#666" style={styles.searchIcon} />
           <TextInput
@@ -644,252 +433,7 @@ export default function InventoryScreen() {
         />
       )}
 
-      {/* Add Inventory Item Modal */}
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-        statusBarTranslucent={true}
-      >
-        <StatusBar style="dark" backgroundColor="transparent" translucent />
-        <SafeAreaView style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>New Inventory Item</Text>
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={addInventoryItem}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>S</Text>
-              )}
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-            {/* Basic Information Tile */}
-            <View style={styles.formTile}>
-              <View style={styles.tileHeader}>
-                <Ionicons name="cube-outline" size={20} color="#0066CC" />
-                <Text style={styles.tileTitle}>Basic Information</Text>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Product ID *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.productId?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, productId: parseInt(text) || 1})}
-                    placeholder="Product ID"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>SKU *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.sku}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, sku: text})}
-                    placeholder="Stock Keeping Unit"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.imageSection}>
-                <Text style={styles.inputLabel}>Product Image</Text>
-                <View style={styles.imageTile}>
-                  <SingleImageUploader
-                    imageUrl={newInventoryItem.image || '[]'}
-                    onImageChange={handleImageChange}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Warehouse</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.warehouse}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, warehouse: text})}
-                    placeholder="Warehouse location"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Batch Number</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.batchno}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, batchno: text})}
-                    placeholder="Batch number"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Expiry Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.expiry}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, expiry: text})}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
-            </View>
-
-            {/* Product Options Tile */}
-            <View style={styles.formTile}>
-              <View style={styles.tileHeader}>
-                <Ionicons name="options-outline" size={20} color="#0066CC" />
-                <Text style={styles.tileTitle}>Product Options</Text>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Option 1</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.option1}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option1: text})}
-                    placeholder="e.g., Size"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Option 2</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.option2}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option2: text})}
-                    placeholder="e.g., Color"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Option 3</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.option3}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, option3: text})}
-                  placeholder="e.g., Material"
-                />
-              </View>
-            </View>
-
-            {/* Stock Management Tile */}
-            <View style={styles.formTile}>
-              <View style={styles.tileHeader}>
-                <Ionicons name="layers-outline" size={20} color="#0066CC" />
-                <Text style={styles.tileTitle}>Stock Management</Text>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Quantity *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.quantity?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, quantity: parseInt(text) || 1})}
-                    placeholder="Current quantity"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Reorder Level</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.reorderlevel?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, reorderlevel: parseInt(text) || 0})}
-                    placeholder="Min stock level"
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.inputLabel}>Reorder Quantity</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newInventoryItem.reorderqty?.toString()}
-                  onChangeText={(text) => setNewInventoryItem({...newInventoryItem, reorderqty: parseInt(text) || 0})}
-                  placeholder="Quantity to reorder"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            {/* Pricing Tile */}
-            <View style={styles.formTile}>
-              <View style={styles.tileHeader}>
-                <Ionicons name="cash-outline" size={20} color="#0066CC" />
-                <Text style={styles.tileTitle}>Pricing</Text>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Cost *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.cost?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, cost: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Price *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.price?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, price: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.tileRow}>
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Sale Price</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.saleprice?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, saleprice: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <Text style={styles.inputLabel}>Margin</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newInventoryItem.margin?.toString()}
-                    onChangeText={(text) => setNewInventoryItem({...newInventoryItem, margin: parseFloat(text) || 0})}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
       {/* Edit Inventory Item Modal */}
       <Modal
@@ -924,34 +468,23 @@ export default function InventoryScreen() {
               {/* Basic Information Tiles */}
               <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                 <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
-                  <Text style={styles.orgTileLabel}>Warehouse</Text>
+                  <Text style={styles.orgTileLabel}>Barcode</Text>
                   <TextInput
                     style={styles.tileInput}
-                    value={selectedInventoryItem.warehouse}
-                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, warehouse: text})}
-                    placeholder="Enter warehouse"
+                    value={selectedInventoryItem.barcode}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, barcode: text})}
+                    placeholder="Enter barcode"
                     placeholderTextColor="#999"
                   />
                 </View>
 
                 <View style={[styles.tile, styles.orgTileSingle]}>
-                  <Text style={styles.orgTileLabel}>Batch Number</Text>
+                  <Text style={styles.orgTileLabel}>Path</Text>
                   <TextInput
                     style={styles.tileInput}
-                    value={selectedInventoryItem.batchno}
-                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, batchno: text})}
-                    placeholder="Enter batch"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-
-                <View style={[styles.tile, styles.orgTileSingle]}>
-                  <Text style={styles.orgTileLabel}>Expiry Date</Text>
-                  <TextInput
-                    style={styles.tileInput}
-                    value={selectedInventoryItem.expiry}
-                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, expiry: text})}
-                    placeholder="YYYY-MM-DD"
+                    value={selectedInventoryItem.path}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, path: text})}
+                    placeholder="Enter path"
                     placeholderTextColor="#999"
                   />
                 </View>
@@ -960,11 +493,47 @@ export default function InventoryScreen() {
               {/* Stock Management Tiles */}
               <View style={[styles.orgTilesContainer, { marginTop: 0, marginBottom: 0, paddingTop: 0, marginHorizontal: 0, borderTopWidth: 0 }]}>
                 <View style={[styles.tile, styles.orgTileSingle, { borderTopWidth: 0 }]}>
-                  <Text style={styles.orgTileLabel}>Quantity</Text>
+                  <Text style={styles.orgTileLabel}>Available</Text>
                   <TextInput
                     style={styles.tileInput}
-                    value={selectedInventoryItem.quantity?.toString()}
-                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, quantity: parseInt(text) || 1})}
+                    value={selectedInventoryItem.available?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, available: parseInt(text) || 1})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>On Hand</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.onhand?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, onhand: parseInt(text) || 1})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Committed</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.committed?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, committed: parseInt(text) || 0})}
+                    placeholder="0"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.tile, styles.orgTileSingle]}>
+                  <Text style={styles.orgTileLabel}>Unavailable</Text>
+                  <TextInput
+                    style={styles.tileInput}
+                    value={selectedInventoryItem.unavailable?.toString()}
+                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, unavailable: parseInt(text) || 0})}
                     placeholder="0"
                     placeholderTextColor="#999"
                     keyboardType="numeric"
@@ -977,18 +546,6 @@ export default function InventoryScreen() {
                     style={styles.tileInput}
                     value={selectedInventoryItem.reorderlevel?.toString()}
                     onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, reorderlevel: parseInt(text) || 0})}
-                    placeholder="0"
-                    placeholderTextColor="#999"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={[styles.tile, styles.orgTileSingle]}>
-                  <Text style={styles.orgTileLabel}>Reorder Quantity</Text>
-                  <TextInput
-                    style={styles.tileInput}
-                    value={selectedInventoryItem.reorderqty?.toString()}
-                    onChangeText={(text) => setSelectedInventoryItem({...selectedInventoryItem, reorderqty: parseInt(text) || 0})}
                     placeholder="0"
                     placeholderTextColor="#999"
                     keyboardType="numeric"

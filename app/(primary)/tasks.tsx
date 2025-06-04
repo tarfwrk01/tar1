@@ -16,13 +16,7 @@ type Task = {
 };
 
 export default function TasksScreen() {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Complete project proposal', completed: false, priority: 'high' },
-    { id: '2', title: 'Review pull requests', completed: false, priority: 'medium' },
-    { id: '3', title: 'Update documentation', completed: true, priority: 'low' },
-    { id: '4', title: 'Fix UI bugs', completed: false, priority: 'high' },
-    { id: '5', title: 'Prepare for team meeting', completed: false, priority: 'medium' },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const toggleTaskCompletion = (id: string) => {
     setTasks(tasks.map(task =>
@@ -44,7 +38,8 @@ export default function TasksScreen() {
   };
 
   return (
-    <View style={styles.content}>
+    <View style={styles.container}>
+      <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Tasks</Text>
           <TouchableOpacity style={styles.addButton}>
@@ -94,6 +89,7 @@ export default function TasksScreen() {
           ))}
         </ScrollView>
       </View>
+    </View>
   );
 }
 

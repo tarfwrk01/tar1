@@ -3,14 +3,14 @@ import { useChat } from '@ai-sdk/react';
 import { fetch as expoFetch } from 'expo/fetch';
 import React from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 export default function AIChat() {
@@ -65,7 +65,8 @@ export default function AIChat() {
   }
 
   return (
-    <View style={styles.chatContainer}>
+    <View style={styles.container}>
+      <View style={styles.chatContainer}>
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -134,6 +135,7 @@ export default function AIChat() {
           </TouchableOpacity>
         </View>
       </View>
+    </View>
   );
 }
 
