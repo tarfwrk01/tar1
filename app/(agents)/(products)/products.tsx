@@ -41,7 +41,7 @@ type Product = {
   saleprice: number;
   vendor: string;
   brand: string;
-  options: string; // JSON array of option IDs
+  options: string; // JSON array of option objects with id, title, value, identifierType, identifierValue, group
   modifiers: string;
   metafields: string;
   saleinfo: string;
@@ -2093,7 +2093,75 @@ export default function ProductsScreen() {
   const parseSelectedIds = (jsonString: string): number[] => {
     try {
       const parsed = JSON.parse(jsonString || '[]');
-      return Array.isArray(parsed) ? parsed.filter(id => typeof id === 'number') : [];
+      // Handle both old format (array of IDs) and new format (array of option objects)
+      if (Array.isArray(parsed)) {
+        if (parsed.length === 0) return [];
+        // Check if it's the new format (array of objects)
+        if (typeof parsed[0] === 'object' && parsed[0].id) {
+          return parsed.map(option => option.id).filter(id => typeof id === 'number');
+        }
+        // Old format (array of IDs)
+        return parsed.filter(id => typeof id === 'number');
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Helper function to parse selected options with full details
+  const parseSelectedOptions = (jsonString: string): any[] => {
+    try {
+      const parsed = JSON.parse(jsonString || '[]');
+      if (Array.isArray(parsed)) {
+        if (parsed.length === 0) return [];
+        // Check if it's the new simplified format (array of objects with id, title, value, etc.)
+        if (typeof parsed[0] === 'object' && parsed[0].id && parsed[0].title) {
+          return parsed;
+        }
+        // Old format (array of IDs) - convert to simplified objects using availableOptions
+        return parsed
+          .filter(id => typeof id === 'number')
+          .map(id => {
+            const option = availableOptions.find(opt => opt.id === id);
+            if (option) {
+              // Parse identifier to get type and value
+              let identifierType = 'text';
+              let identifierValue = '';
+
+              if (option.identifier) {
+                try {
+                  const parsed = JSON.parse(option.identifier);
+                  if (parsed.color) {
+                    identifierType = 'color';
+                    identifierValue = parsed.color;
+                  } else if (parsed.image) {
+                    identifierType = 'image';
+                    identifierValue = parsed.image;
+                  } else if (parsed.text) {
+                    identifierType = 'text';
+                    identifierValue = parsed.text;
+                  }
+                } catch {
+                  identifierType = 'text';
+                  identifierValue = option.identifier;
+                }
+              }
+
+              return {
+                id: option.id,
+                title: option.title,
+                value: option.value,
+                identifierType: identifierType,
+                identifierValue: identifierValue,
+                group: option.group || 'group 1'
+              };
+            }
+            return null;
+          })
+          .filter(option => option !== null);
+      }
+      return [];
     } catch {
       return [];
     }
@@ -2198,10 +2266,49 @@ export default function ProductsScreen() {
   };
 
   const handleOptionsSelection = () => {
-    const selectedIdsJson = JSON.stringify(selectedOptionIds);
+    // Get complete option details for selected IDs in simplified format
+    const selectedOptionsWithDetails = selectedOptionIds.map(id => {
+      const option = availableOptions.find(opt => opt.id === id);
+      if (option) {
+        // Parse identifier to get type and value
+        let identifierType = 'text';
+        let identifierValue = '';
+
+        if (option.identifier) {
+          try {
+            const parsed = JSON.parse(option.identifier);
+            if (parsed.color) {
+              identifierType = 'color';
+              identifierValue = parsed.color;
+            } else if (parsed.image) {
+              identifierType = 'image';
+              identifierValue = parsed.image;
+            } else if (parsed.text) {
+              identifierType = 'text';
+              identifierValue = parsed.text;
+            }
+          } catch {
+            identifierType = 'text';
+            identifierValue = option.identifier;
+          }
+        }
+
+        return {
+          id: option.id,
+          title: option.title,
+          value: option.value,
+          identifierType: identifierType,
+          identifierValue: identifierValue,
+          group: option.group || 'group 1'
+        };
+      }
+      return null;
+    }).filter(option => option !== null);
+
+    const selectedOptionsJson = JSON.stringify(selectedOptionsWithDetails);
 
     if (isEditMode && selectedProductForEdit) {
-      setSelectedProductForEdit({...selectedProductForEdit, options: selectedIdsJson});
+      setSelectedProductForEdit({...selectedProductForEdit, options: selectedOptionsJson});
 
       // Auto-generate inventory immediately when options are selected
       if (selectedOptionIds.length > 0 && selectedProductForEdit.id) {
@@ -2212,7 +2319,7 @@ export default function ProductsScreen() {
         );
       }
     } else {
-      setNewProduct({...newProduct, options: selectedIdsJson});
+      setNewProduct({...newProduct, options: selectedOptionsJson});
     }
 
     // Reset group selection state
@@ -4118,18 +4225,33 @@ export default function ProductsScreen() {
                 </TouchableOpacity>
 
                 {(() => {
-                  const selectedIds = parseSelectedIds(newProduct.options || '[]');
-                  if (selectedIds.length > 0) {
-                    const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
+                  const selectedOptions = parseSelectedOptions(newProduct.options || '[]');
+                  if (selectedOptions.length > 0) {
                     return selectedOptions.map((option) => (
                       <View
                         key={option.id}
                         style={[styles.tile, styles.orgTileSingle, styles.optionTileWithThumbnail]}
                       >
-                        {renderIdentifierThumbnail(option.identifier || '')}
+                        {/* Render identifier thumbnail based on type */}
+                        {option.identifierType === 'color' && option.identifierValue && (
+                          <View style={[styles.identifierThumbnail, { backgroundColor: option.identifierValue }]} />
+                        )}
+                        {option.identifierType === 'image' && option.identifierValue && (
+                          <View style={styles.identifierThumbnail}>
+                            <Text style={styles.identifierTile}>IMG</Text>
+                          </View>
+                        )}
+                        {option.identifierType === 'text' && option.identifierValue && (
+                          <View style={styles.identifierThumbnail}>
+                            <Text style={styles.identifierTile}>{option.identifierValue}</Text>
+                          </View>
+                        )}
                         <View style={styles.optionTileContent}>
                           <Text style={styles.orgTileLabel}>{option.title}</Text>
                           <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                          {option.group && option.group !== 'group 1' && (
+                            <Text style={[styles.orgTileValue, { fontSize: 12, color: '#666' }]}>Group: {option.group}</Text>
+                          )}
                         </View>
                       </View>
                     ));
@@ -4649,18 +4771,33 @@ export default function ProductsScreen() {
                   </TouchableOpacity>
 
                   {(() => {
-                    const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
-                    if (selectedIds.length > 0) {
-                      const selectedOptions = availableOptions.filter(option => selectedIds.includes(option.id));
+                    const selectedOptions = parseSelectedOptions(selectedProductForEdit.options || '[]');
+                    if (selectedOptions.length > 0) {
                       return selectedOptions.map((option) => (
                         <View
                           key={option.id}
                           style={[styles.tile, styles.orgTileSingle, styles.optionTileWithThumbnail]}
                         >
-                          {renderIdentifierThumbnail(option.identifier || '')}
+                          {/* Render identifier thumbnail based on type */}
+                          {option.identifierType === 'color' && option.identifierValue && (
+                            <View style={[styles.identifierThumbnail, { backgroundColor: option.identifierValue }]} />
+                          )}
+                          {option.identifierType === 'image' && option.identifierValue && (
+                            <View style={styles.identifierThumbnail}>
+                              <Text style={styles.identifierTile}>IMG</Text>
+                            </View>
+                          )}
+                          {option.identifierType === 'text' && option.identifierValue && (
+                            <View style={styles.identifierThumbnail}>
+                              <Text style={styles.identifierTile}>{option.identifierValue}</Text>
+                            </View>
+                          )}
                           <View style={styles.optionTileContent}>
                             <Text style={styles.orgTileLabel}>{option.title}</Text>
                             <Text style={styles.orgTileValue}>{option.value || 'Not set'}</Text>
+                            {option.group && option.group !== 'group 1' && (
+                              <Text style={[styles.orgTileValue, { fontSize: 12, color: '#666' }]}>Group: {option.group}</Text>
+                            )}
                           </View>
                         </View>
                       ));

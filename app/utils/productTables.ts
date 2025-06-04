@@ -25,7 +25,7 @@ export const createProductTables = async (): Promise<boolean> => {
         saleprice REAL,
         vendor TEXT,
         brand TEXT,
-        options TEXT, -- JSON array of option IDs
+        options TEXT, -- JSON array of option objects with id, title, value, identifierType, identifierValue, group
         modifiers TEXT,
         metafields TEXT,
         saleinfo TEXT,
@@ -62,7 +62,7 @@ export const createProductTables = async (): Promise<boolean> => {
           { name: 'saleprice', type: 'REAL' },
           { name: 'vendor', type: 'TEXT' },
           { name: 'brand', type: 'TEXT' },
-          { name: 'options', type: 'TEXT', description: 'JSON array of option IDs' },
+          { name: 'options', type: 'TEXT', description: 'JSON array of option objects with id, title, value, identifierType, identifierValue, group' },
           { name: 'modifiers', type: 'TEXT' },
           { name: 'metafields', type: 'TEXT' },
           { name: 'saleinfo', type: 'TEXT' },

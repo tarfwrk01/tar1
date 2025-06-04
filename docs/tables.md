@@ -325,7 +325,7 @@ CREATE TABLE IF NOT EXISTS products (
   saleprice REAL,
   vendor TEXT,
   brand TEXT,
-  options TEXT, -- JSON array of option IDs
+  options TEXT, -- JSON array of option objects with id, title, value, identifierType, identifierValue, group
   modifiers TEXT,
   metafields TEXT,
   saleinfo TEXT,
