@@ -341,10 +341,6 @@ export default function ProductsScreen() {
     defaultSalePrice: 0
   });
 
-  // Auto-generation states
-  const [previousOptionsForEdit, setPreviousOptionsForEdit] = useState<string>('[]');
-  const [previousOptionsForNew, setPreviousOptionsForNew] = useState<string>('[]');
-
   const { profileData } = useOnboarding();
 
   // Helper function to reset new option form
@@ -1431,6 +1427,20 @@ export default function ProductsScreen() {
       console.log('Response text:', responseText);
 
       if (response.ok) {
+        // Get the created product ID from response
+        const data = JSON.parse(responseText);
+        const productId = data.results?.[0]?.response?.result?.last_insert_rowid;
+
+        // Auto-generate inventory if product has options
+        const selectedOptionIds = parseSelectedIds(newProduct.options || '[]');
+        if (productId && selectedOptionIds.length > 0) {
+          autoGenerateInventoryFromOptions(
+            productId,
+            newProduct.title || '',
+            selectedOptionIds
+          );
+        }
+
         // Reset form and close modal
         resetNewProductForm();
         setModalVisible(false);
@@ -1545,20 +1555,6 @@ export default function ProductsScreen() {
       console.log('Edit response text:', responseText);
 
       if (response.ok) {
-        // Auto-generate inventory from all selected options after product save
-        const allSelectedOptions = parseSelectedIds(selectedProductForEdit.options || '[]');
-        if (allSelectedOptions.length > 0 && selectedProductForEdit.id) {
-          // Auto-generate inventory for all options after product save
-          setTimeout(() => {
-            autoGenerateInventoryFromOptions(
-              selectedProductForEdit.id!,
-              selectedProductForEdit.title || '',
-              allSelectedOptions,
-              true // silent mode for save
-            );
-          }, 500); // Small delay to ensure product is saved
-        }
-
         // Reset form and close modal
         setSelectedProductForEdit(null);
         setEditModalVisible(false);
@@ -1924,23 +1920,16 @@ export default function ProductsScreen() {
     if (isEditMode && selectedProductForEdit) {
       setSelectedProductForEdit({...selectedProductForEdit, options: selectedIdsJson});
 
-      // Auto-generate inventory from ALL selected options if product exists
+      // Auto-generate inventory immediately when options are selected
       if (selectedOptionIds.length > 0 && selectedProductForEdit.id) {
         autoGenerateInventoryFromOptions(
           selectedProductForEdit.id,
           selectedProductForEdit.title || '',
-          selectedOptionIds, // Pass all selected option IDs
-          true // silent mode for auto-generation
+          selectedOptionIds
         );
       }
-
-      // Update previous options for next comparison
-      setPreviousOptionsForEdit(selectedIdsJson);
     } else {
       setNewProduct({...newProduct, options: selectedIdsJson});
-
-      // Update previous options for next comparison
-      setPreviousOptionsForNew(selectedIdsJson);
     }
 
     setOptionsDrawerVisible(false);
@@ -2528,19 +2517,21 @@ export default function ProductsScreen() {
 
 
   // Auto-generate inventory items when options are changed
-  const autoGenerateInventoryFromOptions = async (productId: number, productTitle: string, allOptionIds: number[], silent: boolean = false) => {
+  const autoGenerateInventoryFromOptions = async (productId: number, productTitle: string, allOptionIds: number[]) => {
     if (allOptionIds.length === 0) return;
 
     try {
       const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
+      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) return;
 
       const { tursoDbName, tursoApiToken } = profile;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
-      // First, delete all existing inventory for this product
+      // Generate combinations from ALL selected options
+      const combinations = generateOptionCombinations(allOptionIds);
+      if (combinations.length === 0) return;
+
+      // Delete existing inventory and create new combinations
       const deleteRequest = {
         type: "execute",
         stmt: {
@@ -2548,23 +2539,7 @@ export default function ProductsScreen() {
         }
       };
 
-      // Generate combinations from ALL selected options
-      const combinations = generateOptionCombinations(allOptionIds);
-
-      if (combinations.length === 0) return;
-
-      // Limit auto-generation to prevent too many items
-      if (combinations.length > 200) {
-        if (!silent) {
-          Alert.alert(
-            'Too Many Combinations',
-            `This would create ${combinations.length} inventory items. Please reduce the number of selected options.`
-          );
-        }
-        return;
-      }
-
-      // Prepare batch requests: delete first, then insert all combinations
+      // Create inventory items for all combinations
       const insertRequests = combinations.map(combination => {
         const sku = generateSKU(productTitle, combination, inventoryGenerationSettings.skuPattern);
 
@@ -2599,10 +2574,10 @@ export default function ProductsScreen() {
         };
       });
 
-      // Combine delete and insert requests
+      // Execute delete and insert operations
       const allRequests = [deleteRequest, ...insertRequests];
 
-      const response = await fetch(apiUrl, {
+      await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${tursoApiToken}`,
@@ -2611,29 +2586,12 @@ export default function ProductsScreen() {
         body: JSON.stringify({ requests: allRequests })
       });
 
-      const responseText = await response.text();
-      console.log('Auto-generation response status:', response.status);
-
-      if (response.ok) {
-        const data = JSON.parse(responseText);
-        console.log('Auto-generation response:', data);
-
-        // Refresh inventory for the current product
-        if (selectedProductForEdit?.id === productId) {
-          fetchInventoryForProduct(productId);
-        }
-
-        if (!silent) {
-          console.log(`Auto-generated ${combinations.length} inventory variants from options`);
-        }
-      } else {
-        throw new Error(`HTTP ${response.status}: ${responseText}`);
+      // Refresh inventory list
+      if (selectedProductForEdit?.id === productId) {
+        fetchInventoryForProduct(productId);
       }
     } catch (error) {
       console.error('Error auto-generating inventory:', error);
-      if (!silent) {
-        Alert.alert('Auto-generation Error', 'Failed to auto-generate inventory variants. Please try again.');
-      }
     }
   };
 
@@ -3149,8 +3107,7 @@ export default function ProductsScreen() {
       // Show modal immediately with basic product data
       setSelectedProductForEdit({...product});
 
-      // Initialize previous options for auto-generation tracking
-      setPreviousOptionsForEdit(product.options || '[]');
+
 
       setEditModalVisible(true);
 
@@ -3785,10 +3742,45 @@ export default function ProductsScreen() {
 
             {/* Inventory Tab */}
             <View style={{ margin: -16, padding: 0 }}>
-              <View style={[styles.noProductSelected, { marginTop: 0, paddingTop: 0 }]}>
-                <Text style={styles.noProductText}>
-                  Inventory will be available after the product is created
-                </Text>
+              <View style={[styles.simpleInventoryList, { marginTop: 0, paddingTop: 0 }]}>
+                {(() => {
+                  const selectedIds = parseSelectedIds(newProduct.options || '[]');
+                  if (selectedIds.length === 0) {
+                    return (
+                      <View style={styles.noProductSelected}>
+                        <Text style={styles.noProductText}>
+                          Select options to generate inventory variants
+                        </Text>
+                      </View>
+                    );
+                  } else {
+                    // Generate preview combinations for new product
+                    const combinations = generateOptionCombinations(selectedIds);
+                    return (
+                      <View>
+                        <Text style={styles.inventoryPreviewTitle}>
+                          {combinations.length} inventory variants will be created:
+                        </Text>
+                        {combinations.slice(0, 10).map((combination, index) => {
+                          const previewSku = generateSKU(newProduct.title || 'Product', combination, inventoryGenerationSettings.skuPattern);
+                          return (
+                            <View key={index} style={styles.inventoryPreviewItem}>
+                              <Text style={styles.inventoryPreviewSku}>{previewSku}</Text>
+                              <Text style={styles.inventoryPreviewOptions}>
+                                {[combination.option1, combination.option2, combination.option3].filter(Boolean).join(' • ')}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                        {combinations.length > 10 && (
+                          <Text style={styles.inventoryPreviewMore}>
+                            ... and {combinations.length - 10} more variants
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  }
+                })()}
               </View>
             </View>
           </VerticalTabView>
@@ -8287,5 +8279,38 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
+  },
+  // Inventory preview styles
+  inventoryPreviewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  inventoryPreviewItem: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  inventoryPreviewSku: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 4,
+  },
+  inventoryPreviewOptions: {
+    fontSize: 12,
+    color: '#666',
+  },
+  inventoryPreviewMore: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 16,
   },
 });
