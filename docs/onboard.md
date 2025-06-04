@@ -298,13 +298,24 @@ const _schema = i.schema({
 
 ## UI Components
 
-The onboarding UI consists of several screens:
-1. Authentication screen
-2. Name collection screen
-3. Database creation screen
-4. Completion screen
+The onboarding UI consists of:
+1. Authentication screen (handled by auth flow)
+2. Unified database setup screen with progress tracking
 
-Each screen shows appropriate loading indicators and error messages based on the current state of the onboarding process.
+The database setup screen shows:
+- Fixed header: "Setting Up Your Workspace"
+- Progress list showing all setup steps with visual status indicators
+- Real-time progress updates as each step completes
+- Error handling with retry functionality
+
+### Database Setup Steps Displayed:
+1. **Initializing workspace** ⚡ - Component initialization and setup
+2. **Creating database** 🗄️ - Turso database creation and verification
+3. **Setting up access** 🔑 - API token generation for database access
+4. **Creating tables** 📋 - Database tables creation and verification
+5. **Finalizing setup** ✅ - Profile update and onboarding completion
+
+Each step shows appropriate status indicators (pending, active with spinner, completed with checkmark, or error with X) and maintains the same underlying technical process while providing a unified user experience.
 
 ## Race Condition Prevention
 

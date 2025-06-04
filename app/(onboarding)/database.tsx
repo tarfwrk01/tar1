@@ -12,12 +12,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
 import { useOnboarding } from '../context/onboarding';
 
+// Define setup steps
+const SETUP_STEPS = [
+  { id: 'initializing', label: 'Initializing workspace', icon: '⚡' },
+  { id: 'creating_database', label: 'Creating database', icon: '🗄️' },
+  { id: 'creating_token', label: 'Setting up access', icon: '🔑' },
+  { id: 'creating_tables', label: 'Creating tables', icon: '📋' },
+  { id: 'completing', label: 'Finalizing setup', icon: '✅' },
+];
+
+type StepStatus = 'pending' | 'active' | 'completed' | 'error';
+
+interface StepProgress {
+  [key: string]: StepStatus;
+}
+
 export default function DatabaseScreen() {
   const { isLoading, updateOnboardingStep, userName, updateTursoDatabase, profileData } = useOnboarding();
   const { user } = useAuth();
   const router = useRouter();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const [status, setStatus] = useState('initializing');
+  const [currentStep, setCurrentStep] = useState('initializing');
+  const [stepProgress, setStepProgress] = useState<StepProgress>({
+    initializing: 'active',
+    creating_database: 'pending',
+    creating_token: 'pending',
+    creating_tables: 'pending',
+    completing: 'pending',
+  });
   const [error, setError] = useState('');
   const [dbName, setDbName] = useState('');
   const [apiToken, setApiToken] = useState('');
@@ -130,8 +152,8 @@ export default function DatabaseScreen() {
         console.log('Tables creation response (parsed):', JSON.stringify(data, null, 2));
 
         // Check for errors in the response
-        if (data.results && data.results.some(result => result.type === 'error')) {
-          const errorResult = data.results.find(result => result.type === 'error');
+        if (data.results && data.results.some((result: any) => result.type === 'error')) {
+          const errorResult = data.results.find((result: any) => result.type === 'error');
           console.error('SQL Error in response:', errorResult.error);
           throw new Error(`SQL Error: ${errorResult.error.message}`);
         }
@@ -194,7 +216,7 @@ export default function DatabaseScreen() {
             verifyData.results[0].type === 'success' &&
             verifyData.results[0].rows) {
 
-          const tableNames = verifyData.results[0].rows.map(row => row.name);
+          const tableNames = verifyData.results[0].rows.map((row: any) => row.name);
           console.log('Found tables:', tableNames);
 
           if (tableNames.includes('memories')) {
@@ -220,10 +242,26 @@ export default function DatabaseScreen() {
     }
   };
 
+  // Helper function to update step progress
+  const updateStepProgress = (stepId: string, status: StepStatus) => {
+    setStepProgress(prev => ({
+      ...prev,
+      [stepId]: status
+    }));
+  };
+
+  // Helper function to move to next step
+  const moveToNextStep = (currentStepId: string, nextStepId: string) => {
+    updateStepProgress(currentStepId, 'completed');
+    updateStepProgress(nextStepId, 'active');
+    setCurrentStep(nextStepId);
+  };
+
   // Create Turso database
   const createTursoDatabase = async () => {
     try {
-      setStatus('creating');
+      // Move to database creation step
+      moveToNextStep('initializing', 'creating_database');
 
       if (!user?.email) {
         throw new Error('User email not available');
@@ -293,7 +331,7 @@ export default function DatabaseScreen() {
       }
 
       // Now create API token for the database
-      setStatus('creating_token');
+      moveToNextStep('creating_database', 'creating_token');
       console.log('Creating token for database:', formattedDbName);
 
       let tokenData;
@@ -327,7 +365,7 @@ export default function DatabaseScreen() {
       setApiToken(apiToken);
 
       // Create memories table in the database
-      setStatus('creating_tables');
+      moveToNextStep('creating_token', 'creating_tables');
       console.log('=== DATABASE SETUP - PREPARING TO CREATE MEMORIES TABLE ===');
       console.log('Database name:', formattedDbName);
       console.log('API Token available:', !!apiToken);
@@ -344,9 +382,11 @@ export default function DatabaseScreen() {
       }
 
       // Save database info to InstantDB and complete onboarding
+      moveToNextStep('creating_tables', 'completing');
       await updateTursoDatabase(formattedDbName, apiToken);
 
-      setStatus('completed');
+      // Mark final step as completed
+      updateStepProgress('completing', 'completed');
 
       // The updateTursoDatabase function now handles navigation to primary screen
     } catch (error) {
@@ -380,9 +420,11 @@ export default function DatabaseScreen() {
         }
 
         // Complete onboarding with fallback values
+        moveToNextStep('creating_tables', 'completing');
         await updateTursoDatabase(fallbackDbName, fallbackToken);
 
-        setStatus('completed');
+        // Mark final step as completed
+        updateStepProgress('completing', 'completed');
         return;
       } catch (recoveryError) {
         console.error('Recovery attempt failed:', recoveryError);
@@ -390,7 +432,8 @@ export default function DatabaseScreen() {
 
       // If recovery fails, show error
       setError(error instanceof Error ? error.message : 'Failed to create database');
-      setStatus('error');
+      // Mark current step as error
+      updateStepProgress(currentStep, 'error');
     }
   };
 
@@ -429,89 +472,101 @@ export default function DatabaseScreen() {
     createTursoDatabase();
   }, [profileData]);
 
-  // Render different content based on status
+  // Render step item
+  const renderStepItem = (step: typeof SETUP_STEPS[0], index: number) => {
+    const status = stepProgress[step.id];
+    const isActive = status === 'active';
+    const isCompleted = status === 'completed';
+    const isError = status === 'error';
+
+    return (
+      <View key={step.id} style={styles.stepItem}>
+        <View style={[
+          styles.stepIcon,
+          isCompleted && styles.stepIconCompleted,
+          isActive && styles.stepIconActive,
+          isError && styles.stepIconError,
+        ]}>
+          {isCompleted ? (
+            <Text style={styles.stepIconText}>✓</Text>
+          ) : isError ? (
+            <Text style={styles.stepIconText}>✗</Text>
+          ) : isActive ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.stepIconText}>{index + 1}</Text>
+          )}
+        </View>
+        <View style={styles.stepContent}>
+          <Text style={[
+            styles.stepLabel,
+            isActive && styles.stepLabelActive,
+            isCompleted && styles.stepLabelCompleted,
+            isError && styles.stepLabelError,
+          ]}>
+            {step.label}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  // Check if all steps are completed
+  const allStepsCompleted = SETUP_STEPS.every(step => stepProgress[step.id] === 'completed');
+  const hasError = SETUP_STEPS.some(step => stepProgress[step.id] === 'error');
+
+  // Render main content
   const renderContent = () => {
-    switch (status) {
-      case 'initializing':
-      case 'creating':
-        return (
-          <>
-            <Text style={styles.emoji}>✨</Text>
-            <Text style={styles.title}>Setting Up</Text>
-            <Text style={styles.subtitle}>
-              We're preparing your personal workspace.
-            </Text>
-            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
-          </>
-        );
-
-      case 'creating_token':
-        return (
-          <>
-            <Text style={styles.emoji}>🌟</Text>
-            <Text style={styles.title}>Almost Done</Text>
-            <Text style={styles.subtitle}>
-              Just a moment while we finish setting up your workspace.
-            </Text>
-            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
-          </>
-        );
-
-      case 'creating_tables':
-        return (
-          <>
-            <Text style={styles.emoji}>📋</Text>
-            <Text style={styles.title}>Setting Up Tables</Text>
-            <Text style={styles.subtitle}>
-              Creating database tables for your workspace.
-            </Text>
-            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
-          </>
-        );
-
-      case 'completed':
-        return (
-          <>
-            <Text style={styles.emoji}>⭐</Text>
-            <Text style={styles.title}>All Set!</Text>
-            <Text style={styles.subtitle}>
-              {userName
-                ? `Thanks ${userName}, your workspace is ready to go.`
-                : user?.email
-                  ? `Thanks ${user.email.split('@')[0]}, your workspace is ready to go.`
-                  : 'Your workspace is ready to go.'}
-            </Text>
-            <ActivityIndicator size="large" color="#0066CC" style={styles.loader} />
-            <Text style={styles.redirectText}>Redirecting to your workspace...</Text>
-          </>
-        );
-
-      case 'error':
-        return (
-          <>
-            <Text style={styles.emoji}>💫</Text>
-            <Text style={styles.title}>Something Went Wrong</Text>
-            <Text style={styles.subtitle}>
-              We're having trouble setting up your workspace.
-            </Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={createTursoDatabase}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Try Again</Text>
-              )}
-            </TouchableOpacity>
-          </>
-        );
-
-      default:
-        return null;
+    if (hasError) {
+      return (
+        <>
+          <Text style={styles.emoji}>💫</Text>
+          <Text style={styles.title}>Something Went Wrong</Text>
+          <Text style={styles.subtitle}>
+            We're having trouble setting up your workspace.
+          </Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={createTursoDatabase}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Try Again</Text>
+            )}
+          </TouchableOpacity>
+        </>
+      );
     }
+
+    if (allStepsCompleted) {
+      return (
+        <>
+          <Text style={styles.emoji}>⭐</Text>
+          <Text style={styles.title}>All Set!</Text>
+          <Text style={styles.subtitle}>
+            {userName
+              ? `Thanks ${userName}, your workspace is ready to go.`
+              : user?.email
+                ? `Thanks ${user.email.split('@')[0]}, your workspace is ready to go.`
+                : 'Your workspace is ready to go.'}
+          </Text>
+          <Text style={styles.redirectText}>Redirecting to your workspace...</Text>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Text style={styles.emoji}>🚀</Text>
+        <Text style={styles.title}>Setting Up Your Workspace</Text>
+        <Text style={styles.subtitle}>
+          Please wait while we prepare everything for you.
+        </Text>
+      </>
+    );
   };
 
   return (
@@ -524,6 +579,11 @@ export default function DatabaseScreen() {
       >
         <View style={styles.header}>
           {renderContent()}
+        </View>
+
+        {/* Steps Progress */}
+        <View style={styles.stepsContainer}>
+          {SETUP_STEPS.map((step, index) => renderStepItem(step, index))}
         </View>
       </Animated.View>
     </SafeAreaView>
@@ -538,10 +598,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
-    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
+    marginBottom: 40,
   },
   emoji: {
     fontSize: 64,
@@ -588,5 +648,56 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  // Steps styles
+  stepsContainer: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 16,
+  },
+  stepIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E5E5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  stepIconActive: {
+    backgroundColor: '#0066CC',
+  },
+  stepIconCompleted: {
+    backgroundColor: '#4CAF50',
+  },
+  stepIconError: {
+    backgroundColor: '#F44336',
+  },
+  stepIconText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepLabel: {
+    fontSize: 16,
+    color: '#666',
+  },
+  stepLabelActive: {
+    color: '#0066CC',
+    fontWeight: '600',
+  },
+  stepLabelCompleted: {
+    color: '#4CAF50',
+  },
+  stepLabelError: {
+    color: '#F44336',
   },
 });
