@@ -332,10 +332,7 @@ export default function ProductsScreen() {
     sellproducts: '[]', // Empty JSON array
   });
 
-  // Inventory generation states
-  const [generateInventoryModalVisible, setGenerateInventoryModalVisible] = useState(false);
-  const [inventoryGenerationPreview, setInventoryGenerationPreview] = useState<any[]>([]);
-  const [isGeneratingInventory, setIsGeneratingInventory] = useState(false);
+  // Auto-generation settings
   const [inventoryGenerationSettings, setInventoryGenerationSettings] = useState({
     skuPattern: '{product}-{option1}-{option2}-{option3}',
     defaultCost: 0,
@@ -343,6 +340,10 @@ export default function ProductsScreen() {
     defaultStock: 10,
     defaultSalePrice: 0
   });
+
+  // Auto-generation states
+  const [previousOptionsForEdit, setPreviousOptionsForEdit] = useState<string>('[]');
+  const [previousOptionsForNew, setPreviousOptionsForNew] = useState<string>('[]');
 
   const { profileData } = useOnboarding();
 
@@ -1544,6 +1545,20 @@ export default function ProductsScreen() {
       console.log('Edit response text:', responseText);
 
       if (response.ok) {
+        // Auto-generate inventory from all selected options after product save
+        const allSelectedOptions = parseSelectedIds(selectedProductForEdit.options || '[]');
+        if (allSelectedOptions.length > 0 && selectedProductForEdit.id) {
+          // Auto-generate inventory for all options after product save
+          setTimeout(() => {
+            autoGenerateInventoryFromOptions(
+              selectedProductForEdit.id!,
+              selectedProductForEdit.title || '',
+              allSelectedOptions,
+              true // silent mode for save
+            );
+          }, 500); // Small delay to ensure product is saved
+        }
+
         // Reset form and close modal
         setSelectedProductForEdit(null);
         setEditModalVisible(false);
@@ -1905,11 +1920,29 @@ export default function ProductsScreen() {
 
   const handleOptionsSelection = () => {
     const selectedIdsJson = JSON.stringify(selectedOptionIds);
+
     if (isEditMode && selectedProductForEdit) {
       setSelectedProductForEdit({...selectedProductForEdit, options: selectedIdsJson});
+
+      // Auto-generate inventory from ALL selected options if product exists
+      if (selectedOptionIds.length > 0 && selectedProductForEdit.id) {
+        autoGenerateInventoryFromOptions(
+          selectedProductForEdit.id,
+          selectedProductForEdit.title || '',
+          selectedOptionIds, // Pass all selected option IDs
+          true // silent mode for auto-generation
+        );
+      }
+
+      // Update previous options for next comparison
+      setPreviousOptionsForEdit(selectedIdsJson);
     } else {
       setNewProduct({...newProduct, options: selectedIdsJson});
+
+      // Update previous options for next comparison
+      setPreviousOptionsForNew(selectedIdsJson);
     }
+
     setOptionsDrawerVisible(false);
   };
 
@@ -2410,38 +2443,25 @@ export default function ProductsScreen() {
     // Get the selected options with their details
     const selectedOptions = availableOptions.filter(option => selectedOptionIds.includes(option.id));
 
-    // Group options by their parent (to handle hierarchical options)
+    // Group options by their title (option type)
     const optionGroups: { [key: string]: any[] } = {};
 
     selectedOptions.forEach(option => {
-      if (option.parentid === null) {
-        // This is a root option
-        const groupKey = option.title || `group_${option.id}`;
-        if (!optionGroups[groupKey]) {
-          optionGroups[groupKey] = [];
-        }
-        optionGroups[groupKey].push(option);
-
-        // Add children of this option
-        const children = availableOptions.filter(child => child.parentid === option.id && selectedOptionIds.includes(child.id));
-        optionGroups[groupKey].push(...children);
+      const groupKey = option.title || `group_${option.id}`;
+      if (!optionGroups[groupKey]) {
+        optionGroups[groupKey] = [];
       }
+      optionGroups[groupKey].push(option);
     });
 
-    // If no groups found, treat all as individual options
-    if (Object.keys(optionGroups).length === 0) {
-      selectedOptions.forEach(option => {
-        const groupKey = option.title || `option_${option.id}`;
-        optionGroups[groupKey] = [option];
-      });
-    }
-
-    // Generate combinations
+    // Generate all possible combinations using cartesian product
     const groupKeys = Object.keys(optionGroups);
     const combinations: any[] = [];
 
-    if (groupKeys.length === 1) {
-      // Single group - each option is a variant
+    if (groupKeys.length === 0) {
+      return [];
+    } else if (groupKeys.length === 1) {
+      // Single group - each option value is a variant
       const group = optionGroups[groupKeys[0]];
       group.forEach(option => {
         combinations.push({
@@ -2467,7 +2487,7 @@ export default function ProductsScreen() {
         });
       });
     } else if (groupKeys.length >= 3) {
-      // Three or more groups - use first three
+      // Three or more groups - use first three for cartesian product
       const group1 = optionGroups[groupKeys[0]];
       const group2 = optionGroups[groupKeys[1]];
       const group3 = optionGroups[groupKeys[2]];
@@ -2503,48 +2523,16 @@ export default function ProductsScreen() {
     return sku || 'AUTO-SKU';
   };
 
-  // Open inventory generation modal
-  const openInventoryGenerationModal = () => {
-    if (!selectedProductForEdit) return;
 
-    const selectedIds = parseSelectedIds(selectedProductForEdit.options || '[]');
-    if (selectedIds.length === 0) {
-      Alert.alert('No Options', 'Please select options for this product before generating inventory variants.');
-      return;
-    }
 
-    const combinations = generateOptionCombinations(selectedIds);
-    if (combinations.length === 0) {
-      Alert.alert('No Combinations', 'No valid option combinations found.');
-      return;
-    }
 
-    if (combinations.length > 50) {
-      Alert.alert(
-        'Too Many Combinations',
-        `This will generate ${combinations.length} inventory items. Consider reducing the number of selected options.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => {
-            setInventoryGenerationPreview(combinations);
-            setGenerateInventoryModalVisible(true);
-          }}
-        ]
-      );
-    } else {
-      setInventoryGenerationPreview(combinations);
-      setGenerateInventoryModalVisible(true);
-    }
-  };
 
-  // Generate inventory items
-  const generateInventoryItems = async () => {
-    if (!selectedProductForEdit || inventoryGenerationPreview.length === 0) return;
+  // Auto-generate inventory items when options are changed
+  const autoGenerateInventoryFromOptions = async (productId: number, productTitle: string, allOptionIds: number[], silent: boolean = false) => {
+    if (allOptionIds.length === 0) return;
 
     try {
-      setIsGeneratingInventory(true);
       const profile = profileData?.profile?.[0];
-
       if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
         throw new Error('Missing database credentials');
       }
@@ -2552,9 +2540,33 @@ export default function ProductsScreen() {
       const { tursoDbName, tursoApiToken } = profile;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
-      // Prepare batch insert requests
-      const requests = inventoryGenerationPreview.map(combination => {
-        const sku = generateSKU(selectedProductForEdit.title || '', combination, inventoryGenerationSettings.skuPattern);
+      // First, delete all existing inventory for this product
+      const deleteRequest = {
+        type: "execute",
+        stmt: {
+          sql: `DELETE FROM inventory WHERE productId = ${productId}`
+        }
+      };
+
+      // Generate combinations from ALL selected options
+      const combinations = generateOptionCombinations(allOptionIds);
+
+      if (combinations.length === 0) return;
+
+      // Limit auto-generation to prevent too many items
+      if (combinations.length > 200) {
+        if (!silent) {
+          Alert.alert(
+            'Too Many Combinations',
+            `This would create ${combinations.length} inventory items. Please reduce the number of selected options.`
+          );
+        }
+        return;
+      }
+
+      // Prepare batch requests: delete first, then insert all combinations
+      const insertRequests = combinations.map(combination => {
+        const sku = generateSKU(productTitle, combination, inventoryGenerationSettings.skuPattern);
 
         return {
           type: "execute",
@@ -2564,7 +2576,7 @@ export default function ProductsScreen() {
               reorderlevel, path, available, committed, unavailable, onhand,
               metafields, cost, price, margin, saleprice
             ) VALUES (
-              ${selectedProductForEdit.id},
+              ${productId},
               '${sku.replace(/'/g, "''")}',
               '',
               '[]',
@@ -2587,40 +2599,45 @@ export default function ProductsScreen() {
         };
       });
 
+      // Combine delete and insert requests
+      const allRequests = [deleteRequest, ...insertRequests];
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${tursoApiToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ requests })
+        body: JSON.stringify({ requests: allRequests })
       });
 
       const responseText = await response.text();
+      console.log('Auto-generation response status:', response.status);
+
       if (response.ok) {
         const data = JSON.parse(responseText);
-        console.log('Inventory generation response:', data);
-
-        // Close modal and refresh inventory
-        setGenerateInventoryModalVisible(false);
-        setInventoryGenerationPreview([]);
+        console.log('Auto-generation response:', data);
 
         // Refresh inventory for the current product
-        if (selectedProductForEdit.id) {
-          fetchInventoryForProduct(selectedProductForEdit.id);
+        if (selectedProductForEdit?.id === productId) {
+          fetchInventoryForProduct(productId);
         }
 
-        Alert.alert('Success', `Generated ${inventoryGenerationPreview.length} inventory variants successfully!`);
+        if (!silent) {
+          console.log(`Auto-generated ${combinations.length} inventory variants from options`);
+        }
       } else {
         throw new Error(`HTTP ${response.status}: ${responseText}`);
       }
     } catch (error) {
-      console.error('Error generating inventory:', error);
-      Alert.alert('Error', 'Failed to generate inventory items. Please try again.');
-    } finally {
-      setIsGeneratingInventory(false);
+      console.error('Error auto-generating inventory:', error);
+      if (!silent) {
+        Alert.alert('Auto-generation Error', 'Failed to auto-generate inventory variants. Please try again.');
+      }
     }
   };
+
+
 
   // Create new option function
   const createNewOption = async () => {
@@ -3131,6 +3148,10 @@ export default function ProductsScreen() {
     try {
       // Show modal immediately with basic product data
       setSelectedProductForEdit({...product});
+
+      // Initialize previous options for auto-generation tracking
+      setPreviousOptionsForEdit(product.options || '[]');
+
       setEditModalVisible(true);
 
       // Fetch full product details including medias in background
@@ -4232,14 +4253,6 @@ export default function ProductsScreen() {
                   </View>
                 ) : (
                   <View style={styles.simpleInventoryList}>
-                    {/* Generate Variants Button */}
-                    <TouchableOpacity
-                      style={styles.generateVariantsButton}
-                      onPress={openInventoryGenerationModal}
-                    >
-                      <Ionicons name="layers-outline" size={20} color="#0066CC" />
-                      <Text style={styles.generateVariantsText}>Generate Variants from Options</Text>
-                    </TouchableOpacity>
 
                     {(() => {
                       console.log('Current inventory state:', inventory);
@@ -6244,115 +6257,7 @@ export default function ProductsScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Inventory Generation Modal */}
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={generateInventoryModalVisible}
-        onRequestClose={() => setGenerateInventoryModalVisible(false)}
-        statusBarTranslucent={true}
-      >
-        <StatusBar style="dark" backgroundColor="transparent" translucent />
-        <SafeAreaView style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setGenerateInventoryModalVisible(false)}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Generate Inventory Variants</Text>
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={generateInventoryItems}
-              disabled={isGeneratingInventory}
-            >
-              {isGeneratingInventory ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>Generate</Text>
-              )}
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView style={styles.formContainer}>
-            {/* Settings Section */}
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>SKU Pattern</Text>
-              <TextInput
-                style={styles.input}
-                value={inventoryGenerationSettings.skuPattern}
-                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, skuPattern: text})}
-                placeholder="e.g., {product}-{option1}-{option2}"
-              />
-              <Text style={styles.helperText}>Use {'{product}'}, {'{option1}'}, {'{option2}'}, {'{option3}'} as placeholders</Text>
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Default Cost ($)</Text>
-              <TextInput
-                style={styles.input}
-                value={inventoryGenerationSettings.defaultCost.toString()}
-                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultCost: parseFloat(text) || 0})}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Default Price ($)</Text>
-              <TextInput
-                style={styles.input}
-                value={inventoryGenerationSettings.defaultPrice.toString()}
-                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultPrice: parseFloat(text) || 0})}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Default Stock Quantity</Text>
-              <TextInput
-                style={styles.input}
-                value={inventoryGenerationSettings.defaultStock.toString()}
-                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultStock: parseInt(text) || 0})}
-                placeholder="10"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.inputLabel}>Default Sale Price ($)</Text>
-              <TextInput
-                style={styles.input}
-                value={inventoryGenerationSettings.defaultSalePrice.toString()}
-                onChangeText={(text) => setInventoryGenerationSettings({...inventoryGenerationSettings, defaultSalePrice: parseFloat(text) || 0})}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-
-            {/* Preview Section */}
-            <View style={styles.previewSection}>
-              <Text style={styles.previewTitle}>Preview ({inventoryGenerationPreview.length} variants will be generated)</Text>
-              {inventoryGenerationPreview.slice(0, 5).map((combination, index) => {
-                const previewSku = generateSKU(selectedProductForEdit?.title || '', combination, inventoryGenerationSettings.skuPattern);
-                return (
-                  <View key={index} style={styles.previewItem}>
-                    <Text style={styles.previewSku}>{previewSku}</Text>
-                    <Text style={styles.previewOptions}>
-                      {[combination.option1, combination.option2, combination.option3].filter(Boolean).join(' • ')}
-                    </Text>
-                  </View>
-                );
-              })}
-              {inventoryGenerationPreview.length > 5 && (
-                <Text style={styles.previewMore}>... and {inventoryGenerationPreview.length - 5} more variants</Text>
-              )}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
       {/* Option Title Selection Drawer */}
       <Modal
