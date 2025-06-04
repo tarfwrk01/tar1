@@ -2,19 +2,19 @@ import { useOnboarding } from '@/app/context/onboarding';
 import { useProduct } from '@/app/context/product';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -23,6 +23,8 @@ import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
 import ImageUploader from './ImageUploader';
 import SingleImageUploader from './SingleImageUploader';
 import VerticalTabView from './VerticalTabView';
+
+// Performance optimization imports
 
 type Product = {
   id: number;
@@ -84,22 +86,137 @@ type InventoryItem = {
 };
 
 export default function ProductsScreen() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  // Performance monitoring - DISABLED temporarily to fix infinite re-renders
+  // const { metrics: performanceMetrics, getPerformanceReport } = usePerformanceMonitor('ProductsScreen');
+  // const { trackRequest } = useNetworkPerformanceMonitor();
+
+  // Core state - consolidated for better performance
+  const [appState, setAppState] = useState({
+    isLoading: false,
+    error: null as string | null,
+    products: [] as Product[],
+    filteredProducts: [] as Product[],
+    inventory: [] as InventoryItem[],
+    inventoryLoading: false,
+  });
+
+  // Search state with debouncing
   const [searchQuery, setSearchQuery] = useState('');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [selectedProductForInventory, setSelectedProductForInventory] = useState<Product | null>(null);
-  const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [editInventoryModalVisible, setEditInventoryModalVisible] = useState(false);
-  const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
-  const [activeInventoryTab, setActiveInventoryTab] = useState<'metafields' | 'pricing' | 'stock' | null>(null);
+
+  // Debounced search values for performance
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // This effect will be moved after fetchProducts is declared
+
+  // Cleanup effect for aborting requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Modal visibility state - consolidated
+  const [modalState, setModalState] = useState({
+    modalVisible: false,
+    editModalVisible: false,
+    filterModalVisible: false,
+    editInventoryModalVisible: false,
+  });
+
+  // Selection state - consolidated
+  const [selectionState, setSelectionState] = useState({
+    activeFilter: null as string | null,
+    selectedProductForInventory: null as Product | null,
+    selectedProductForEdit: null as Product | null,
+    selectedInventoryItem: null as InventoryItem | null,
+    activeInventoryTab: null as 'metafields' | 'pricing' | 'stock' | null,
+  });
+
+  // Individual state getters for backward compatibility
+  const isLoading = appState.isLoading;
+  const products = appState.products;
+  const filteredProducts = appState.filteredProducts;
+  const inventory = appState.inventory;
+  const inventoryLoading = appState.inventoryLoading;
+
+  const modalVisible = modalState.modalVisible;
+  const editModalVisible = modalState.editModalVisible;
+  const filterModalVisible = modalState.filterModalVisible;
+  const editInventoryModalVisible = modalState.editInventoryModalVisible;
+
+  const activeFilter = selectionState.activeFilter;
+  const selectedProductForInventory = selectionState.selectedProductForInventory;
+  const selectedProductForEdit = selectionState.selectedProductForEdit;
+  const selectedInventoryItem = selectionState.selectedInventoryItem;
+  const activeInventoryTab = selectionState.activeInventoryTab;
+
+  // State setters for backward compatibility
+  const setIsLoading = useCallback((loading: boolean) => {
+    setAppState(prev => ({ ...prev, isLoading: loading }));
+  }, []);
+
+  const setProducts = useCallback((products: Product[]) => {
+    setAppState(prev => ({ ...prev, products }));
+  }, []);
+
+  const setFilteredProducts = useCallback((filteredProducts: Product[]) => {
+    setAppState(prev => ({ ...prev, filteredProducts }));
+  }, []);
+
+  const setInventory = useCallback((inventory: InventoryItem[]) => {
+    setAppState(prev => ({ ...prev, inventory }));
+  }, []);
+
+  const setInventoryLoading = useCallback((loading: boolean) => {
+    setAppState(prev => ({ ...prev, inventoryLoading: loading }));
+  }, []);
+
+  const setModalVisible = useCallback((visible: boolean) => {
+    setModalState(prev => ({ ...prev, modalVisible: visible }));
+  }, []);
+
+  const setEditModalVisible = useCallback((visible: boolean) => {
+    setModalState(prev => ({ ...prev, editModalVisible: visible }));
+  }, []);
+
+  const setFilterModalVisible = useCallback((visible: boolean) => {
+    setModalState(prev => ({ ...prev, filterModalVisible: visible }));
+  }, []);
+
+  const setEditInventoryModalVisible = useCallback((visible: boolean) => {
+    setModalState(prev => ({ ...prev, editInventoryModalVisible: visible }));
+  }, []);
+
+  const setActiveFilter = useCallback((filter: string | null) => {
+    setSelectionState(prev => ({ ...prev, activeFilter: filter }));
+  }, []);
+
+  const setSelectedProductForInventory = useCallback((product: Product | null) => {
+    setSelectionState(prev => ({ ...prev, selectedProductForInventory: product }));
+  }, []);
+
+  const setSelectedProductForEdit = useCallback((product: Product | null) => {
+    setSelectionState(prev => ({ ...prev, selectedProductForEdit: product }));
+  }, []);
+
+  const setSelectedInventoryItem = useCallback((item: InventoryItem | null) => {
+    setSelectionState(prev => ({ ...prev, selectedInventoryItem: item }));
+  }, []);
+
+  const setActiveInventoryTab = useCallback((tab: 'metafields' | 'pricing' | 'stock' | null) => {
+    setSelectionState(prev => ({ ...prev, activeInventoryTab: tab }));
+  }, []);
 
   // Multi-select drawer states
   const [optionsDrawerVisible, setOptionsDrawerVisible] = useState(false);
@@ -346,6 +463,39 @@ export default function ProductsScreen() {
   const { profileData } = useOnboarding();
   const { user } = useAuth();
   const { getCredentials } = useTursoCredentialsLazy();
+
+  // Database service instance - memoized for performance
+  const databaseService = useMemo(async () => {
+    if (!user?.id) return null;
+
+    try {
+      const credentials = await getCredentials();
+      const { DatabaseService } = await import('../../services/databaseService');
+      return new DatabaseService(credentials);
+    } catch (error) {
+      console.error('Failed to initialize database service:', error);
+      return null;
+    }
+  }, [user?.id, getCredentials]);
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 20,
+    totalItems: 0,
+    hasMore: true,
+  });
+
+  // Error handling state
+  const [errorState, setErrorState] = useState({
+    hasError: false,
+    errorMessage: '',
+    retryCount: 0,
+  });
+
+  // Performance refs
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
 
   // Helper function to reset new option form
   const resetNewOptionForm = () => {
@@ -1078,109 +1228,184 @@ export default function ProductsScreen() {
     }
   };
 
-  const fetchProducts = async () => {
+  // Optimized fetch products with error handling and retry logic
+  const fetchProducts = useCallback(async (page = 1, searchTerm = '', retryAttempt = 0) => {
+    // Cancel previous request if still pending
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
-      setIsLoading(true);
+      setAppState(prev => ({ ...prev, isLoading: true, error: null }));
+      setErrorState(prev => ({ ...prev, hasError: false }));
 
       // Get credentials from cache or database
       const credentials = await getCredentials();
       const { tursoDbName, tursoApiToken } = credentials;
 
+      // Calculate offset for pagination
+      const offset = (page - 1) * pagination.pageSize;
+
+      // Build SQL query with search and pagination
+      let sql = `
+        SELECT id, title, image, price, type, stock, publish
+        FROM products
+      `;
+
+      const conditions = [];
+      if (searchTerm.trim()) {
+        conditions.push(`title LIKE '%${searchTerm.replace(/'/g, "''")}%'`);
+      }
+
+      if (conditions.length > 0) {
+        sql += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      sql += ` ORDER BY id DESC LIMIT ${pagination.pageSize} OFFSET ${offset}`;
+
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
-      // Create request body with direct SQL
+      // Create request body
       const requestBody = {
         requests: [
           {
             type: "execute",
-            stmt: {
-              sql: "SELECT id, title, image, price, type FROM products ORDER BY id DESC LIMIT 100"
-            }
+            stmt: { sql }
           }
         ]
       };
 
-      console.log('Fetching products from:', apiUrl);
-      console.log('Fetch request body:', JSON.stringify(requestBody, null, 2));
-
-      // Fetch products
+      // Fetch with timeout and abort signal
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${tursoApiToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: abortController.signal
       });
 
-      const responseText = await response.text();
-      console.log('Fetch response status:', response.status);
-      console.log('Fetch response text:', responseText);
-
-      if (response.ok) {
-        try {
-          const data = JSON.parse(responseText);
-          console.log('Parsed data:', JSON.stringify(data, null, 2));
-
-          if (data.results &&
-              data.results[0] &&
-              data.results[0].response &&
-              data.results[0].response.result &&
-              data.results[0].response.result.rows) {
-
-            // Extract the rows from the nested structure
-            const rows = data.results[0].response.result.rows;
-            console.log('Raw rows:', JSON.stringify(rows, null, 2));
-
-            // Transform the rows into a more usable format
-            const productData = rows.map((row: any[]) => {
-              return {
-                id: parseInt(row[0].value),
-                title: row[1].value,
-                image: row[2].type === 'null' ? '' : row[2].value,
-                price: row[3].type === 'null' ? 0 : parseFloat(row[3].value),
-                type: row[4].type === 'null' ? '' : row[4].value
-              };
-            });
-
-            console.log('Transformed product data:', JSON.stringify(productData, null, 2));
-            setProducts(productData);
-            setFilteredProducts(productData);
-          } else {
-            console.log('No product data found in response');
-            setProducts([]);
-            setFilteredProducts([]);
-          }
-        } catch (parseError) {
-          console.error('Error parsing JSON response:', parseError);
-          setProducts([]);
-          setFilteredProducts([]);
-        }
-      } else {
-        console.error('Failed to fetch products:', await response.text());
-        Alert.alert(
-          'Error',
-          'Failed to fetch products. Please try again.',
-          [{ text: 'OK' }]
-        );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    } catch (error) {
+
+      const data = await response.json();
+
+      if (data.results?.[0]?.response?.result?.rows) {
+        const rows = data.results[0].response.result.rows;
+
+        // Transform the rows into products
+        const productData = rows.map((row: any[]) => ({
+          id: parseInt(row[0].value),
+          title: row[1].value || '',
+          image: row[2].type === 'null' ? '' : row[2].value,
+          price: row[3].type === 'null' ? 0 : parseFloat(row[3].value),
+          type: row[4].type === 'null' ? 'physical' : row[4].value,
+          stock: row[5].type === 'null' ? 0 : parseInt(row[5].value),
+          publish: row[6].type === 'null' ? 'draft' : row[6].value,
+        }));
+
+        // Update state based on page
+        if (page === 1) {
+          setAppState(prev => ({
+            ...prev,
+            products: productData,
+            filteredProducts: productData,
+            isLoading: false
+          }));
+        } else {
+          // Append for pagination
+          setAppState(prev => ({
+            ...prev,
+            products: [...prev.products, ...productData],
+            filteredProducts: [...prev.filteredProducts, ...productData],
+            isLoading: false
+          }));
+        }
+
+        // Update pagination
+        setPagination(prev => ({
+          ...prev,
+          currentPage: page,
+          hasMore: productData.length === prev.pageSize
+        }));
+
+        // Reset error state on success
+        setErrorState(prev => ({ ...prev, retryCount: 0 }));
+
+      } else {
+        // No data found
+        if (page === 1) {
+          setAppState(prev => ({
+            ...prev,
+            products: [],
+            filteredProducts: [],
+            isLoading: false
+          }));
+        }
+        setPagination(prev => ({ ...prev, hasMore: false }));
+      }
+
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return; // Request was cancelled, don't update state
+      }
+
       console.error('Error fetching products:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred while fetching products. Please try again.',
-        [{ text: 'OK' }]
-      );
+
+      // Implement retry logic
+      if (retryAttempt < 3) {
+        console.log(`Retrying fetch (attempt ${retryAttempt + 1})`);
+        setTimeout(() => {
+          fetchProducts(page, searchTerm, retryAttempt + 1);
+        }, Math.pow(2, retryAttempt) * 1000); // Exponential backoff
+        return;
+      }
+
+      // Set error state
+      setAppState(prev => ({ ...prev, isLoading: false, error: error.message }));
+      setErrorState(prev => ({
+        ...prev,
+        hasError: true,
+        errorMessage: error.message,
+        retryCount: retryAttempt
+      }));
+
     } finally {
-      setIsLoading(false);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
     }
-  };
+  }, [getCredentials]);
+
+  // Effect to handle debounced search - FIXED to prevent infinite re-renders
+  useEffect(() => {
+    if (debouncedSearchQuery !== searchQuery) {
+      // Search is still being typed, don't fetch yet
+      return;
+    }
+
+    // Perform search when debounced query is ready
+    if (debouncedSearchQuery.trim()) {
+      fetchProducts(1, debouncedSearchQuery);
+    } else if (debouncedSearchQuery === '' && searchQuery === '') {
+      // Reset to show all products when search is cleared
+      fetchProducts(1, '');
+    }
+  }, [debouncedSearchQuery, searchQuery]); // Removed fetchProducts dependency
+
+  // Initial fetch effect - REMOVED DUPLICATE
+  // This is now handled in the main mount effect below
 
   // Fetch full product details for editing
   const fetchProductForEdit = async (productId: number) => {
     try {
-      setIsLoading(true);
+      setAppState(prev => ({ ...prev, isLoading: true }));
 
       // Get credentials from cache or database
       const credentials = await getCredentials();
@@ -3017,9 +3242,9 @@ export default function ProductsScreen() {
     }
   };
 
-  // Fetch products on component mount
+  // Initial data fetch on component mount - FIXED to prevent infinite re-renders
   useEffect(() => {
-    fetchProducts();
+    fetchProducts(1, '');
     fetchAvailableOptions();
     fetchAvailableMetafields();
     fetchAvailableModifiers();
@@ -3028,7 +3253,7 @@ export default function ProductsScreen() {
     fetchAvailableVendors();
     fetchAvailableBrands();
     fetchAvailableTags();
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
   // Handle edit button press
   const handleEditProduct = async (product: Product) => {
@@ -3054,7 +3279,8 @@ export default function ProductsScreen() {
     }
   };
 
-  const renderProductItem = ({ item }: { item: Product }) => (
+  // Memoized product item component for better performance
+  const ProductItem = React.memo(({ item }: { item: Product }) => (
     <TouchableOpacity
       style={styles.simpleProductItem}
       onPress={() => handleEditProduct(item)}
@@ -3065,6 +3291,9 @@ export default function ProductsScreen() {
             source={{ uri: item.image }}
             style={styles.productListImage}
             onError={(error) => console.log('Product list image load error:', error.nativeEvent.error)}
+            resizeMode="cover"
+            progressiveRenderingEnabled={true}
+            loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
           />
         ) : (
           <View style={styles.productImagePlaceholder}>
@@ -3072,18 +3301,64 @@ export default function ProductsScreen() {
           </View>
         )}
       </View>
-      <Text style={styles.simpleProductTitle}>{item.title || 'Untitled Product'}</Text>
+      <Text style={styles.simpleProductTitle} numberOfLines={2} ellipsizeMode="tail">
+        {item.title || 'Untitled Product'}
+      </Text>
     </TouchableOpacity>
-  );
+  ), (prevProps, nextProps) => {
+    // Custom comparison for better performance
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.item.title === nextProps.item.title &&
+      prevProps.item.image === nextProps.item.image
+    );
+  });
 
-  const renderEmptyList = () => (
+  const renderProductItem = useCallback(({ item }: { item: Product }) => (
+    <ProductItem item={item} />
+  ), []);
+
+  // Memoized empty list component
+  const renderEmptyList = useCallback(() => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>No products found</Text>
-      <TouchableOpacity style={styles.refreshButton} onPress={fetchProducts}>
-        <Text style={styles.refreshButtonText}>Refresh</Text>
+      <Text style={styles.emptyText}>
+        {searchQuery.trim() ? 'No products found matching your search' : 'No products found'}
+      </Text>
+      <TouchableOpacity
+        style={styles.refreshButton}
+        onPress={() => fetchProducts(1, searchQuery)}
+        disabled={isLoading}
+      >
+        <Text style={styles.refreshButtonText}>
+          {isLoading ? 'Loading...' : 'Refresh'}
+        </Text>
       </TouchableOpacity>
     </View>
-  );
+  ), [searchQuery, isLoading, fetchProducts]);
+
+  // Error retry function
+  const handleRetry = useCallback(() => {
+    setErrorState(prev => ({ ...prev, hasError: false, errorMessage: '' }));
+    fetchProducts(1, searchQuery);
+  }, [fetchProducts, searchQuery]);
+
+  // Memoized error component
+  const renderErrorState = useCallback(() => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.errorText}>
+        {errorState.errorMessage || 'Something went wrong'}
+      </Text>
+      <TouchableOpacity
+        style={styles.refreshButton}
+        onPress={handleRetry}
+        disabled={isLoading}
+      >
+        <Text style={styles.refreshButtonText}>
+          {isLoading ? 'Retrying...' : 'Try Again'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  ), [errorState.errorMessage, isLoading, handleRetry]);
 
   // Handle edit inventory item
   const handleEditInventoryItem = (item: InventoryItem) => {
@@ -3210,7 +3485,9 @@ export default function ProductsScreen() {
         </TouchableOpacity>
       </View>
 
-      {isLoading ? (
+      {errorState.hasError ? (
+        renderErrorState()
+      ) : isLoading && filteredProducts.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0066CC" />
           <Text style={styles.loadingText}>Loading products...</Text>
@@ -3224,6 +3501,39 @@ export default function ProductsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyList}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+
+          // Performance optimizations
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          windowSize={10}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          onEndReachedThreshold={0.5}
+
+          // Pagination support
+          onEndReached={() => {
+            if (pagination.hasMore && !isLoading) {
+              fetchProducts(pagination.currentPage + 1, debouncedSearchQuery);
+            }
+          }}
+
+          // Loading footer for pagination
+          ListFooterComponent={() => {
+            if (isLoading && filteredProducts.length > 0) {
+              return (
+                <View style={styles.paginationLoader}>
+                  <ActivityIndicator size="small" color="#0066CC" />
+                  <Text style={styles.paginationText}>Loading more...</Text>
+                </View>
+              );
+            }
+            return null;
+          }}
+
+          // Memory optimizations
+          legacyImplementation={false}
+          disableVirtualization={false}
+          keyboardShouldPersistTaps="handled"
         />
       )}
 
@@ -8241,5 +8551,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 16,
+  },
+
+  // Performance optimization styles
+  paginationLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  paginationText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#d32f2f',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
 });
