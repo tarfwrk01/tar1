@@ -1,7 +1,6 @@
-import 'react-native-get-random-values'; // Must be imported before uuid
 import * as FileSystem from 'expo-file-system';
-import { Platform } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import 'react-native-get-random-values'; // Must be imported before uuid
 import { v4 as uuidv4 } from 'uuid';
 
 // Cloudflare R2 configuration
@@ -19,10 +18,10 @@ const R2_CONFIG = {
  * @param contentType - The content type of the file
  * @returns The presigned URL and the public URL of the file
  */
-const generatePresignedUrl = async (fileName: string, contentType: string) => {
+const generatePresignedUrl = async (fileName: string, contentType: string, folderName: string = 'products') => {
   try {
     // Generate a unique key for the file
-    const key = `products/${uuidv4()}-${fileName}`;
+    const key = `${folderName}/${uuidv4()}-${fileName}`;
     
     // Create a timestamp for the expiration (15 minutes from now)
     const expirationTime = Math.floor(Date.now() / 1000) + 15 * 60;
@@ -62,9 +61,10 @@ const generatePresignedUrl = async (fileName: string, contentType: string) => {
 /**
  * Uploads an image to Cloudflare R2 storage
  * @param imageUri - The URI of the image to upload
+ * @param folderName - The folder name to use for organizing uploads (defaults to 'products')
  * @returns The public URL of the uploaded image
  */
-export const uploadProductImage = async (imageUri: string): Promise<string> => {
+export const uploadProductImage = async (imageUri: string, folderName: string = 'products'): Promise<string> => {
   try {
     // Get the file info
     const fileInfo = await FileSystem.getInfoAsync(imageUri);
@@ -87,7 +87,7 @@ export const uploadProductImage = async (imageUri: string): Promise<string> => {
     
     // Create a unique file name
     const uniqueFileName = `${uuidv4()}-${fileName}`;
-    const key = `products/${uniqueFileName}`;
+    const key = `${folderName}/${uniqueFileName}`;
     
     // Construct the public URL (this is a simplified version)
     const publicUrl = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${key}`;

@@ -1,6 +1,7 @@
 import { GetObjectCommand, ListBucketsCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as FileSystem from 'expo-file-system';
+import { getCachedCredentials } from '../app/utils/credentialCache';
 
 // Sevalla storage configuration with correct endpoint
 const config = {
@@ -161,27 +162,29 @@ export const getPublicUrl = (fileName: string): string => {
 /**
  * Generate a unique filename with timestamp and random string
  * @param originalFilename The original filename
+ * @param folderName The folder name to use (defaults to 'products')
  */
-export const generateUniqueFilename = (originalFilename: string): string => {
+export const generateUniqueFilename = (originalFilename: string, folderName: string = 'products'): string => {
   const timestamp = new Date().getTime();
   const randomString = Math.random().toString(36).substring(2, 15);
   const extension = originalFilename.split('.').pop();
-  
-  return `products/${timestamp}-${randomString}.${extension}`;
+
+  return `${folderName}/${timestamp}-${randomString}.${extension}`;
 };
 
 /**
  * Upload an image to Sevalla storage and return the public URL
  * @param imageUri The local URI of the image to upload
+ * @param folderName The folder name to use for organizing uploads (defaults to 'products')
  * @returns Promise containing the public URL of the uploaded image
  */
-export const uploadProductImage = async (imageUri: string): Promise<string> => {
+export const uploadProductImage = async (imageUri: string, folderName: string = 'products'): Promise<string> => {
   try {
     // Get the filename from the URI
     const filename = imageUri.split('/').pop() || 'image.jpg';
-    
-    // Generate a unique filename for the image
-    const uniqueFilename = generateUniqueFilename(filename);
+
+    // Generate a unique filename for the image with custom folder
+    const uniqueFilename = generateUniqueFilename(filename, folderName);
     
     // Determine content type based on file extension
     const extension = filename.split('.').pop()?.toLowerCase() || 'jpg';
@@ -210,5 +213,33 @@ export const uploadProductImage = async (imageUri: string): Promise<string> => {
   } catch (error) {
     console.error('Error uploading product image:', error);
     throw error;
+  }
+};
+
+/**
+ * Upload an image using cached credentials for folder organization
+ * @param imageUri The local URI of the image to upload
+ * @param userId The user ID to get cached credentials for
+ * @returns Promise containing the public URL of the uploaded image
+ */
+export const uploadImageWithCachedCredentials = async (imageUri: string, userId: string): Promise<string> => {
+  try {
+    // Get cached credentials to use tursoDbName as folder
+    const cachedCredentials = await getCachedCredentials(userId);
+
+    if (cachedCredentials) {
+      // Use tursoDbName as the folder name
+      console.log(`[R2Storage] Uploading to folder: ${cachedCredentials.tursoDbName}`);
+      return await uploadProductImage(imageUri, cachedCredentials.tursoDbName);
+    } else {
+      // Fallback to default 'products' folder if no cached credentials
+      console.log('[R2Storage] No cached credentials found, using default "products" folder');
+      return await uploadProductImage(imageUri, 'products');
+    }
+  } catch (error) {
+    console.error('Error uploading image with cached credentials:', error);
+    // Fallback to default upload if credential retrieval fails
+    console.log('[R2Storage] Falling back to default upload');
+    return await uploadProductImage(imageUri, 'products');
   }
 };

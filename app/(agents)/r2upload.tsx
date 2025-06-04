@@ -1,20 +1,21 @@
-import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Clipboard,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import React, { useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Clipboard,
+    FlatList,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../components/TopBar';
-import { uploadProductImage, listObjects } from '../../services/R2StorageService';
+import { listObjects, uploadImageWithCachedCredentials } from '../../services/R2StorageService';
+import { useAuth } from '../context/auth';
 
 type UploadedImage = {
   id: string;
@@ -24,6 +25,7 @@ type UploadedImage = {
 };
 
 export default function R2UploadScreen() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [isListingObjects, setIsListingObjects] = useState(false);
@@ -72,10 +74,14 @@ export default function R2UploadScreen() {
   const uploadImage = async (imageUri: string) => {
     try {
       setIsLoading(true);
-      
-      // Upload the image to R2 storage
-      const publicUrl = await uploadProductImage(imageUri);
-      
+
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Upload the image to R2 storage using cached credentials
+      const publicUrl = await uploadImageWithCachedCredentials(imageUri, user.id);
+
       // Add the uploaded image to the list
       const newImage: UploadedImage = {
         id: Date.now().toString(),
@@ -83,9 +89,9 @@ export default function R2UploadScreen() {
         filename: publicUrl.split('/').pop() || 'unknown',
         timestamp: new Date(),
       };
-      
+
       setUploadedImages(prevImages => [newImage, ...prevImages]);
-      
+
       Alert.alert(
         'Success',
         'Image uploaded successfully!',
@@ -107,10 +113,10 @@ export default function R2UploadScreen() {
   const fetchStoredObjects = async () => {
     try {
       setIsListingObjects(true);
-      
+
       // List objects in the products/ prefix
       const objects = await listObjects('products/');
-      
+
       if (objects && objects.length > 0) {
         // Convert objects to UploadedImage format
         const images: UploadedImage[] = objects.map(obj => ({
@@ -119,7 +125,7 @@ export default function R2UploadScreen() {
           filename: obj.Key?.split('/').pop() || 'unknown',
           timestamp: obj.LastModified || new Date(),
         }));
-        
+
         setUploadedImages(images);
       } else {
         setUploadedImages([]);
@@ -186,7 +192,7 @@ export default function R2UploadScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TopBar title="R2 Upload" />
-      
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>R2 Storage Upload</Text>
         <View style={styles.headerButtons}>
@@ -201,7 +207,7 @@ export default function R2UploadScreen() {
               <Ionicons name="refresh" size={24} color="#0066CC" />
             )}
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.uploadButton}
             onPress={pickImage}
@@ -218,7 +224,7 @@ export default function R2UploadScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <FlatList
         data={uploadedImages}
         renderItem={renderImageItem}

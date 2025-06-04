@@ -11,7 +11,8 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { uploadProductImage } from '../../../services/R2StorageService';
+import { uploadImageWithCachedCredentials } from '../../../services/R2StorageService';
+import { useAuth } from '../../context/auth';
 
 type UploadedImage = {
   id: string;
@@ -24,6 +25,7 @@ interface ImageUploaderProps {
 }
 
 export default function ImageUploader({ images, onImagesChange }: ImageUploaderProps) {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
   const [showOptionsDrawer, setShowOptionsDrawer] = useState(false);
@@ -121,8 +123,12 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
     try {
       setIsLoading(true);
 
-      // Upload the image to R2 storage
-      const publicUrl = await uploadProductImage(imageUri);
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Upload the image to R2 storage using cached credentials
+      const publicUrl = await uploadImageWithCachedCredentials(imageUri, user.id);
 
       // Add the uploaded image to the list
       const newImage: UploadedImage = {
@@ -186,8 +192,12 @@ export default function ImageUploader({ images, onImagesChange }: ImageUploaderP
     try {
       setIsLoading(true);
 
-      // Upload the new image to R2 storage
-      const publicUrl = await uploadProductImage(imageUri);
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Upload the new image to R2 storage using cached credentials
+      const publicUrl = await uploadImageWithCachedCredentials(imageUri, user.id);
 
       // Update the image in the list
       const updatedImages = uploadedImages.map(img =>

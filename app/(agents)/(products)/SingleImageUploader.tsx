@@ -11,7 +11,8 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { uploadProductImage } from '../../../services/R2StorageService';
+import { uploadImageWithCachedCredentials } from '../../../services/R2StorageService';
+import { useAuth } from '../../context/auth';
 
 interface SingleImageUploaderProps {
   imageUrl: string;
@@ -23,6 +24,7 @@ interface SingleImageUploaderProps {
 }
 
 export default function SingleImageUploader({ imageUrl, onImageChange, style, showFullImage = false, hideText = false, onImageTap }: SingleImageUploaderProps) {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
@@ -95,8 +97,12 @@ export default function SingleImageUploader({ imageUrl, onImageChange, style, sh
     try {
       setIsLoading(true);
 
-      // Upload the image to R2 storage
-      const publicUrl = await uploadProductImage(imageUri);
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Upload the image to R2 storage using cached credentials
+      const publicUrl = await uploadImageWithCachedCredentials(imageUri, user.id);
       
       // Update the state with the new image URL
       setCurrentImageUrl(publicUrl);
