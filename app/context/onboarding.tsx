@@ -227,7 +227,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
     // Allow navigation to settings/profile/agents screens even if onboarding is completed
     if (segments[0] === '(settings)' || segments[0] === '(agents)') {
-      console.log('User is on settings/profile/agents screen, allowing navigation');
+      // Only log once per session when entering agents section to reduce console spam
+      if (segments[0] === '(agents)' && !navigationInProgress.current) {
+        console.log('User is in agents section, using cached credentials for database operations');
+      } else if (segments[0] === '(settings)') {
+        console.log('User is on settings screen, allowing navigation');
+      }
       // Reset navigation flags to ensure future navigation works correctly
       navigationInProgress.current = false;
       return;

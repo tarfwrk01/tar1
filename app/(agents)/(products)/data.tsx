@@ -2,21 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useOnboarding } from '../../../app/context/onboarding';
+import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
 
 export default function ProductDataScreen() {
   const router = useRouter();
   const [isCreatingTables, setIsCreatingTables] = useState(false);
-  const { profileData } = useOnboarding();
+  const { getCredentials } = useTursoCredentialsLazy();
 
   const handleBackPress = () => {
     router.back();
@@ -27,14 +27,9 @@ export default function ProductDataScreen() {
       console.log('Creating product tables...');
       setIsCreatingTables(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;

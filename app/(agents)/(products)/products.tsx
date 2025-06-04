@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
 import { useAuth } from '../../context/auth';
-import { getCredentialsWithCache } from '../../utils/tursoDb';
+import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
 import ImageUploader from './ImageUploader';
 import SingleImageUploader from './SingleImageUploader';
 import VerticalTabView from './VerticalTabView';
@@ -345,6 +345,7 @@ export default function ProductsScreen() {
 
   const { profileData } = useOnboarding();
   const { user } = useAuth();
+  const { getCredentials } = useTursoCredentialsLazy();
 
   // Helper function to reset new option form
   const resetNewOptionForm = () => {
@@ -721,7 +722,8 @@ export default function ProductsScreen() {
         throw new Error('User not authenticated');
       }
 
-      const { tursoDbName, tursoApiToken } = await getCredentialsWithCache(user.id, profileData);
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -764,12 +766,9 @@ export default function ProductsScreen() {
   // Fetch available metafields for multi-select
   const fetchAvailableMetafields = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -814,12 +813,9 @@ export default function ProductsScreen() {
   // Fetch available modifiers for multi-select
   const fetchAvailableModifiers = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -863,12 +859,9 @@ export default function ProductsScreen() {
   // Fetch available categories for selection
   const fetchAvailableCategories = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -911,12 +904,9 @@ export default function ProductsScreen() {
   // Fetch available collections for selection
   const fetchAvailableCollections = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -959,12 +949,9 @@ export default function ProductsScreen() {
   // Fetch available vendors for selection
   const fetchAvailableVendors = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -1006,12 +993,9 @@ export default function ProductsScreen() {
   // Fetch available brands for selection
   const fetchAvailableBrands = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -1053,12 +1037,9 @@ export default function ProductsScreen() {
   // Fetch available tags for selection
   const fetchAvailableTags = async () => {
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const response = await fetch(apiUrl, {
@@ -1101,14 +1082,9 @@ export default function ProductsScreen() {
     try {
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -1206,14 +1182,9 @@ export default function ProductsScreen() {
     try {
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -1343,14 +1314,9 @@ export default function ProductsScreen() {
 
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -1481,14 +1447,9 @@ export default function ProductsScreen() {
 
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -1588,14 +1549,9 @@ export default function ProductsScreen() {
     try {
       setInventoryLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -1711,14 +1667,9 @@ export default function ProductsScreen() {
 
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -2524,10 +2475,9 @@ export default function ProductsScreen() {
     if (allOptionIds.length === 0) return;
 
     try {
-      const profile = profileData?.profile?.[0];
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) return;
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       // Generate combinations from ALL selected options
@@ -2619,13 +2569,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingOption(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {
@@ -2677,13 +2624,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingMetafield(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       // Build value configuration object based on selected type
@@ -2745,13 +2689,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingModifier(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       // Build identifier object based on selected type
@@ -2814,13 +2755,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingCategory(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {
@@ -2888,13 +2826,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingCollection(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {
@@ -2941,13 +2876,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingVendor(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {
@@ -2994,13 +2926,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingBrand(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {
@@ -3047,13 +2976,10 @@ export default function ProductsScreen() {
 
     try {
       setIsCreatingTag(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
 
       const requestBody = {

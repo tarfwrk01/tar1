@@ -1,4 +1,3 @@
-import { useOnboarding } from '@/app/context/onboarding';
 import { useProduct } from '@/app/context/product';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
+import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
 import SingleImageUploader from './SingleImageUploader';
 
 interface Store {
@@ -39,7 +39,7 @@ export default function StoresScreen() {
     image: '[]', // Empty JSON array
     notes: ''
   });
-  const { profileData } = useOnboarding();
+  const { getCredentials } = useTursoCredentialsLazy();
   const { setSelectedProduct } = useProduct();
 
   // Set the selected product to "Stores" when the component mounts
@@ -63,13 +63,10 @@ export default function StoresScreen() {
   const fetchStores = async () => {
     try {
       setIsLoading(true);
-      const profile = profileData?.profile?.[0];
 
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -164,14 +161,9 @@ export default function StoresScreen() {
 
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
@@ -256,14 +248,9 @@ export default function StoresScreen() {
 
       setIsLoading(true);
 
-      // Get the profile data
-      const profile = profileData?.profile?.[0];
-
-      if (!profile || !profile.tursoDbName || !profile.tursoApiToken) {
-        throw new Error('Missing database credentials');
-      }
-
-      const { tursoDbName, tursoApiToken } = profile;
+      // Get credentials from cache or database
+      const credentials = await getCredentials();
+      const { tursoDbName, tursoApiToken } = credentials;
 
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
