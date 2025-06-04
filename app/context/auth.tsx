@@ -216,6 +216,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     verifyCodeInProgressRef.current = true;
 
     try {
+      // Clear cache first as per user request - remove cache before onboarding process
+      console.log('[AUTH] Clearing credential cache before authentication');
+      await clearCredentialCache();
+      console.log('[AUTH] Credential cache cleared successfully');
+
       // Normalize the code
       const normalizedCode = code.trim().replace(/\s+/g, '');
       console.log('[AUTH] Normalized code:', normalizedCode);

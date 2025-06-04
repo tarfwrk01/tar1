@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/auth';
-import { getCachedCredentials, TursoCredentials } from '../utils/credentialCache';
+import { TursoCredentials } from '../utils/credentialCache';
 import { getProfileData } from '../utils/tursoDb';
 
 interface UseTursoCredentialsResult {
@@ -12,9 +12,9 @@ interface UseTursoCredentialsResult {
 }
 
 /**
- * React hook for accessing Turso database credentials with caching
+ * React hook for accessing Turso database credentials with InstantDB-first approach
  * Automatically fetches credentials when user is available
- * Provides cached credentials when available for better performance
+ * Caches credentials after fetching from InstantDB for better performance
  */
 export const useTursoCredentials = (): UseTursoCredentialsResult => {
   const { user } = useAuth();
@@ -35,34 +35,30 @@ export const useTursoCredentials = (): UseTursoCredentialsResult => {
     setError(null);
 
     try {
-      // Check if we have cached credentials first
-      if (!forceRefresh) {
-        const cached = await getCachedCredentials(user.id);
-        if (cached) {
-          setCredentials(cached);
-          setHasCached(true);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Fetch fresh credentials
+      // Try to get cached credentials (for existing users after sign in)
       const { tursoDbName, tursoApiToken } = await getProfileData(user.id, forceRefresh);
-      
-      const freshCredentials: TursoCredentials = {
+
+      const credentials: TursoCredentials = {
         tursoDbName,
         tursoApiToken,
         userId: user.id
       };
 
-      setCredentials(freshCredentials);
-      setHasCached(false); // We just fetched fresh data
+      setCredentials(credentials);
+      setHasCached(true); // These came from cache
+      console.log('[useTursoCredentials] Credentials loaded from cache');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch credentials';
       setError(errorMessage);
       setCredentials(null);
       setHasCached(false);
       console.error('[useTursoCredentials] Error fetching credentials:', err);
+
+      // If credentials are not cached yet, this is expected for new users or users who just signed in
+      // The onboarding context will handle caching after authentication
+      if (errorMessage.includes('No cached credentials found')) {
+        console.log('[useTursoCredentials] No cached credentials - user may need to complete onboarding or wait for cache');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -122,22 +118,17 @@ export const useTursoCredentialsLazy = () => {
       throw new Error('No authenticated user');
     }
 
-    // Try cache first unless force refresh is requested
-    if (!forceRefresh) {
-      const cached = await getCachedCredentials(user.id);
-      if (cached) {
-        return cached;
-      }
-    }
-
-    // Fetch fresh credentials
+    // Get cached credentials (for existing users after sign in)
     const { tursoDbName, tursoApiToken } = await getProfileData(user.id, forceRefresh);
-    
-    return {
+
+    const credentials = {
       tursoDbName,
       tursoApiToken,
       userId: user.id
     };
+
+    console.log('[useTursoCredentialsLazy] Credentials loaded from cache');
+    return credentials;
   }, [user?.id]);
 
   return { getCredentials };

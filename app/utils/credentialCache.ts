@@ -100,25 +100,7 @@ export const hasCachedCredentials = async (userId: string): Promise<boolean> => 
   return cached !== null;
 };
 
-/**
- * Checks if onboarding is completed from cache
- * @param userId - The user ID to check
- * @returns True if onboarding is completed, false if not completed, null if not cached
- */
-export const isOnboardingCompletedFromCache = async (userId: string): Promise<boolean | null> => {
-  try {
-    const cached = await getCachedCredentials(userId);
-    if (cached && cached.onboardingCompleted !== undefined) {
-      console.log('[CredentialCache] Onboarding status from cache:', cached.onboardingCompleted);
-      return cached.onboardingCompleted;
-    }
-    console.log('[CredentialCache] No onboarding status in cache');
-    return null;
-  } catch (error) {
-    console.error('[CredentialCache] Error checking onboarding status from cache:', error);
-    return null;
-  }
-};
+
 
 /**
  * Gets cache info for debugging purposes

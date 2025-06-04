@@ -5,6 +5,40 @@ import {
 } from './credentialCache';
 
 /**
+ * Gets profile data from cache or throws error (cache-dependent approach)
+ * This function is used by hooks that need credentials but should rely on the onboarding context
+ * for the actual InstantDB queries. For existing users, credentials should be cached after sign in.
+ * @param userId - The user ID to get profile data for
+ * @param forceRefresh - Whether to force a fresh query (ignored, uses cache only)
+ * @returns Promise<{tursoDbName: string, tursoApiToken: string}>
+ */
+export const getProfileData = async (userId: string, forceRefresh: boolean = false): Promise<{tursoDbName: string, tursoApiToken: string}> => {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  console.log('[TursoDb] Checking cached credentials for user:', userId);
+
+  try {
+    // Try to get cached credentials first
+    const cached = await getCachedCredentials(userId);
+    if (cached && cached.tursoDbName && cached.tursoApiToken) {
+      console.log('[TursoDb] Using cached credentials');
+      return {
+        tursoDbName: cached.tursoDbName,
+        tursoApiToken: cached.tursoApiToken
+      };
+    }
+
+    // If no cache, throw error - the onboarding context should handle InstantDB queries
+    throw new Error('No cached credentials found. Please ensure user is properly authenticated and onboarded.');
+  } catch (error) {
+    console.error('[TursoDb] Error getting profile data:', error);
+    throw error;
+  }
+};
+
+/**
  * Gets cached credentials for a user
  * @param userId - The user ID to get cached credentials for
  * @returns Promise<{tursoDbName: string, tursoApiToken: string} | null>
