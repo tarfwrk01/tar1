@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
+import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
 import SingleImageUploader from './SingleImageUploader';
 
 type InventoryItem = {

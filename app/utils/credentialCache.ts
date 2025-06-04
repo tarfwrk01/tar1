@@ -9,6 +9,8 @@ export interface TursoCredentials {
   tursoDbName: string;
   tursoApiToken: string;
   userId: string;
+  onboardingCompleted?: boolean;
+  userName?: string;
 }
 
 interface CachedCredentials extends TursoCredentials {
@@ -64,7 +66,9 @@ export const getCachedCredentials = async (userId: string): Promise<TursoCredent
     return {
       tursoDbName: parsed.tursoDbName,
       tursoApiToken: parsed.tursoApiToken,
-      userId: parsed.userId
+      userId: parsed.userId,
+      onboardingCompleted: parsed.onboardingCompleted,
+      userName: parsed.userName
     };
   } catch (error) {
     console.error('[CredentialCache] Error retrieving cached credentials:', error);
@@ -97,6 +101,26 @@ export const hasCachedCredentials = async (userId: string): Promise<boolean> => 
 };
 
 /**
+ * Checks if onboarding is completed from cache
+ * @param userId - The user ID to check
+ * @returns True if onboarding is completed, false if not completed, null if not cached
+ */
+export const isOnboardingCompletedFromCache = async (userId: string): Promise<boolean | null> => {
+  try {
+    const cached = await getCachedCredentials(userId);
+    if (cached && cached.onboardingCompleted !== undefined) {
+      console.log('[CredentialCache] Onboarding status from cache:', cached.onboardingCompleted);
+      return cached.onboardingCompleted;
+    }
+    console.log('[CredentialCache] No onboarding status in cache');
+    return null;
+  } catch (error) {
+    console.error('[CredentialCache] Error checking onboarding status from cache:', error);
+    return null;
+  }
+};
+
+/**
  * Gets cache info for debugging purposes
  * @returns Cache information or null if no cache exists
  */
@@ -104,6 +128,8 @@ export const getCacheInfo = async (): Promise<{
   exists: boolean;
   timestamp?: number;
   userId?: string;
+  onboardingCompleted?: boolean;
+  userName?: string;
 } | null> => {
   try {
     const cachedData = await AsyncStorage.getItem(CACHE_KEY);
@@ -117,7 +143,9 @@ export const getCacheInfo = async (): Promise<{
     return {
       exists: true,
       timestamp: parsed.timestamp,
-      userId: parsed.userId
+      userId: parsed.userId,
+      onboardingCompleted: parsed.onboardingCompleted,
+      userName: parsed.userName
     };
   } catch (error) {
     console.error('[CredentialCache] Error getting cache info:', error);

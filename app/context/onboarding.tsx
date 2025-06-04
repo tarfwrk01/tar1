@@ -2,8 +2,14 @@ import { instant } from '@/lib/instantdb';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { cacheCredentials, TursoCredentials } from '../utils/credentialCache';
+import {
+    cacheCredentials,
+    TursoCredentials
+} from '../utils/credentialCache';
 import { useAuth } from './auth';
+
+// Import additional cache functions
+const { getCachedCredentials, isOnboardingCompletedFromCache } = require('../utils/credentialCache');
 
 // Define onboarding context type
 type OnboardingContextType = {
@@ -45,17 +51,87 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const profileInitialized = React.useRef(false);
   const onboardingTransitionInProgress = React.useRef(false);
 
-  // Get profile data from InstantDB
-  const { data: profileData, error: profileError, isLoading: profileLoading } = instant.useQuery(
-    user ? {
-      profile: {
-        $: {
-          where: { userId: user.id },
-          fields: ['onboardingCompleted', 'name', 'tursoDbName', 'tursoApiToken']
+  // Cache-first approach for profile data
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileError, setProfileError] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [cacheChecked, setCacheChecked] = useState<boolean>(false);
+
+  // Cache-first profile data loading - only when needed
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!user || cacheChecked) return;
+
+      console.log('[OnboardingCache] Loading profile data for user:', user.id);
+      setProfileLoading(true);
+
+      try {
+        // First, try to get data from cache
+        const cachedCredentials = await getCachedCredentials(user.id);
+
+        if (cachedCredentials) {
+          console.log('[OnboardingCache] Using cached profile data - skipping InstantDB query');
+          // Create profile data structure from cache
+          const cachedProfileData = {
+            profile: [{
+              id: user.id,
+              userId: user.id,
+              onboardingCompleted: cachedCredentials.onboardingCompleted,
+              name: cachedCredentials.userName,
+              tursoDbName: cachedCredentials.tursoDbName,
+              tursoApiToken: cachedCredentials.tursoApiToken
+            }]
+          };
+
+          setProfileData(cachedProfileData);
+          setProfileLoading(false);
+          setCacheChecked(true);
+          return;
         }
+
+        // Only query InstantDB if no cache exists (new users or after logout)
+        console.log('[OnboardingCache] No cache found, querying InstantDB for new user');
+        const { data, error } = await instant.query({
+          profile: {
+            $: {
+              where: { userId: user.id },
+              fields: ['onboardingCompleted', 'name', 'tursoDbName', 'tursoApiToken']
+            }
+          }
+        });
+
+        if (error) {
+          console.error('[OnboardingCache] Error querying InstantDB:', error);
+          setProfileError(error);
+        } else {
+          console.log('[OnboardingCache] InstantDB data loaded for new user');
+          setProfileData(data);
+
+          // Cache the data if it exists and onboarding is completed
+          if (data?.profile?.[0]?.onboardingCompleted && data.profile[0].tursoDbName && data.profile[0].tursoApiToken) {
+            const credentialsToCache = {
+              tursoDbName: data.profile[0].tursoDbName,
+              tursoApiToken: data.profile[0].tursoApiToken,
+              userId: user.id,
+              onboardingCompleted: data.profile[0].onboardingCompleted,
+              userName: data.profile[0].name
+            };
+            await cacheCredentials(credentialsToCache);
+            console.log('[OnboardingCache] Profile data cached for future use');
+          }
+        }
+
+      } catch (error) {
+        console.error('[OnboardingCache] Error loading profile data:', error);
+        setProfileError(error);
+      } finally {
+        setProfileLoading(false);
+        setCacheChecked(true);
       }
-    } : null
-  );
+    };
+
+    loadProfileData();
+  }, [user, cacheChecked]);
 
   // Log any errors with the profile query
   useEffect(() => {
@@ -64,251 +140,224 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     }
   }, [profileError]);
 
-  // Special effect to handle first load - fixed to not assume returning user
+  // Special effect to handle first load with cache-first approach
   useEffect(() => {
-    if (user && isFirstLoad.current) {
-      console.log('FIRST LOAD with user:', user.id);
-      isFirstLoad.current = false;
+    const handleFirstLoad = async () => {
+      if (user && isFirstLoad.current) {
+        console.log('[OnboardingCache] FIRST LOAD with user:', user.id);
+        isFirstLoad.current = false;
 
-      // Don't make any assumptions about onboarding status on first load
-      // We'll determine this based on profile data or lack thereof
-      console.log('First load detected, will determine onboarding status from profile data');
+        // Start with loading state until we can determine the correct status
+        setIsLoading(true);
 
-      // Start with loading state until we can determine the correct status
-      setIsLoading(true);
+        // Try to get onboarding status from cache first
+        const cachedOnboardingStatus = await isOnboardingCompletedFromCache(user.id);
+        if (cachedOnboardingStatus !== null) {
+          console.log('[OnboardingCache] First load - using cached onboarding status:', cachedOnboardingStatus);
+          setIsOnboardingCompleted(cachedOnboardingStatus);
 
-      // Reset the profile initialization flag for new user sessions
-      profileInitialized.current = false;
-    }
-  }, [user]);
+          // Also try to get cached user name
+          const cachedCredentials = await getCachedCredentials(user.id);
+          if (cachedCredentials?.userName) {
+            setUserName(cachedCredentials.userName);
+            console.log('[OnboardingCache] First load - using cached user name:', cachedCredentials.userName);
+          }
 
-  // Update local state when profile data changes - only set onboardingCompleted to true if it's true in the database
-  useEffect(() => {
-    console.log('Onboarding useEffect - profileData:', profileData, 'user:', user?.id, 'isFirstLoad:', isFirstLoad.current, 'profileLoading:', profileLoading);
-
-    // If there's no user, immediately set loading to false
-    if (!user) {
-      console.log('No user, setting loading to false');
-      setIsLoading(false);
-      return;
-    }
-
-    // If profile data is still loading, don't make any assumptions
-    if (profileLoading) {
-      console.log('Profile data is still loading, waiting for data...');
-      return;
-    }
-
-    if (profileData && profileData.profile && profileData.profile.length > 0) {
-      // Profile record exists, update local state
-      const profileRecord = profileData.profile[0];
-      console.log('Profile record found:', profileRecord);
-
-      // IMPORTANT: Only set onboardingCompleted to true if it's true in the database
-      console.log('ONBOARDING STATUS FROM DATABASE:', profileRecord.onboardingCompleted);
-
-      if (profileRecord.onboardingCompleted === true) {
-        console.log('User has completed onboarding, setting status to completed');
-        setIsOnboardingCompleted(true);
-      } else if (profileRecord.onboardingCompleted === false) {
-        console.log('User has not completed onboarding, setting status to false');
-        setIsOnboardingCompleted(false);
-      }
-      // If onboardingCompleted is undefined/null, leave local state as undefined
-
-      // Set the user name if available
-      if (profileRecord.name) {
-        console.log('Setting user name from profile:', profileRecord.name);
-        setUserName(profileRecord.name);
-      } else if (typeof global !== 'undefined' && 'userName' in global) {
-        // @ts-ignore - global variable for backup
-        console.log('Setting user name from global variable:', global.userName);
-        // @ts-ignore - global variable for backup
-        setUserName(global.userName);
-      }
-
-      setIsLoading(false);
-    } else if (user && !profileLoading && !profileInitialized.current) {
-      // Check if this is a new user or user with incomplete onboarding
-      const isNewUser = !profileData || !profileData.profile || profileData.profile.length === 0;
-      const hasIncompleteOnboarding = profileData?.profile?.[0]?.onboardingCompleted !== true;
-
-      if (isNewUser || hasIncompleteOnboarding) {
-        console.log('NEW USER DETECTION: User needs onboarding setup - isNewUser:', isNewUser, 'hasIncompleteOnboarding:', hasIncompleteOnboarding);
-
-        // Check if we've already tried to initialize the profile
-        if (profileInitialized.current) {
-          console.log('Profile initialization already attempted, skipping');
           setIsLoading(false);
-          return;
+        } else {
+          console.log('[OnboardingCache] First load - no cache found, will determine status from profile data');
+          // Will be handled by the profile data loading effect
         }
 
-        // Mark that we've attempted to initialize the profile
-        profileInitialized.current = true;
-
-        // For new users or users with incomplete onboarding, set status to false
-        console.log('NEW USER DETECTION: Setting onboardingCompleted to false and initializing profile data');
-        setIsOnboardingCompleted(false);
-
-        // Initialize the profile data in the database
-        initializeOnboardingData();
-      } else {
-        // User has completed onboarding, just set loading to false
-        console.log('User has completed onboarding, setting loading to false');
-        setIsLoading(false);
+        // Reset the profile initialization flag for new user sessions
+        profileInitialized.current = false;
       }
-    } else if (user && !profileLoading && profileInitialized.current) {
-      // If we've already tried to initialize but still no profile data, just set loading to false
-      console.log('Profile initialization already attempted, setting loading to false');
-      setIsLoading(false);
-    }
-  }, [profileData, user, profileLoading]);
+    };
 
-  // Handle navigation based directly on InstantDB profile data
+    handleFirstLoad();
+  }, [user]);
+
+  // Cache-first profile state management - only handle new users who need initialization
   useEffect(() => {
-    // Prevent navigation if we're already navigating
-    if (navigationInProgress.current) {
-      console.log('Navigation already in progress, skipping');
-      return;
-    }
+    const handleProfileState = async () => {
+      if (!user || !cacheChecked) return;
 
-    // Skip navigation if we're in the middle of an onboarding transition
-    if (onboardingTransitionInProgress.current) {
-      console.log('Onboarding transition in progress, skipping navigation');
-      return;
-    }
+      console.log('[OnboardingCache] Profile state check - user:', user.id, 'cacheChecked:', cacheChecked);
 
-    console.log('Navigation effect - isLoading:', isLoading, 'user:', user?.id, 'segments:', segments);
-
-    // If there's no user, don't handle navigation here - let the auth context handle it
-    if (!user) {
-      console.log('No user, letting auth context handle navigation');
-      return;
-    }
-
-    // Skip navigation if profile data is still loading
-    if (profileLoading) {
-      console.log('Profile data is still loading, skipping navigation');
-      return;
-    }
-
-    if (isLoading) {
-      console.log('Still loading, skipping navigation');
-      return;
-    }
-
-    // Skip if no profile data yet (but we have a user)
-    if (!profileData) {
-      console.log('No profile data yet, skipping navigation');
-      return;
-    }
-
-    // Throttle navigation - don't navigate more than once every 500ms
-    const now = Date.now();
-    if (now - lastNavigationTime.current < 500) {
-      console.log('Navigation throttled, too soon after last navigation');
-      return;
-    }
-
-    // Check directly from InstantDB profile data if onboarding is completed
-    const hasCompletedOnboarding =
-      profileData &&
-      profileData.profile &&
-      profileData.profile.length > 0 &&
-      profileData.profile[0].onboardingCompleted === true;
-
-    console.log('InstantDB profile onboardingCompleted status:', hasCompletedOnboarding);
-
-    // Update local state to match database (for UI consistency)
-    if (hasCompletedOnboarding && isOnboardingCompleted !== true) {
-      console.log('Updating local state to match database: onboardingCompleted = true');
-      setIsOnboardingCompleted(true);
-    }
-
-    // Allow navigation to settings/profile/agents screens even if onboarding is completed
-    if (segments[0] === '(settings)' || segments[0] === '(agents)') {
-      // Only log once per session when entering agents section to reduce console spam
-      if (segments[0] === '(agents)' && !navigationInProgress.current) {
-        console.log('User is in agents section, using cached credentials for database operations');
-      } else if (segments[0] === '(settings)') {
-        console.log('User is on settings screen, allowing navigation');
+      // If we have cached data, we're done - no need to process profile data
+      const cachedCredentials = await getCachedCredentials(user.id);
+      if (cachedCredentials) {
+        console.log('[OnboardingCache] Cache exists, skipping profile data processing');
+        return;
       }
-      // Reset navigation flags to ensure future navigation works correctly
-      navigationInProgress.current = false;
-      return;
-    }
 
-    // If we're trying to navigate to profile, allow it
-    if (segments.join('/').includes('profile')) {
-      console.log('Navigation to profile detected, allowing navigation');
-      navigationInProgress.current = false;
-      return;
-    }
-
-    // Skip navigation if we're already on the correct screen
-    if (
-      (segments[0] === '(onboarding)' && !hasCompletedOnboarding) ||
-      (segments[0] === '(primary)' && hasCompletedOnboarding)
-    ) {
-      console.log('Already on the correct screen, skipping navigation');
-      return;
-    }
-
-    // Navigate based directly on the InstantDB profile data
-    if (hasCompletedOnboarding) {
-      // If onboarding is completed in the database, go to primary screen
-      // But only if not already on a settings or agents screen
-      if (segments[0] !== '(primary)' &&
-          segments.join('/').indexOf('(settings)') === -1 &&
-          segments.join('/').indexOf('(agents)') === -1) {
-        console.log('Database shows onboarding is completed, redirecting to primary');
-        navigationInProgress.current = true;
-        lastNavigationTime.current = now;
-
-        // Navigate immediately to prevent multiple refreshes
-        router.replace('/(primary)');
-
-        // Reset navigation flag after a delay to allow for completion
-        setTimeout(() => {
-          navigationInProgress.current = false;
-        }, 1000);
+      // Only handle new users who don't have cache and need initialization
+      if (!profileData || !profileData.profile || profileData.profile.length === 0) {
+        if (!profileInitialized.current) {
+          console.log('[OnboardingCache] New user detected, initializing profile data');
+          profileInitialized.current = true;
+          setIsOnboardingCompleted(false);
+          initializeOnboardingData();
+        }
       }
-    } else {
-      // If onboarding is not completed in the database, go to onboarding screen
-      // This includes:
-      // 1. Users with onboardingCompleted === false
-      // 2. New users with no profile yet
-      // 3. Users with undefined onboardingCompleted status
-      const needsOnboarding =
-        !hasCompletedOnboarding && // Not explicitly completed
-        (
-          // Case 1: No profile data yet (new user)
-          !profileData ||
-          !profileData.profile ||
-          profileData.profile.length === 0 ||
-          // Case 2: Profile exists but onboarding not completed
-          profileData.profile[0].onboardingCompleted === false ||
-          // Case 3: Profile exists but onboardingCompleted is undefined/null
-          profileData.profile[0].onboardingCompleted == null
-        );
+    };
 
-      console.log('NAVIGATION CHECK: needsOnboarding:', needsOnboarding, 'hasCompletedOnboarding:', hasCompletedOnboarding, 'currentSegment:', segments[0]);
+    handleProfileState();
+  }, [user, cacheChecked, profileData]);
 
-      if (needsOnboarding && segments[0] !== '(onboarding)') {
-        console.log('User needs onboarding, redirecting to database screen');
-        navigationInProgress.current = true;
-        lastNavigationTime.current = now;
-
-        // Navigate immediately to prevent multiple refreshes
-        router.replace('/(onboarding)/database');
-
-        // Reset navigation flag after a delay to allow for completion
-        setTimeout(() => {
-          navigationInProgress.current = false;
-        }, 1000);
+  // Handle navigation based on cached/profile data with cache-first approach
+  useEffect(() => {
+    const handleNavigation = async () => {
+      // Prevent navigation if we're already navigating
+      if (navigationInProgress.current) {
+        console.log('Navigation already in progress, skipping');
+        return;
       }
-    }
-  }, [user, isLoading, segments, profileData, profileLoading]);
+
+      // Skip navigation if we're in the middle of an onboarding transition
+      if (onboardingTransitionInProgress.current) {
+        console.log('Onboarding transition in progress, skipping navigation');
+        return;
+      }
+
+      console.log('[NavigationCache] Navigation effect - isLoading:', isLoading, 'user:', user?.id, 'segments:', segments);
+
+      // If there's no user, don't handle navigation here - let the auth context handle it
+      if (!user) {
+        console.log('No user, letting auth context handle navigation');
+        return;
+      }
+
+      // Skip navigation if profile data is still loading
+      if (profileLoading) {
+        console.log('Profile data is still loading, skipping navigation');
+        return;
+      }
+
+      if (isLoading) {
+        console.log('Still loading, skipping navigation');
+        return;
+      }
+
+      // Throttle navigation - don't navigate more than once every 500ms
+      const now = Date.now();
+      if (now - lastNavigationTime.current < 500) {
+        console.log('Navigation throttled, too soon after last navigation');
+        return;
+      }
+
+      // Cache-first onboarding status check
+      let hasCompletedOnboarding = false;
+
+      // First try to get onboarding status from cache
+      const cachedOnboardingStatus = await isOnboardingCompletedFromCache(user.id);
+      if (cachedOnboardingStatus !== null) {
+        console.log('[NavigationCache] Using cached onboarding status:', cachedOnboardingStatus);
+        hasCompletedOnboarding = cachedOnboardingStatus;
+      } else {
+        // Fall back to profile data if no cache
+        hasCompletedOnboarding =
+          profileData &&
+          profileData.profile &&
+          profileData.profile.length > 0 &&
+          profileData.profile[0].onboardingCompleted === true;
+
+        console.log('[NavigationCache] Using profile data onboarding status:', hasCompletedOnboarding);
+      }
+
+      // Update local state to match cached/database status (for UI consistency)
+      if (hasCompletedOnboarding && isOnboardingCompleted !== true) {
+        console.log('[NavigationCache] Updating local state to match cached status: onboardingCompleted = true');
+        setIsOnboardingCompleted(true);
+      }
+
+      // Allow navigation to settings/profile/agents screens even if onboarding is completed
+      if (segments[0] === '(settings)' || segments[0] === '(agents)') {
+        // Only log once per session when entering agents section to reduce console spam
+        if (segments[0] === '(agents)' && !navigationInProgress.current) {
+          console.log('[NavigationCache] User is in agents section, using cached credentials for database operations');
+        } else if (segments[0] === '(settings)') {
+          console.log('[NavigationCache] User is on settings screen, allowing navigation');
+        }
+        // Reset navigation flags to ensure future navigation works correctly
+        navigationInProgress.current = false;
+        return;
+      }
+
+      // If we're trying to navigate to profile, allow it
+      if (segments.join('/').includes('profile')) {
+        console.log('[NavigationCache] Navigation to profile detected, allowing navigation');
+        navigationInProgress.current = false;
+        return;
+      }
+
+      // Skip navigation if we're already on the correct screen
+      if (
+        (segments[0] === '(onboarding)' && !hasCompletedOnboarding) ||
+        (segments[0] === '(primary)' && hasCompletedOnboarding)
+      ) {
+        console.log('[NavigationCache] Already on the correct screen, skipping navigation');
+        return;
+      }
+
+      // Navigate based on cached/profile onboarding status
+      if (hasCompletedOnboarding) {
+        // If onboarding is completed, go to primary screen
+        // But only if not already on a settings or agents screen
+        if (segments[0] !== '(primary)' &&
+            segments.join('/').indexOf('(settings)') === -1 &&
+            segments.join('/').indexOf('(agents)') === -1) {
+          console.log('[NavigationCache] Onboarding completed (from cache/profile), redirecting to primary');
+          navigationInProgress.current = true;
+          lastNavigationTime.current = now;
+
+          // Navigate immediately to prevent multiple refreshes
+          router.replace('/(primary)');
+
+          // Reset navigation flag after a delay to allow for completion
+          setTimeout(() => {
+            navigationInProgress.current = false;
+          }, 1000);
+        }
+      } else {
+        // If onboarding is not completed, go to onboarding screen
+        // This includes:
+        // 1. Users with onboardingCompleted === false
+        // 2. New users with no profile yet
+        // 3. Users with undefined onboardingCompleted status
+        const needsOnboarding =
+          !hasCompletedOnboarding && // Not explicitly completed
+          (
+            // Case 1: No profile data yet (new user)
+            !profileData ||
+            !profileData.profile ||
+            profileData.profile.length === 0 ||
+            // Case 2: Profile exists but onboarding not completed
+            profileData.profile[0]?.onboardingCompleted === false ||
+            // Case 3: Profile exists but onboardingCompleted is undefined/null
+            profileData.profile[0]?.onboardingCompleted == null
+          );
+
+        console.log('[NavigationCache] NAVIGATION CHECK: needsOnboarding:', needsOnboarding, 'hasCompletedOnboarding:', hasCompletedOnboarding, 'currentSegment:', segments[0]);
+
+        if (needsOnboarding && segments[0] !== '(onboarding)') {
+          console.log('[NavigationCache] User needs onboarding, redirecting to database screen');
+          navigationInProgress.current = true;
+          lastNavigationTime.current = now;
+
+          // Navigate immediately to prevent multiple refreshes
+          router.replace('/(onboarding)/database');
+
+          // Reset navigation flag after a delay to allow for completion
+          setTimeout(() => {
+            navigationInProgress.current = false;
+          }, 1000);
+        }
+      }
+    };
+
+    handleNavigation();
+  }, [user, isLoading, segments, profileData, profileLoading, cacheChecked]);
 
   // Initialize onboarding data for new users - only creates basic profile without setting onboardingCompleted
   const initializeOnboardingData = async () => {
@@ -443,6 +492,19 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       );
 
       console.log('Onboarding completed successfully and marked as completed in database');
+
+      // Update cache with onboarding completion status
+      if (profileData?.profile?.[0]?.tursoDbName && profileData?.profile?.[0]?.tursoApiToken) {
+        const credentialsToCache: TursoCredentials = {
+          tursoDbName: profileData.profile[0].tursoDbName,
+          tursoApiToken: profileData.profile[0].tursoApiToken,
+          userId: user.id,
+          onboardingCompleted: true,
+          userName: profileData.profile[0].name || userName || undefined
+        };
+        await cacheCredentials(credentialsToCache);
+        console.log('[Onboarding] Completion status cached');
+      }
 
       // Update local state
       setIsOnboardingCompleted(true);
@@ -641,11 +703,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       const credentialsToCache: TursoCredentials = {
         tursoDbName: dbName,
         tursoApiToken: apiToken,
-        userId: user.id
+        userId: user.id,
+        onboardingCompleted: true,
+        userName: existingName || defaultName || undefined
       };
 
       await cacheCredentials(credentialsToCache);
-      console.log('[Onboarding] Credentials cached successfully');
+      console.log('[Onboarding] Credentials cached successfully with onboarding status');
 
       // Update local state with name if we have it
       if (existingName || defaultName) {
