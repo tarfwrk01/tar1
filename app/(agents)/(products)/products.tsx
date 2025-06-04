@@ -4,17 +4,17 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TopBar from '../../../components/TopBar';
@@ -237,6 +237,7 @@ export default function ProductsScreen() {
   const [availableBrands, setAvailableBrands] = useState<any[]>([]);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [selectedOptionIds, setSelectedOptionIds] = useState<number[]>([]);
+  const [selectedOptionGroupIds, setSelectedOptionGroupIds] = useState<string[]>([]);
   const [selectedMetafieldIds, setSelectedMetafieldIds] = useState<number[]>([]);
   const [selectedModifierIds, setSelectedModifierIds] = useState<number[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
@@ -306,6 +307,9 @@ export default function ProductsScreen() {
     'System'
   ];
 
+  // Predefined option groups
+  const optionGroups = Array.from({ length: 30 }, (_, i) => `group ${i + 1}`);
+
   // Predefined metafield value types (like Shopify)
   const metafieldValueTypes = [
     'Single line text',
@@ -337,6 +341,8 @@ export default function ProductsScreen() {
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
   const [newOptionIdentifier, setNewOptionIdentifier] = useState('');
+  const [newOptionGroup, setNewOptionGroup] = useState('group 1');
+  const [optionGroupDrawerVisible, setOptionGroupDrawerVisible] = useState(false);
   const [optionTitleDrawerVisible, setOptionTitleDrawerVisible] = useState(false);
   const [selectedOptionTitleType, setSelectedOptionTitleType] = useState('');
   const [customOptionTitle, setCustomOptionTitle] = useState('');
@@ -502,6 +508,7 @@ export default function ProductsScreen() {
     setNewOptionTitle('');
     setNewOptionValue('');
     setNewOptionIdentifier('');
+    setNewOptionGroup('group 1');
     setSelectedOptionTitleType('');
     setCustomOptionTitle('');
     setSelectedIdentifierType(null);
@@ -509,6 +516,13 @@ export default function ProductsScreen() {
     setIdentifierImageValue('');
     setIdentifierTextValue('');
     setColorPickerDrawerVisible(false);
+    setOptionGroupDrawerVisible(false);
+  };
+
+  // Handle option group selection
+  const handleOptionGroupSelection = (group: string) => {
+    setNewOptionGroup(group);
+    setOptionGroupDrawerVisible(false);
   };
 
   // Handle option title type selection
@@ -887,7 +901,7 @@ export default function ProductsScreen() {
             {
               type: "execute",
               stmt: {
-                sql: "SELECT id, parentid, title, value, identifier FROM options ORDER BY title LIMIT 100"
+                sql: "SELECT id, parentid, title, value, identifier, \"group\" FROM options ORDER BY title LIMIT 100"
               }
             }
           ]
@@ -903,7 +917,8 @@ export default function ProductsScreen() {
             parentid: row[1].type === 'null' ? null : parseInt(row[1].value),
             title: row[2].type === 'null' ? '' : row[2].value,
             value: row[3].type === 'null' ? '' : row[3].value,
-            identifier: row[4].type === 'null' ? '' : row[4].value
+            identifier: row[4].type === 'null' ? '' : row[4].value,
+            group: row[5].type === 'null' ? '' : row[5].value
           }));
           setAvailableOptions(optionData);
         }
@@ -2044,6 +2059,23 @@ export default function ProductsScreen() {
       await fetchAvailableOptions();
     }
 
+    // Initialize group selection state based on currently selected options
+    const selectedGroups: string[] = [];
+    if (availableOptions.length > 0) {
+      // Get unique groups from available options
+      const allGroups = [...new Set(availableOptions.map(option => option.group).filter(Boolean))];
+
+      // Check which groups are fully selected
+      allGroups.forEach(groupName => {
+        const groupOptions = availableOptions.filter(option => option.group === groupName);
+        const groupOptionIds = groupOptions.map(option => option.id);
+        if (groupOptionIds.length > 0 && groupOptionIds.every(id => currentIds.includes(id))) {
+          selectedGroups.push(groupName);
+        }
+      });
+    }
+    setSelectedOptionGroupIds(selectedGroups);
+
     setOptionsDrawerVisible(true);
   };
 
@@ -2111,6 +2143,8 @@ export default function ProductsScreen() {
       setNewProduct({...newProduct, options: selectedIdsJson});
     }
 
+    // Reset group selection state
+    setSelectedOptionGroupIds([]);
     setOptionsDrawerVisible(false);
   };
 
@@ -2155,6 +2189,61 @@ export default function ProductsScreen() {
         ? prev.filter(id => id !== optionId)
         : [...prev, optionId]
     );
+  };
+
+  // Toggle group selection - selects/deselects all options in a group
+  const toggleGroupSelection = (groupName: string) => {
+    const groupOptions = availableOptions.filter(option => option.group === groupName);
+    const groupOptionIds = groupOptions.map(option => option.id);
+
+    // Check if all options in the group are selected
+    const allGroupOptionsSelected = groupOptionIds.every(id => selectedOptionIds.includes(id));
+
+    if (allGroupOptionsSelected) {
+      // Deselect all options in the group
+      setSelectedOptionIds(prev => prev.filter(id => !groupOptionIds.includes(id)));
+      setSelectedOptionGroupIds(prev => prev.filter(group => group !== groupName));
+    } else {
+      // Select all options in the group
+      setSelectedOptionIds(prev => {
+        const newIds = [...prev];
+        groupOptionIds.forEach(id => {
+          if (!newIds.includes(id)) {
+            newIds.push(id);
+          }
+        });
+        return newIds;
+      });
+      setSelectedOptionGroupIds(prev =>
+        prev.includes(groupName) ? prev : [...prev, groupName]
+      );
+    }
+  };
+
+  // Check if a group is fully selected
+  const isGroupSelected = (groupName: string) => {
+    const groupOptions = availableOptions.filter(option => option.group === groupName);
+    const groupOptionIds = groupOptions.map(option => option.id);
+    return groupOptionIds.length > 0 && groupOptionIds.every(id => selectedOptionIds.includes(id));
+  };
+
+  // Check if a group is partially selected
+  const isGroupPartiallySelected = (groupName: string) => {
+    const groupOptions = availableOptions.filter(option => option.group === groupName);
+    const groupOptionIds = groupOptions.map(option => option.id);
+    const selectedCount = groupOptionIds.filter(id => selectedOptionIds.includes(id)).length;
+    return selectedCount > 0 && selectedCount < groupOptionIds.length;
+  };
+
+  // Get available groups from options
+  const getAvailableGroups = () => {
+    const groups = [...new Set(availableOptions.map(option => option.group).filter(Boolean))];
+    return groups.sort();
+  };
+
+  // Get options for a specific group
+  const getOptionsForGroup = (groupName: string) => {
+    return availableOptions.filter(option => option.group === groupName);
   };
 
   const toggleMetafieldSelection = (metafieldId: number) => {
@@ -2805,7 +2894,7 @@ export default function ProductsScreen() {
           {
             type: "execute",
             stmt: {
-              sql: `INSERT INTO options (parentid, title, value, identifier) VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}', '${identifierValue.replace(/'/g, "''")}')`
+              sql: `INSERT INTO options (parentid, title, value, identifier, "group") VALUES (NULL, '${newOptionTitle.replace(/'/g, "''")}', '${newOptionValue.replace(/'/g, "''")}', '${identifierValue.replace(/'/g, "''")}', '${newOptionGroup.replace(/'/g, "''")}')`
             }
           }
         ]
@@ -4872,7 +4961,10 @@ export default function ProductsScreen() {
         animationType="slide"
         transparent={false}
         visible={optionsDrawerVisible}
-        onRequestClose={() => setOptionsDrawerVisible(false)}
+        onRequestClose={() => {
+          setSelectedOptionGroupIds([]);
+          setOptionsDrawerVisible(false);
+        }}
         statusBarTranslucent={true}
       >
         <StatusBar style="dark" backgroundColor="transparent" translucent />
@@ -4885,6 +4977,7 @@ export default function ProductsScreen() {
                 // Reset all option form values for new option
                 setNewOptionTitle('');
                 setNewOptionValue('');
+                setNewOptionGroup('group 1');
                 setSelectedOptionTitleType('');
                 setCustomOptionTitle('');
                 setSelectedIdentifierType(null);
@@ -4899,6 +4992,7 @@ export default function ProductsScreen() {
             <View style={styles.optionsHeaderActions}>
               <Text style={styles.optionsSelectionCount}>
                 {selectedOptionIds.length}
+                {selectedOptionGroupIds.length > 0 && ` (${selectedOptionGroupIds.length} groups)`}
               </Text>
               <TouchableOpacity
                 style={styles.saveButton}
@@ -4909,99 +5003,129 @@ export default function ProductsScreen() {
             </View>
           </View>
 
-          <FlatList
-            data={availableOptions
-              .filter(option => option.parentid === null)
-              .sort((a, b) => {
-                const aSelected = selectedOptionIds.includes(a.id);
-                const bSelected = selectedOptionIds.includes(b.id);
-                if (aSelected && !bSelected) return -1;
-                if (!aSelected && bSelected) return 1;
-                return 0;
-              })
-            }
-            renderItem={({ item }) => {
-              const children = availableOptions
-                .filter(child => child.parentid === item.id)
-                .sort((a, b) => {
-                  const aSelected = selectedOptionIds.includes(a.id);
-                  const bSelected = selectedOptionIds.includes(b.id);
-                  if (aSelected && !bSelected) return -1;
-                  if (!aSelected && bSelected) return 1;
-                  return 0;
-                });
+          <ScrollView style={styles.listContent} showsVerticalScrollIndicator={false}>
+            {/* Groups Section */}
+            {getAvailableGroups().map((groupName, index) => {
+              const groupOptions = getOptionsForGroup(groupName);
+              const isFullySelected = isGroupSelected(groupName);
+              const isPartiallySelected = isGroupPartiallySelected(groupName);
+
               return (
-                <View style={styles.optionGroup}>
+                <View key={groupName}>
+                  {index > 0 && <View style={styles.separator} />}
+
+                  {/* Group Header */}
                   <TouchableOpacity
                     style={[
                       styles.optionItem,
-                      styles.optionItemWithThumbnail,
-                      selectedOptionIds.includes(item.id) && styles.selectedOptionItem
+                      styles.groupHeaderItem,
+                      isFullySelected && styles.selectedOptionItem,
+                      isPartiallySelected && styles.partiallySelectedOptionItem
                     ]}
-                    onPress={() => toggleOptionSelection(item.id)}
+                    onPress={() => toggleGroupSelection(groupName)}
                   >
-                    {renderIdentifierThumbnail(item.identifier || '')}
+                    <View style={styles.groupIconContainer}>
+                      <Ionicons
+                        name={isFullySelected ? "checkmark-circle" : isPartiallySelected ? "remove-circle" : "ellipse-outline"}
+                        size={24}
+                        color={isFullySelected ? "#0066CC" : isPartiallySelected ? "#FF9500" : "#999"}
+                      />
+                    </View>
                     <View style={styles.optionContent}>
-                      <Text style={styles.optionTitle}>{item.title}</Text>
-                      <Text style={styles.optionValue}>{item.value}</Text>
+                      <Text style={[styles.optionTitle, styles.groupTitle]}>{groupName}</Text>
+                      <Text style={styles.optionValue}>
+                        {groupOptions.length} option{groupOptions.length !== 1 ? 's' : ''}
+                        {isFullySelected ? ' • All selected' : isPartiallySelected ? ` • ${groupOptions.filter(opt => selectedOptionIds.includes(opt.id)).length} selected` : ''}
+                      </Text>
                     </View>
                   </TouchableOpacity>
 
-                  {children.map(child => {
-                    const grandChildren = availableOptions
-                      .filter(gc => gc.parentid === child.id)
-                      .sort((a, b) => {
-                        const aSelected = selectedOptionIds.includes(a.id);
-                        const bSelected = selectedOptionIds.includes(b.id);
-                        if (aSelected && !bSelected) return -1;
-                        if (!aSelected && bSelected) return 1;
-                        return 0;
-                      });
-                    return (
-                      <View key={child.id}>
-                        <TouchableOpacity
-                          style={[
-                            styles.childOptionItem,
-                            styles.optionItemWithThumbnail,
-                            selectedOptionIds.includes(child.id) && styles.selectedOptionItem
-                          ]}
-                          onPress={() => toggleOptionSelection(child.id)}
-                        >
-                          {renderIdentifierThumbnail(child.identifier || '')}
-                          <View style={styles.optionContent}>
-                            <Text style={styles.childOptionTitle}>{child.title}</Text>
-                            <Text style={styles.childOptionValue}>{child.value}</Text>
-                          </View>
-                        </TouchableOpacity>
-
-                        {grandChildren.map(grandChild => (
-                          <TouchableOpacity
-                            key={grandChild.id}
-                            style={[
-                              styles.grandChildOptionItem,
-                              styles.optionItemWithThumbnail,
-                              selectedOptionIds.includes(grandChild.id) && styles.selectedOptionItem
-                            ]}
-                            onPress={() => toggleOptionSelection(grandChild.id)}
-                          >
-                            {renderIdentifierThumbnail(grandChild.identifier || '')}
-                            <View style={styles.optionContent}>
-                              <Text style={styles.grandChildOptionTitle}>{grandChild.title}</Text>
-                              <Text style={styles.grandChildOptionValue}>{grandChild.value}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
+                  {/* Group Options */}
+                  {groupOptions
+                    .sort((a, b) => {
+                      const aSelected = selectedOptionIds.includes(a.id);
+                      const bSelected = selectedOptionIds.includes(b.id);
+                      if (aSelected && !bSelected) return -1;
+                      if (!aSelected && bSelected) return 1;
+                      return a.title.localeCompare(b.title);
+                    })
+                    .map(option => (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[
+                          styles.optionItem,
+                          styles.optionItemWithThumbnail,
+                          styles.childOptionItem,
+                          selectedOptionIds.includes(option.id) && styles.selectedOptionItem
+                        ]}
+                        onPress={() => toggleOptionSelection(option.id)}
+                      >
+                        {renderIdentifierThumbnail(option.identifier || '')}
+                        <View style={styles.optionContent}>
+                          <Text style={styles.childOptionTitle}>{option.title}</Text>
+                          <Text style={styles.childOptionValue}>{option.value}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  }
                 </View>
               );
-            }}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-          />
+            })}
+
+            {/* Ungrouped Options Section */}
+            {(() => {
+              const ungroupedOptions = availableOptions.filter(option => !option.group || option.group.trim() === '');
+              if (ungroupedOptions.length === 0) return null;
+
+              return (
+                <View>
+                  {getAvailableGroups().length > 0 && <View style={styles.separator} />}
+
+                  {/* Ungrouped Header */}
+                  <View style={[styles.optionItem, styles.groupHeaderItem, styles.ungroupedHeader]}>
+                    <View style={styles.groupIconContainer}>
+                      <Ionicons name="list-outline" size={24} color="#999" />
+                    </View>
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionTitle, styles.groupTitle]}>Other Options</Text>
+                      <Text style={styles.optionValue}>
+                        {ungroupedOptions.length} option{ungroupedOptions.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Ungrouped Options */}
+                  {ungroupedOptions
+                    .sort((a, b) => {
+                      const aSelected = selectedOptionIds.includes(a.id);
+                      const bSelected = selectedOptionIds.includes(b.id);
+                      if (aSelected && !bSelected) return -1;
+                      if (!aSelected && bSelected) return 1;
+                      return a.title.localeCompare(b.title);
+                    })
+                    .map(option => (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[
+                          styles.optionItem,
+                          styles.optionItemWithThumbnail,
+                          styles.childOptionItem,
+                          selectedOptionIds.includes(option.id) && styles.selectedOptionItem
+                        ]}
+                        onPress={() => toggleOptionSelection(option.id)}
+                      >
+                        {renderIdentifierThumbnail(option.identifier || '')}
+                        <View style={styles.optionContent}>
+                          <Text style={styles.childOptionTitle}>{option.title}</Text>
+                          <Text style={styles.childOptionValue}>{option.value}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  }
+                </View>
+              );
+            })()}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -5369,6 +5493,19 @@ export default function ProductsScreen() {
                   placeholderTextColor="#999"
                 />
               </View>
+            </View>
+
+            {/* Option Group */}
+            <View style={styles.createOptionSection}>
+              <TouchableOpacity
+                style={styles.createOptionTile}
+                onPress={() => setOptionGroupDrawerVisible(true)}
+              >
+                <Text style={styles.createOptionLabel}>Group</Text>
+                <Text style={styles.createOptionValue}>
+                  {newOptionGroup}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Identifier Tiles */}
@@ -6541,6 +6678,48 @@ export default function ProductsScreen() {
                 </TouchableOpacity>
               );
             }}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Option Group Selection Drawer */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={optionGroupDrawerVisible}
+        onRequestClose={() => setOptionGroupDrawerVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>Select Group</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <FlatList
+            data={optionGroups}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,
+                  newOptionGroup === item && { backgroundColor: '#E3F2FD' }
+                ]}
+                onPress={() => handleOptionGroupSelection(item)}
+              >
+                <View style={styles.categoryContent}>
+                  <Text style={styles.categoryTitle}>{item}</Text>
+                  {newOptionGroup === item && (
+                    <Ionicons name="checkmark" size={20} color="#0066CC" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
             keyExtractor={(item) => item}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -8572,5 +8751,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     paddingHorizontal: 20,
+  },
+  // Group selection styles
+  groupHeaderItem: {
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  partiallySelectedOptionItem: {
+    backgroundColor: '#fff3cd',
+  },
+  ungroupedHeader: {
+    backgroundColor: '#f8f9fa',
+  },
+  groupIconContainer: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  groupTitle: {
+    fontWeight: '600',
+    color: '#333',
   },
 });
