@@ -6,6 +6,7 @@ import React from 'react';
 import { ActivityIndicator, Platform, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/auth';
+import { setNavigationBarBlack } from '../utils/navigationBarUtils';
 
 // Custom tab button component that doesn't show press effects
 const TabButton = ({
@@ -32,10 +33,7 @@ export default function PrimaryLayout() {
 
   // Set navigation bar background to black on Android
   React.useEffect(() => {
-    if (Platform.OS === 'android') {
-      const SystemUI = require('expo-system-ui');
-      SystemUI.setBackgroundColorAsync('#000000');
-    }
+    setNavigationBarBlack();
   }, []);
 
   if (isLoading) {

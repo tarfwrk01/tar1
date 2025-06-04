@@ -4,12 +4,18 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/auth';
 import { useOnboarding } from '../context/onboarding';
+import { setNavigationBarBlack } from '../utils/navigationBarUtils';
 
 export default function OnboardingLayout() {
   const { isLoading: authLoading, user } = useAuth();
   const { isLoading: onboardingLoading } = useOnboarding();
 
   const isLoading = authLoading || onboardingLoading;
+
+  // Set navigation bar background to black on Android
+  React.useEffect(() => {
+    setNavigationBarBlack();
+  }, []);
 
   if (isLoading) {
     return (

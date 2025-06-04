@@ -3,9 +3,15 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/auth';
+import { setNavigationBarBlack } from '../utils/navigationBarUtils';
 
 export default function SettingsLayout() {
   const { isLoading, user } = useAuth();
+
+  // Set navigation bar background to black on Android
+  React.useEffect(() => {
+    setNavigationBarBlack();
+  }, []);
 
   if (isLoading) {
     return (
