@@ -6,6 +6,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Image,
     Modal,
     ScrollView,
     StyleSheet,
@@ -23,16 +24,18 @@ type InventoryItem = {
   id: number;
   productId: number;
   sku: string;
+  barcode: string;
   image: string;
   option1: string;
   option2: string;
   option3: string;
   reorderlevel: number;
-  reorderqty: number;
-  warehouse: string;
-  expiry: string;
-  batchno: string;
-  quantity: number;
+  path: string;
+  available: number;
+  committed: number;
+  unavailable: number;
+  onhand: number;
+  metafields: string;
   cost: number;
   price: number;
   margin: number;
@@ -77,8 +80,37 @@ export default function InventoryScreen() {
       const credentials = await getCredentials();
       const { tursoDbName, tursoApiToken } = credentials;
 
+      console.log('=== INVENTORY FETCH DEBUG ===');
+      console.log('Database name:', tursoDbName);
+      console.log('Has API token:', !!tursoApiToken);
+
       // Construct API URL
       const apiUrl = `https://${tursoDbName}-tarframework.aws-eu-west-1.turso.io/v2/pipeline`;
+
+      // First, let's check if the inventory table exists and has data
+      const testRequestBody = {
+        requests: [
+          {
+            type: "execute",
+            stmt: {
+              sql: "SELECT COUNT(*) as count FROM inventory"
+            }
+          }
+        ]
+      };
+
+      console.log('Testing inventory table...');
+      const testResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tursoApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(testRequestBody)
+      });
+
+      const testResponseText = await testResponse.text();
+      console.log('Test response:', testResponseText);
 
       // Create request body with direct SQL
       const requestBody = {
@@ -86,7 +118,7 @@ export default function InventoryScreen() {
           {
             type: "execute",
             stmt: {
-              sql: "SELECT id, productId, sku, quantity, warehouse, cost, price FROM inventory ORDER BY id DESC LIMIT 100"
+              sql: "SELECT id, productId, sku, barcode, image, option1, option2, option3, reorderlevel, path, available, committed, unavailable, onhand, metafields, cost, price, margin, saleprice FROM inventory ORDER BY id DESC LIMIT 100"
             }
           }
         ]
@@ -130,18 +162,37 @@ export default function InventoryScreen() {
                 id: parseInt(row[0].value),
                 productId: parseInt(row[1].value),
                 sku: row[2].type === 'null' ? '' : row[2].value,
-                quantity: row[3].type === 'null' ? 0 : parseInt(row[3].value),
-                warehouse: row[4].type === 'null' ? '' : row[4].value,
-                cost: row[5].type === 'null' ? 0 : parseFloat(row[5].value),
-                price: row[6].type === 'null' ? 0 : parseFloat(row[6].value)
+                barcode: row[3].type === 'null' ? '' : row[3].value,
+                image: row[4].type === 'null' ? '' : row[4].value,
+                option1: row[5].type === 'null' ? '' : row[5].value,
+                option2: row[6].type === 'null' ? '' : row[6].value,
+                option3: row[7].type === 'null' ? '' : row[7].value,
+                reorderlevel: row[8].type === 'null' ? 0 : parseInt(row[8].value),
+                path: row[9].type === 'null' ? '' : row[9].value,
+                available: row[10].type === 'null' ? 0 : parseInt(row[10].value),
+                committed: row[11].type === 'null' ? 0 : parseInt(row[11].value),
+                unavailable: row[12].type === 'null' ? 0 : parseInt(row[12].value),
+                onhand: row[13].type === 'null' ? 0 : parseInt(row[13].value),
+                metafields: row[14].type === 'null' ? '' : row[14].value,
+                cost: row[15].type === 'null' ? 0 : parseFloat(row[15].value),
+                price: row[16].type === 'null' ? 0 : parseFloat(row[16].value),
+                margin: row[17].type === 'null' ? 0 : parseFloat(row[17].value),
+                saleprice: row[18].type === 'null' ? 0 : parseFloat(row[18].value)
               };
             });
 
             console.log('Transformed inventory data:', JSON.stringify(inventoryData, null, 2));
+            console.log('Number of inventory items found:', inventoryData.length);
             setInventory(inventoryData);
             setFilteredInventory(inventoryData);
           } else {
             console.log('No inventory data found in response');
+            console.log('Response structure check:');
+            console.log('- data.results exists:', !!data.results);
+            console.log('- data.results[0] exists:', !!(data.results && data.results[0]));
+            console.log('- response exists:', !!(data.results && data.results[0] && data.results[0].response));
+            console.log('- result exists:', !!(data.results && data.results[0] && data.results[0].response && data.results[0].response.result));
+            console.log('- rows exists:', !!(data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows));
             setInventory([]);
             setFilteredInventory([]);
           }
@@ -477,17 +528,45 @@ export default function InventoryScreen() {
     setEditModalVisible(true);
   };
 
-  const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <TouchableOpacity
-      style={styles.inventoryItem}
-      onPress={() => handleEditInventoryItem(item)}
-    >
-      <View style={styles.inventoryRow}>
-        <Text style={styles.inventoryTitle}>{item.sku || 'No SKU'}</Text>
-        <Text style={styles.inventoryQuantity}>{item.quantity}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderInventoryItem = ({ item }: { item: InventoryItem }) => {
+    // Parse image URL from JSON string if it exists
+    let imageUrl = '';
+    try {
+      if (item.image && item.image !== '[]' && item.image !== '') {
+        const imageArray = JSON.parse(item.image);
+        if (Array.isArray(imageArray) && imageArray.length > 0) {
+          imageUrl = imageArray[0];
+        }
+      }
+    } catch (error) {
+      console.log('Error parsing image JSON:', error);
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.simpleInventoryItem}
+        onPress={() => handleEditInventoryItem(item)}
+      >
+        <View style={styles.inventoryImageContainer}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.inventoryListImage}
+              onError={(error) => console.log('Inventory list image load error:', error.nativeEvent.error)}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.inventoryImagePlaceholder}>
+              <Ionicons name="cube-outline" size={24} color="#999" />
+            </View>
+          )}
+        </View>
+        <Text style={styles.simpleInventoryTitle} numberOfLines={2} ellipsizeMode="tail">
+          {item.sku || 'No SKU'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
@@ -1320,5 +1399,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#eaeaea',
+  },
+  // Simple inventory list styles (matching products list)
+  simpleInventoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  inventoryImageContainer: {
+    width: 48,
+    height: 48,
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  inventoryListImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  inventoryImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  simpleInventoryTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
   },
 });
