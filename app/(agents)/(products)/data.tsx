@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTursoCredentialsLazy } from '../../hooks/useTursoCredentials';
@@ -245,6 +245,49 @@ export default function ProductDataScreen() {
                   type TEXT,
                   url TEXT,
                   "order" INTEGER
+                )`
+              }
+            },
+            {
+              type: "execute",
+              stmt: {
+                sql: `CREATE TABLE IF NOT EXISTS orders (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  referid TEXT UNIQUE,
+                  customerid INTEGER,
+                  name TEXT,
+                  email TEXT,
+                  phone TEXT,
+                  status TEXT,
+                  fulfill TEXT,
+                  currency TEXT,
+                  subtotal REAL,
+                  total REAL,
+                  tax REAL,
+                  discount REAL,
+                  shipping REAL,
+                  shipaddrs TEXT,
+                  billaddrs TEXT,
+                  createdat TEXT,
+                  updatedat TEXT
+                )`
+              }
+            },
+            {
+              type: "execute",
+              stmt: {
+                sql: `CREATE TABLE IF NOT EXISTS orderitems (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  orderid INTEGER,
+                  title TEXT,
+                  varianttitle TEXT,
+                  sku TEXT,
+                  qty INTEGER,
+                  price REAL,
+                  total REAL,
+                  taxrate REAL,
+                  taxamt REAL,
+                  FOREIGN KEY (orderid) REFERENCES orders(id) ON DELETE CASCADE
                 )`
               }
             }
